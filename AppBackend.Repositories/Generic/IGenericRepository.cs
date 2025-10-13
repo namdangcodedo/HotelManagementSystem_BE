@@ -14,11 +14,5 @@ namespace AppBackend.Repositories.Generic
         Task UpdateAsync(T entity);
         Task DeleteAsync(T entity);
         Task DeleteByIdAsync(object id);
-
-        Task<int> SaveChangesAsync();
-
-        Task BeginTransactionAsync();
-        Task CommitTransactionAsync();
-        Task RollbackTransactionAsync();
     }
 }

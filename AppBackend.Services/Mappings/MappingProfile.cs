@@ -1,5 +1,5 @@
 using AppBackend.BusinessObjects.Models;
-using AppBackend.Services.ApiModels;
+using AppBackend.BusinessObjects.Dtos;
 using AutoMapper;
 
 namespace AppBackend.Services.Mappers
@@ -9,23 +9,35 @@ namespace AppBackend.Services.Mappers
         public MappingProfile()
         {
             #region User
-            // Map RegisterRequest -> User
-            // Ignore PasswordHash because it will be set after hashing
-            CreateMap<RegisterRequest, User>()
-                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
-                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
-                .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore());
+            
+            #endregion
 
-            // Map User -> UserDto for responses
-            CreateMap<User, UserDto>();
+            #region Booking
+            // Map Booking entities
+            CreateMap<Booking, BookingDto>();
+            CreateMap<BookingDto, Booking>();
+            #endregion
+
+            #region Room
+            // Map Room entities
+            CreateMap<Room, RoomDto>();
+            CreateMap<RoomDto, Room>();
+            #endregion
+
+            #region Customer
+            // Map Customer entities
+            CreateMap<Customer, CustomerDto>();
+            CreateMap<CustomerDto, Customer>();
             #endregion
 
             #region Account
-            // Add mappings for Account entities here later
+            CreateMap<Account, AccountDto>();
+            CreateMap<AccountDto, Account>();
             #endregion
 
-            #region Order
-            // Add mappings for Order entities here later
+            #region Role
+            CreateMap<Role, RoleDto>();
+            CreateMap<RoleDto, Role>();
             #endregion
         }
     }

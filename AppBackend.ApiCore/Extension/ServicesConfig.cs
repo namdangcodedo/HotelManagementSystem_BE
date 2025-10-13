@@ -1,9 +1,7 @@
-using AppBackend.BusinessObjects.Data;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.Generic;
 using AppBackend.Repositories.Repositories.UserRepo;
 using AppBackend.Repositories.Repositories.RoleRepo;
-using AppBackend.Repositories.Repositories.AccountRepo;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services;
 using AppBackend.Services.RateLimiting;
@@ -22,30 +20,26 @@ public static class ServicesConfig
         #endregion
 
         #region Repositories
+        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
-        services.AddScoped<IAccountRepository, AccountRepository>();
         #endregion
 
         #region UnitOfWork
-        services.AddScoped<IUnitOfWork>(provider =>
+        services.AddScoped<IUnitOfWork, UnitOfWork>(provider =>
         {
-            var context = provider.GetRequiredService<HotelManagementContext>();
-            var accountRepo = provider.GetRequiredService<IAccountRepository>();
+            var context = provider.GetRequiredService<HotelManagementDbContext>();
+            var userRepo = provider.GetRequiredService<IUserRepository>();
             var roleRepo = provider.GetRequiredService<IRoleRepository>();
-            return new UnitOfWorkBuilder()
-                .WithContext(context)
-                .WithAccountRepository(accountRepo)
-                .WithRoleRepository(roleRepo)
-                .Build();
+            return new UnitOfWork(context, userRepo, roleRepo);
         });
         #endregion
 
         #region Services
-        services.AddScoped<IRoleService, RoleService>();
-        services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IUserService, UserService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICloudinaryService, CloudinaryService>();
         services.AddSingleton<RateLimiterStore>();
+
         #endregion
 
         #region Helpers

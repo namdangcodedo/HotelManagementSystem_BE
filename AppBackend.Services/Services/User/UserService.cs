@@ -1,28 +1,28 @@
 using AppBackend.BusinessObjects.Constants;
 using AppBackend.BusinessObjects.Exceptions;
 using AppBackend.BusinessObjects.Models;
-using AppBackend.Repositories.Repositories.UserRepo;
+using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ServicesHelpers;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
 
-namespace AppBackend.Services
+namespace AppBackend.Services.Services.Account
 {
-    public class UserService : IUserService
+    public class AccountService : IAccountService
     {
-        private readonly IUserRepository _userRepository;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly UserHelper _userHelper;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public UserService(
-            IUserRepository userRepository,
+        public AccountService(
+            IUnitOfWork unitOfWork,
             IMapper mapper,
             UserHelper userHelper,
             IHttpContextAccessor httpContextAccessor)
         {
-            _userRepository = userRepository;
+            _unitOfWork = unitOfWork;
             _mapper = mapper;
             _userHelper = userHelper;
             _httpContextAccessor = httpContextAccessor;
@@ -31,7 +31,7 @@ namespace AppBackend.Services
         public async Task<ResultModel> RegisterAsync(RegisterRequest request)
         {
             // Check email duplication
-            var existing = await _userRepository.GetByEmailAsync(request.Email);
+            var existing = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
             if (existing != null)
                 throw new AppException(
                     CommonMessageConstants.EXISTED,
@@ -40,21 +40,20 @@ namespace AppBackend.Services
                 );
 
             // Map & hash password
-            var newUser = _mapper.Map<User>(request);
-            newUser.PasswordHash = _userHelper.HashPassword(request.Password);
-            newUser.CreatedAt = DateTime.UtcNow;
-            newUser.UpdatedAt = DateTime.UtcNow;
+            var newAccount = _mapper.Map<Account>(request);
+            newAccount.PasswordHash = _userHelper.HashPassword(request.Password);
+            newAccount.CreatedAt = DateTime.UtcNow;
+            newAccount.UpdatedAt = DateTime.UtcNow;
 
-            await _userRepository.AddAsync(newUser);
-            await _userRepository.SaveChangesAsync();
-            var role = await _userRepository.GetByIdAsync(newUser.RoleId ?? 3);
-            
+            await _unitOfWork.Accounts.AddAsync(newAccount);
+            await _unitOfWork.SaveChangesAsync();
+
             // Generate tokens
-            var accessToken = _userHelper.CreateToken(newUser);
+            var accessToken = _userHelper.CreateToken(newAccount);
             var refreshToken = _userHelper.GenerateRefreshToken();
             var refreshExpiry = _userHelper.GetRefreshTokenExpiry();
 
-            SaveRefreshTokenToSession(newUser.UserId, refreshToken, refreshExpiry);
+            SaveRefreshTokenToSession(newAccount.AccountId, refreshToken, refreshExpiry);
 
             return new ResultModel
             {
@@ -73,19 +72,19 @@ namespace AppBackend.Services
 
         public async Task<ResultModel> LoginAsync(LoginRequest request)
         {
-            var user = await _userRepository.GetByEmailAsync(request.Email);
-            if (user == null || !_userHelper.VerifyPassword(request.Password, user.PasswordHash ?? ""))
+            var account = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
+            if (account == null || !_userHelper.VerifyPassword(request.Password, account.PasswordHash ?? ""))
                 throw new AppException(
                     CommonMessageConstants.UNAUTHORIZED,
                     CommonMessageConstants.PASSWORD_INCORRECT,
                     StatusCodes.Status401Unauthorized
                 );
 
-            var accessToken = _userHelper.CreateToken(user);
+            var accessToken = _userHelper.CreateToken(account);
             var refreshToken = _userHelper.GenerateRefreshToken();
             var refreshExpiry = _userHelper.GetRefreshTokenExpiry();
 
-            SaveRefreshTokenToSession(user.UserId, refreshToken, refreshExpiry);
+            SaveRefreshTokenToSession(account.AccountId, refreshToken, refreshExpiry);
 
             return new ResultModel
             {
@@ -102,32 +101,32 @@ namespace AppBackend.Services
             };
         }
 
-        public async Task<ResultModel> GetAllUsersAsync()
+        public async Task<ResultModel> GetAllAccountsAsync()
         {
-            var users = await _userRepository.GetAllAsync();
-            var userDtos = _mapper.Map<IEnumerable<UserDto>>(users);
+            var accounts = await _unitOfWork.Accounts.GetAllAsync();
+            var accountDtos = _mapper.Map<IEnumerable<AccountDto>>(accounts);
 
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = userDtos,
+                Data = accountDtos,
                 StatusCode = StatusCodes.Status200OK
             };
         }
 
-        public async Task<ResultModel> GetUserByIdAsync(int id)
+        public async Task<ResultModel> GetAccountByIdAsync(int id)
         {
-            var user = await _userRepository.GetByIdAsync(id);
-            if (user == null)
+            var account = await _unitOfWork.Accounts.GetByIdAsync(id);
+            if (account == null)
                 throw new AppException(
                     CommonMessageConstants.NOT_FOUND,
-                    string.Format(CommonMessageConstants.VALUE_NOT_FOUND, "User"),
+                    string.Format(CommonMessageConstants.VALUE_NOT_FOUND, "Account"),
                     StatusCodes.Status404NotFound
                 );
 
-            var dto = _mapper.Map<UserDto>(user);
+            var dto = _mapper.Map<AccountDto>(account);
 
             return new ResultModel
             {
@@ -140,12 +139,12 @@ namespace AppBackend.Services
         }
 
         // --- Private Helper ---
-        private void SaveRefreshTokenToSession(int userId, string refreshToken, DateTime expiry)
+        private void SaveRefreshTokenToSession(int accountId, string refreshToken, DateTime expiry)
         {
             if (_httpContextAccessor.HttpContext?.Session == null) return;
 
             _httpContextAccessor.HttpContext.Session.SetString("RefreshToken", refreshToken);
-            _httpContextAccessor.HttpContext.Session.SetString("UserId", userId.ToString());
+            _httpContextAccessor.HttpContext.Session.SetString("AccountId", accountId.ToString());
             _httpContextAccessor.HttpContext.Session.SetString("RefreshExpiry", expiry.ToString("O"));
         }
     }

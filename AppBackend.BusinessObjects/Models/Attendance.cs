@@ -1,25 +1,36 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Linq;
 
 namespace AppBackend.BusinessObjects.Models;
 
-[Table("Role")]
-public class Role
+[Table("Attendance")]
+public partial class Attendance
 {
     [Key]
-    public int RoleId { get; set; }
+    public int AttendanceId { get; set; }
+
     [Required]
-    [StringLength(50)]
-    public string RoleName { get; set; } = string.Empty;
+    [ForeignKey("Employee")]
+    public int EmployeeId { get; set; }
+
+    [Required]
+    public DateTime CheckIn { get; set; }
+
+    public DateTime? CheckOut { get; set; }
+
     [StringLength(255)]
-    public string? Description { get; set; }
+    public string? Notes { get; set; }
+
     [Required]
     public DateTime CreatedAt { get; set; }
+
     public int? CreatedBy { get; set; }
+
     public DateTime? UpdatedAt { get; set; }
+
     public int? UpdatedBy { get; set; }
-    public virtual ICollection<AccountRole> AccountRoles { get; set; } = new List<AccountRole>();
+
+    public virtual Employee Employee { get; set; } = null!;
 }

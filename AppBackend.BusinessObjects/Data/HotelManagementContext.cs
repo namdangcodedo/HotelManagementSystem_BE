@@ -1,0 +1,183 @@
+﻿using AppBackend.BusinessObjects.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace AppBackend.BusinessObjects.Data;
+
+public class HotelManagementContext : DbContext
+{
+    public HotelManagementContext() { }
+
+    public HotelManagementContext(DbContextOptions<HotelManagementContext> options)
+        : base(options) { }
+
+    public virtual DbSet<Account> Accounts { get; set; }
+    public virtual DbSet<Amenity> Amenities { get; set; }
+    public virtual DbSet<Attendance> Attendances { get; set; }
+    public virtual DbSet<Booking> Bookings { get; set; }
+    public virtual DbSet<BookingService> BookingServices { get; set; }
+    public virtual DbSet<CommonCode> CommonCodes { get; set; }
+    public virtual DbSet<Customer> Customers { get; set; }
+    public virtual DbSet<Employee> Employees { get; set; }
+    public virtual DbSet<EmployeeSchedule> EmployeeSchedules { get; set; }
+    public virtual DbSet<Feedback> Feedbacks { get; set; }
+    public virtual DbSet<HousekeepingTask> HousekeepingTasks { get; set; }
+    public virtual DbSet<Medium> Media { get; set; }
+    public virtual DbSet<Notification> Notifications { get; set; }
+    public virtual DbSet<Room> Rooms { get; set; }
+    public virtual DbSet<RoomAmenity> RoomAmenities { get; set; }
+    public virtual DbSet<Salary> Salaries { get; set; }
+    public virtual DbSet<Service> Services { get; set; }
+    public virtual DbSet<Transaction> Transactions { get; set; }
+    public virtual DbSet<Voucher> Vouchers { get; set; }
+    public virtual DbSet<Role> Roles { get; set; }
+    public virtual DbSet<AccountRole> AccountRoles { get; set; }
+    public virtual DbSet<BookingRoom> BookingRooms { get; set; }
+    public virtual DbSet<BookingRoomAmenity> BookingRoomAmenities { get; set; }
+    public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
+    public virtual DbSet<GroupCommonCode> GroupCommonCodes { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlServer("Data Source=localhost,1433;Initial Catalog=hotel_management;Persist Security Info=True;User ID=sa;Password=123456789a@;Encrypt=True;Trust Server Certificate=True");
+        }
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RoomAmenity>().HasKey(ra => new { ra.RoomId, ra.AmenityId });
+        modelBuilder.Entity<CommonCode>().HasIndex(e => new { e.CodeType, e.CodeValue }).IsUnique();
+        modelBuilder.Entity<Voucher>().HasIndex(v => v.Code).IsUnique();
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var createdAtProp = entityType.FindProperty("CreatedAt");
+            if (createdAtProp != null)
+            {
+                createdAtProp.SetDefaultValueSql("(getdate())");
+            }
+        }
+        modelBuilder.Entity<AccountRole>()
+            .HasKey(ar => new { ar.AccountId, ar.RoleId });
+        modelBuilder.Entity<AccountRole>()
+            .HasOne(ar => ar.Account)
+            .WithMany(a => a.AccountRoles)
+            .HasForeignKey(ar => ar.AccountId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AccountRole>()
+            .HasOne(ar => ar.Role)
+            .WithMany(r => r.AccountRoles)
+            .HasForeignKey(ar => ar.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BookingRoom>()
+            .HasOne(br => br.Booking)
+            .WithMany(b => b.BookingRooms)
+            .HasForeignKey(br => br.BookingId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<BookingRoom>()
+            .HasOne(br => br.Room)
+            .WithMany(r => r.BookingRooms)
+            .HasForeignKey(br => br.RoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BookingRoomAmenity>()
+            .HasOne(bra => bra.BookingRoom)
+            .WithMany(br => br.BookingRoomAmenities)
+            .HasForeignKey(bra => bra.BookingRoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BookingRoomAmenity>()
+            .HasOne(bra => bra.Amenity)
+            .WithMany(a => a.BookingRoomAmenities)
+            .HasForeignKey(bra => bra.AmenityId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BookingRoomService>()
+            .HasOne(brs => brs.BookingRoom)
+            .WithMany(br => br.BookingRoomServices)
+            .HasForeignKey(brs => brs.BookingRoomId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BookingRoomService>()
+            .HasOne(brs => brs.Service)
+            .WithMany(s => s.BookingRoomServices)
+            .HasForeignKey(brs => brs.ServiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CommonCode>()
+            .HasOne(cc => cc.GroupCommonCode)
+            .WithMany(gcc => gcc.CommonCodes)
+            .HasForeignKey(cc => cc.GroupCommonCodeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Room>()
+            .HasOne(r => r.Status)
+            .WithMany()
+            .HasForeignKey(r => r.StatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Room>()
+            .HasOne(r => r.RoomType)
+            .WithMany()
+            .HasForeignKey(r => r.RoomTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Booking>()
+            .HasOne(b => b.Status)
+            .WithMany()
+            .HasForeignKey(b => b.StatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Booking>()
+            .HasOne(b => b.BookingType)
+            .WithMany()
+            .HasForeignKey(b => b.BookingTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Transaction>()
+            .HasOne(t => t.PaymentMethod)
+            .WithMany()
+            .HasForeignKey(t => t.PaymentMethodId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Transaction>()
+            .HasOne(t => t.PaymentStatus)
+            .WithMany()
+            .HasForeignKey(t => t.PaymentStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Transaction>()
+            .HasOne(t => t.TransactionStatus)
+            .WithMany()
+            .HasForeignKey(t => t.TransactionStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Transaction>()
+            .HasOne(t => t.DepositStatus)
+            .WithMany()
+            .HasForeignKey(t => t.DepositStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Salary>()
+            .HasOne(s => s.Employee)
+            .WithMany(e => e.Salaries)
+            .HasForeignKey(s => s.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<HousekeepingTask>()
+            .HasOne(h => h.TaskType)
+            .WithMany()
+            .HasForeignKey(h => h.TaskTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<HousekeepingTask>()
+            .HasOne(h => h.Status)
+            .WithMany()
+            .HasForeignKey(h => h.StatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Feedback>()
+            .HasOne(f => f.FeedbackType)
+            .WithMany()
+            .HasForeignKey(f => f.FeedbackTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Feedback>()
+            .HasOne(f => f.Status)
+            .WithMany()
+            .HasForeignKey(f => f.StatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Employee>()
+            .HasOne(e => e.EmployeeType)
+            .WithMany()
+            .HasForeignKey(e => e.EmployeeTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.NotificationType)
+            .WithMany()
+            .HasForeignKey(n => n.NotificationTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
