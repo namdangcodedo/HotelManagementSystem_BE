@@ -1,0 +1,70 @@
+# Ignore Visual Studio specific files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.sln.ide
+
+# Ignore Rider specific files
+.idea/
+*.iml
+
+# Ignore build outputs
+bin/
+obj/
+*.log
+
+# Ignore dependencies
+packages/
+node_modules/
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.bak
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.DS_Store?
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+desktop.ini
+*.swp
+
+# Ignore Rider workspace and project settings
+.idea/
+*.ipr
+*.iws
+*.idea/
+
+# Ignore Rider's workspace.xml and index files
+.idea/workspace.xml
+.idea/indexLayout.xml
+.idea/vcs.xml
+.idea/.name
+.idea/*.iml
+
+# Ignore Rider's project-specific files
+.idea/**/workspace.xml
+.idea/**/projectSettingsUpdater.xml
+
+# Ignore JetBrains specific files
+.idea/**
+
+# NuGet Packages
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# Ignore local test results
+TestResults/
+
+# Ignore configuration files
+*.config
+appsettings.*
