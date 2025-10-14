@@ -3,6 +3,7 @@ using AppBackend.Repositories.Generic;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services;
 using AppBackend.Services.AccountServices;
+using AppBackend.Services.Authentication;
 using AppBackend.Services.Helpers;
 using AppBackend.Services.RateLimiting;
 using AppBackend.Services.Services.Email;
@@ -29,6 +30,8 @@ public static class ServicesConfig
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICloudinaryService, CloudinaryService>();
+        services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IGoogleLoginService, GoogleLoginService>();
         services.AddSingleton<RateLimiterStore>();
         #endregion
 

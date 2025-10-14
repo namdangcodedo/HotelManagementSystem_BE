@@ -1,7 +1,12 @@
+using Microsoft.AspNetCore.Mvc;
 using AppBackend.Services.Authentication;
 using AppBackend.Services.ApiModels;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
+using AppBackend.Services.Helpers;
+using AppBackend.Services.Services.Email;
+using Microsoft.AspNetCore.Authorization;
+using LoginRequest = AppBackend.Services.ApiModels.LoginRequest;
+using RegisterRequest = AppBackend.Services.ApiModels.RegisterRequest;
+using ResetPasswordRequest = AppBackend.Services.ApiModels.ResetPasswordRequest;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -10,10 +15,16 @@ namespace AppBackend.ApiCore.Controllers
     public class AuthenticationController : ControllerBase
     {
         private readonly IAuthenticationService _authService;
+        private readonly IGoogleLoginService _googleLoginService;
+        private readonly IEmailService _emailService;
+        private readonly CacheHelper _cacheHelper;
 
-        public AuthenticationController(IAuthenticationService authService)
+        public AuthenticationController(IAuthenticationService authService, IGoogleLoginService googleLoginService, IEmailService emailService, CacheHelper cacheHelper)
         {
             _authService = authService;
+            _googleLoginService = googleLoginService;
+            _emailService = emailService;
+            _cacheHelper = cacheHelper;
         }
 
         [HttpPost("register")]
@@ -33,16 +44,73 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
         {
-            await _authService.LogoutAsync(request);
-            return Ok();
+            var result = await _authService.LogoutAsync(request);
+            return Ok(result);
         }
 
-        [HttpPost("google-login")]
-        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+        [HttpGet("login-google")]
+        public IActionResult LoginGoogle()
         {
-            var result = await _authService.GoogleLoginAsync(request);
+            var googleLoginUrl = _googleLoginService.GetGoogleLoginUrl();
+            return Ok(new { url = googleLoginUrl });
+        }
+
+        [HttpGet("callback-google")]
+        public async Task<IActionResult> GoogleCallback(string code)
+        {
+            var userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(code);
+            var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
+            return Ok(result);
+        }
+        
+        ///// <summary>
+        ///// Reset mật khẩu cho người dùng đã quên mật khẩu.
+        ///// </summary>
+        ///// <param name="request">Gửi email và reset với quyền Admin</param>
+        ///// <returns>.</returns>
+        //[HttpPost("send-verification-email")]
+        [HttpPost("manager/reset-password")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> SendOtpEmail([FromBody] ResetPasswordRequest request)
+        {
+            var result = await _authService.ResetPasswordAsync(request.Email, request.Password);
+            return Ok(result);
+        }
+        
+        /// <summary>
+        /// Gửi mã OTP về email để xác thực quên mật khẩu.
+        /// </summary>
+        /// <param name="request">Thông tin email cần gửi OTP.</param>
+        /// <returns>Kết quả gửi OTP.</returns>
+        [HttpPost("send-otp-email")]
+        public async Task<IActionResult> SendOtpEmail([FromBody] SendOtpRequest request)
+        {
+            var result = await _authService.SendOtpAsync(request.Email);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Kiểm tra mã OTP nhập vào có hợp lệ không (quên mật khẩu).
+        /// </summary>
+        /// <param name="request">Thông tin email và mã OTP cần kiểm tra.</param>
+        /// <returns>Kết quả kiểm tra OTP.</returns>
+        [HttpPost("verify-otp")]
+        public IActionResult VerifyOtp([FromBody] VerifyOtpRequest request)
+        {
+            var result = _authService.VerifyOtp(request.Email, request.Otp);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Đổi mật khẩu mới khi xác thực OTP thành công (quên mật khẩu).
+        /// </summary>
+        /// <param name="request">Thông tin email, mã OTP và mật khẩu mới.</param>
+        /// <returns>Kết quả đổi mật khẩu.</returns>
+        [HttpPost("change-password-with-otp")]
+        public async Task<IActionResult> ChangePasswordWithOtp([FromBody] ChangePasswordWithOtpRequest request)
+        {
+            var result = await _authService.ChangePasswordWithOtpAsync(request.Email, request.Otp, request.NewPassword);
             return Ok(result);
         }
     }
 }
-

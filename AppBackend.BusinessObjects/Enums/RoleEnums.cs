@@ -9,7 +9,10 @@ namespace AppBackend.BusinessObjects.Enums
     public enum RoleEnums
     {
         Admin = 0,
-        EvDriver = 1,
-        Bsstaff = 2,
+        Manager = 1,
+        Receptionist = 2,
+        Housekeeper = 3,
+        Technician = 4,
+        User = 5
     }
 }

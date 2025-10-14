@@ -30,7 +30,7 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
                 .AsNoTracking()
                 .Where(a => a.AccountId == accountId)
                 .SelectMany(a => a.AccountRoles)
-                .Select(ar => ar.Role.RoleName)
+                .Select(ar => ar.Role.RoleValue)
                 .Distinct()
                 .ToListAsync();
         }
@@ -44,6 +44,12 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
                 .Select(ar => ar.Role)
                 .Distinct()
                 .ToListAsync();
+        }
+
+        public async Task AddAccountRoleAsync(AccountRole accountRole)
+        {
+            await _context.AccountRoles.AddAsync(accountRole);
+            await _context.SaveChangesAsync();
         }
     }
 }

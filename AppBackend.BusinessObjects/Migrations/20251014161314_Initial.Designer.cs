@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251014140039_Initial")]
+    [Migration("20251014161314_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -406,9 +406,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int?>("DisplayOrder")
                         .HasColumnType("int");
 
-                    b.Property<int>("GroupCommonCodeId")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -419,8 +416,6 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("CodeId");
-
-                    b.HasIndex("GroupCommonCodeId");
 
                     b.HasIndex("CodeType", "CodeValue")
                         .IsUnique();
@@ -442,6 +437,9 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<string>("Address")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
+
+                    b.Property<int?>("AvatarMediaId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -470,6 +468,10 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasIndex("AccountId")
                         .IsUnique();
+
+                    b.HasIndex("AvatarMediaId")
+                        .IsUnique()
+                        .HasFilter("[AvatarMediaId] IS NOT NULL");
 
                     b.ToTable("Customer");
                 });
@@ -627,28 +629,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("Feedback");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.GroupCommonCode", b =>
-                {
-                    b.Property<int>("GroupCommonCodeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("GroupCommonCodeId"));
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("GroupCommonCodeId");
-
-                    b.ToTable("GroupCommonCode");
-                });
-
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.HousekeepingTask", b =>
                 {
                     b.Property<int>("TaskId")
@@ -722,6 +702,9 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
@@ -751,6 +734,8 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("MediaId");
+
+                    b.HasIndex("CustomerId");
 
                     b.HasIndex("RoomId");
 
@@ -1294,17 +1279,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Service");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.CommonCode", b =>
-                {
-                    b.HasOne("AppBackend.BusinessObjects.Models.GroupCommonCode", "GroupCommonCode")
-                        .WithMany("CommonCodes")
-                        .HasForeignKey("GroupCommonCodeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("GroupCommonCode");
-                });
-
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
@@ -1313,7 +1287,13 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("AppBackend.BusinessObjects.Models.Medium", "AvatarMedium")
+                        .WithOne()
+                        .HasForeignKey("AppBackend.BusinessObjects.Models.Customer", "AvatarMediaId");
+
                     b.Navigation("Account");
+
+                    b.Navigation("AvatarMedium");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Employee", b =>
@@ -1412,6 +1392,10 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Medium", b =>
                 {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId");
+
                     b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
                         .WithMany("Media")
                         .HasForeignKey("RoomId");
@@ -1419,6 +1403,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.Service", "Service")
                         .WithMany("Media")
                         .HasForeignKey("ServiceId");
+
+                    b.Navigation("Customer");
 
                     b.Navigation("Room");
 
@@ -1595,11 +1581,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("HousekeepingTasks");
 
                     b.Navigation("Salaries");
-                });
-
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.GroupCommonCode", b =>
-                {
-                    b.Navigation("CommonCodes");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Role", b =>

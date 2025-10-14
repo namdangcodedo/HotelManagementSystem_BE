@@ -34,7 +34,6 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<BookingRoom> BookingRooms { get; set; }
     public virtual DbSet<BookingRoomAmenity> BookingRoomAmenities { get; set; }
     public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
-    public virtual DbSet<GroupCommonCode> GroupCommonCodes { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -98,11 +97,6 @@ public class HotelManagementContext : DbContext
             .HasOne(brs => brs.Service)
             .WithMany(s => s.BookingRoomServices)
             .HasForeignKey(brs => brs.ServiceId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<CommonCode>()
-            .HasOne(cc => cc.GroupCommonCode)
-            .WithMany(gcc => gcc.CommonCodes)
-            .HasForeignKey(cc => cc.GroupCommonCodeId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Room>()
             .HasOne(r => r.Status)

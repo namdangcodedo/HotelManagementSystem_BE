@@ -9,5 +9,6 @@ namespace AppBackend.Services.Services.Email
     public interface IEmailService
     {
         Task SendEmail(string email, string subject, string body);
+        Task SendOtpEmail(string email, string otp);
     }
 }

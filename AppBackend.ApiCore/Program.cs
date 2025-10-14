@@ -19,8 +19,8 @@ builder.Services.AddServicesConfig();
 builder.Services.AddAutoMapperConfig();
 builder.Services.AddRateLimitConfig();   
 
-builder.Services.AddScoped<AppBackend.Services.Authentication.IAuthenticationService, AppBackend.Services.Authentication.AuthenticationService>();
-builder.Services.AddScoped<AppBackend.Services.AccountServices.IAccountService, AppBackend.Services.AccountServices.AccountService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<AppBackend.Services.Helpers.CacheHelper>();
 
 builder.Services.AddControllers()   
     .AddJsonOptions(options =>
@@ -28,6 +28,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     });
 
+builder.Services.Configure<AppBackend.BusinessObjects.AppSettings.GoogleAuthSettings>(builder.Configuration.GetSection("GoogleAuth"));
 
 var app = builder.Build();
 
@@ -46,7 +47,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseRateLimiter();   
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled for local development to avoid HTTPS port issues
 app.UseCors("AllowAllOrigins");
 app.UseSession();
 app.UseAuthentication();

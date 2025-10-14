@@ -6,7 +6,6 @@ namespace AppBackend.Services.ApiModels
     {
         [Required]
         public int AccountId { get; set; }
-        // Optionally add RefreshToken or other fields
     }
 }
 

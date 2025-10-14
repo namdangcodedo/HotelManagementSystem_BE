@@ -2,8 +2,10 @@ using AppBackend.Repositories.Repositories.AccountRepo;
 using AppBackend.Repositories.Repositories.RoleRepo;
 using AppBackend.Repositories.Repositories.CommonCodeRepo;
 using AppBackend.Repositories.Repositories.RoomRepo;
+using AppBackend.Repositories.Repositories.CustomerRepo;
 using System;
 using System.Threading.Tasks;
+using AppBackend.Repositories.Repositories.MediumRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -13,7 +15,8 @@ namespace AppBackend.Repositories.UnitOfWork
         IRoleRepository Roles { get; }
         ICommonCodeRepository CommonCodes { get; }
         IRoomRepository Rooms { get; }
+        ICustomerRepository Customers { get; }
+        IMediumRepository Mediums { get; }
         Task<int> SaveChangesAsync();
     }
 }
-

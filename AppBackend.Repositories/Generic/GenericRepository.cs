@@ -59,5 +59,18 @@ namespace AppBackend.Repositories.Generic
                 Context.Set<T>().Remove(entity);
             }
         }
+
+        public async Task<T?> GetSingleAsync(Expression<Func<T, bool>> predicate, params Expression<Func<T, object>>[] includes)
+        {
+            IQueryable<T> query = Context.Set<T>();
+            if (includes != null)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+            return await query.FirstOrDefaultAsync(predicate);
+        }
     }
 }

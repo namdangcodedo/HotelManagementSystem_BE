@@ -20,6 +20,9 @@ public partial class Medium
     [ForeignKey("Service")]
     public int? ServiceId { get; set; }
 
+    [ForeignKey("Customer")]
+    public int? CustomerId { get; set; }
+
     [Required]
     [StringLength(255)]
     public string FilePath { get; set; } = null!;
@@ -40,4 +43,6 @@ public partial class Medium
     public virtual Room? Room { get; set; }
 
     public virtual Service? Service { get; set; }
+
+    public virtual Customer? Customer { get; set; }
 }

@@ -39,4 +39,9 @@ public partial class Customer
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
     public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
+
+    [ForeignKey("AvatarMedium")]
+    public int? AvatarMediaId { get; set; }
+
+    public virtual Medium? AvatarMedium { get; set; }
 }

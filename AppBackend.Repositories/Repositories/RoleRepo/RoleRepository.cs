@@ -26,9 +26,9 @@ namespace AppBackend.Repositories.Repositories.RoleRepo
             return await GetByIdAsync(id);
         }
 
-        public async Task<Role?> GetRoleByNameAsync(string roleName)
+        public async Task<Role?> GetRoleByRoleValueAsync(string roleName)
         {
-            return await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == roleName);
+            return await _context.Roles.FirstOrDefaultAsync(r => r.RoleValue == roleName);
         }
     }
 }

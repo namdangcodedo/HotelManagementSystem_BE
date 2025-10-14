@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using AppBackend.Services.ApiModels;
-using AppBackend.Services.AccountServices;
+using System.Security.Claims;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -9,41 +10,50 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AccountController : ControllerBase
     {
-        private readonly IAccountService _accountService;
+        private readonly AppBackend.Services.AccountServices.IAccountService _accountService;
 
-        public AccountController(IAccountService accountService)
+        public AccountController(AppBackend.Services.AccountServices.IAccountService accountService)
         {
             _accountService = accountService;
         }
 
         /// <summary>
-        /// View user profile
+        /// View customer profile
         /// </summary>
-        /// <returns>User profile details</returns>
+        /// <returns>Customer profile details</returns>
         /// <response code="200">Profile retrieved successfully</response>
         /// <response code="404">Profile not found</response>
-        [HttpGet("profile")]
-        public async Task<IActionResult> ViewProfile()
+        [HttpGet("customer-profile")]
+        [Authorize]
+        public async Task<IActionResult> ViewCustomerProfile()
         {
-            // Assume userId is retrieved from claims or session
-            int userId = 1; // Replace with actual logic
-            var result = await _accountService.GetAccountByIdAsync(userId);
+            // Get current user's AccountId from claims
+            int accountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var result = await _accountService.GetCustomerProfileAsync(accountId);
+            if (!result.IsSuccess)
+                return NotFound(result);
             return Ok(result);
         }
 
         /// <summary>
-        /// Edit user profile
+        /// Edit customer profile
         /// </summary>
         /// <param name="request">Profile data to update</param>
-        /// <returns>Updated profile details</returns>
+        /// <returns>Updated customer profile details</returns>
         /// <response code="200">Profile updated successfully</response>
         /// <response code="400">Invalid input data</response>
-        [HttpPut("profile")]
-        public async Task<IActionResult> EditProfile([FromBody] EditProfileRequest request)
+        [HttpPut("customer-profile")]
+        [Authorize]
+        public async Task<IActionResult> EditCustomerProfile([FromBody] EditCustomerProfileRequest request)
         {
-            var result = await _accountService.EditProfileAsync(request);
+            // Get current user's AccountId from claims
+            request.AccountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var result = await _accountService.EditCustomerProfileAsync(request);
+            if (!result.IsSuccess)
+                return BadRequest(result);
             return Ok(result);
         }
     }

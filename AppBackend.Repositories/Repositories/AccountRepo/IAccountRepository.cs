@@ -10,5 +10,6 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
         Task<Account?> GetByEmailAsync(string email);
         Task<List<string>> GetRoleNamesByAccountIdAsync(int accountId);
         Task<List<Role>> GetRolesByAccountIdAsync(int accountId);
+        Task AddAccountRoleAsync(AccountRole accountRole);
     }
 }

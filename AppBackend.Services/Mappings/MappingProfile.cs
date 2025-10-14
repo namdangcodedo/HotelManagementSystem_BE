@@ -40,6 +40,11 @@ namespace AppBackend.Services.Mappings
             CreateMap<Role, RoleDto>();
             CreateMap<RoleDto, Role>();
             #endregion
+
+            #region Employee
+            CreateMap<Employee, EmployeeDto>();
+            CreateMap<EmployeeDto, Employee>();
+            #endregion
         }
     }
 }

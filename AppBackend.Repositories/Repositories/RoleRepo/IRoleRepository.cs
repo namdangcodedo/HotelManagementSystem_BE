@@ -9,8 +9,7 @@ namespace AppBackend.Repositories.Repositories.RoleRepo
     {
         Task<IEnumerable<Role>> GetAllRolesAsync();
         Task<Role?> GetRoleByIdAsync(int id);
-        Task<Role?> GetRoleByNameAsync(string roleName);
-        // Thêm các phương thức đặc thù nếu cần
+        Task<Role?> GetRoleByRoleValueAsync(string roleName);
     }
 }
 

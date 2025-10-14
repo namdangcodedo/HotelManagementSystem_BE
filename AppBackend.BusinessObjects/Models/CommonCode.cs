@@ -37,9 +37,4 @@ public class CommonCode
   public DateTime? UpdatedAt { get; set; }
 
   public int? UpdatedBy { get; set; }
-
-  [Required]
-  [ForeignKey("GroupCommonCode")]
-  public int GroupCommonCodeId { get; set; }
-  public virtual GroupCommonCode GroupCommonCode { get; set; } = null!;
 }

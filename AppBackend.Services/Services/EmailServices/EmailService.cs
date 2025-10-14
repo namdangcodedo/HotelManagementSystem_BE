@@ -20,7 +20,7 @@ namespace AppBackend.Services.Services.Email
         public async Task SendEmail(string email, string subject, string body)
         {
             var emailMessage = new MimeMessage();
-            emailMessage.From.Add(new MailboxAddress("SWAPX", _configuration["EmailSettings:SenderEmail"]));
+            emailMessage.From.Add(new MailboxAddress("My Hotel", _configuration["EmailSettings:SenderEmail"]));
             emailMessage.To.Add(new MailboxAddress("", email));
             emailMessage.Subject = subject;
             emailMessage.Body = new TextPart("html") { Text = body };
@@ -33,6 +33,17 @@ namespace AppBackend.Services.Services.Email
                                            _configuration["EmailSettings:Password"]);
             await client.SendAsync(emailMessage);
             await client.DisconnectAsync(true);
+        }
+        public async Task SendOtpEmail(string email, string otp)
+        {
+            var templatePath = "/Users/tungld/Documents/Code/sp/HotelManagement/Backend/HotelManagementSystem_BE/AppBackend.Services/TemplateEmail/OtpEmailTemplate.html";
+            string template;
+            using (var reader = new System.IO.StreamReader(templatePath))
+            {
+                template = await reader.ReadToEndAsync();
+            }
+            var body = template.Replace("{{OTP}}", otp);
+            await SendEmail(email, "Your OTP Code", body);
         }
     }
 }
