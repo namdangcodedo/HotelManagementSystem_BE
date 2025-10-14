@@ -1,15 +1,16 @@
 using AppBackend.BusinessObjects.Models;
 using AppBackend.BusinessObjects.Dtos;
 using AutoMapper;
+using AppBackend.Services.ApiModels;
 
-namespace AppBackend.Services.Mappers
+namespace AppBackend.Services.Mappings
 {
     public class MappingProfile : Profile
     {
         public MappingProfile()
         {
-            #region User
-            
+            #region AccountServices
+            CreateMap<RegisterRequest, Account>();
             #endregion
 
             #region Booking

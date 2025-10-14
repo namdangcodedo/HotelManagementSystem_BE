@@ -1,4 +1,4 @@
-using AppBackend.BusinessObjects.Models;
+using AppBackend.BusinessObjects.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace AppBackend.Extensions;

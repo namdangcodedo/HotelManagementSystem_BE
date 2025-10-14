@@ -4,7 +4,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AppBackend.BusinessObjects.Models;
 
-[Table("HolidayPricing")]
 public class HolidayPricing
 {
   [Key]

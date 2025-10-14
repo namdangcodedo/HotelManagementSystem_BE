@@ -72,12 +72,14 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     RoleId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleValue = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     RoleName = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -577,7 +579,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.RoomId,
                         principalTable: "Room",
                         principalColumn: "RoomId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -733,13 +735,13 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.AmenityId,
                         principalTable: "Amenity",
                         principalColumn: "AmenityId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_BookingRoomAmenity_BookingRoom_BookingRoomId",
                         column: x => x.BookingRoomId,
                         principalTable: "BookingRoom",
                         principalColumn: "BookingRoomId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -761,13 +763,13 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.BookingRoomId,
                         principalTable: "BookingRoom",
                         principalColumn: "BookingRoomId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_BookingRoomService_Service_ServiceId",
                         column: x => x.ServiceId,
                         principalTable: "Service",
                         principalColumn: "ServiceId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(

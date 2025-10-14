@@ -1,17 +1,13 @@
 using AppBackend.BusinessObjects.Data;
-using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.Generic;
-using AppBackend.Repositories.Repositories.UserRepo;
-using AppBackend.Repositories.Repositories.RoleRepo;
-using AppBackend.Repositories.Repositories.AccountRepo;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services;
+using AppBackend.Services.AccountServices;
+using AppBackend.Services.Helpers;
 using AppBackend.Services.RateLimiting;
 using AppBackend.Services.Services.Email;
-using AppBackend.Services.Services.User;
-using AppBackend.Services.ServicesHelpers;
 
-namespace AppBackend.ApiCore.Extendsions;
+namespace AppBackend.ApiCore.Extensions;
 
 public static class ServicesConfig
 {
@@ -21,27 +17,15 @@ public static class ServicesConfig
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         #endregion
 
-        #region Repositories
-        services.AddScoped<IRoleRepository, RoleRepository>();
-        services.AddScoped<IAccountRepository, AccountRepository>();
-        #endregion
-
         #region UnitOfWork
         services.AddScoped<IUnitOfWork>(provider =>
         {
             var context = provider.GetRequiredService<HotelManagementContext>();
-            var accountRepo = provider.GetRequiredService<IAccountRepository>();
-            var roleRepo = provider.GetRequiredService<IRoleRepository>();
-            return new UnitOfWorkBuilder()
-                .WithContext(context)
-                .WithAccountRepository(accountRepo)
-                .WithRoleRepository(roleRepo)
-                .Build();
+            return new UnitOfWork(context);
         });
         #endregion
 
         #region Services
-        services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<ICloudinaryService, CloudinaryService>();
@@ -49,7 +33,7 @@ public static class ServicesConfig
         #endregion
 
         #region Helpers
-        services.AddScoped<UserHelper>();
+        services.AddScoped<AccountHelper>();
         #endregion
 
         return services;

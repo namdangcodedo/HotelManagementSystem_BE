@@ -1,4 +1,4 @@
-using AppBackend.Services.Mappers;
+using AppBackend.Services.Mappings;
 
 namespace AppBackend.Extensions;
 

@@ -2,17 +2,17 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using AppBackend.BusinessObjects.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using AppBackend.BusinessObjects.Models;
 
-namespace AppBackend.Services.ServicesHelpers
+namespace AppBackend.Services.Helpers
 {
-    public class UserHelper
+    public class AccountHelper
     {
         private readonly IConfiguration _configuration;
 
-        public UserHelper(IConfiguration configuration)
+        public AccountHelper(IConfiguration configuration)
         {
             _configuration = configuration;
         }
@@ -27,9 +27,9 @@ namespace AppBackend.Services.ServicesHelpers
             return BCrypt.Net.BCrypt.Verify(inputPassword, storedPasswordHash);
         }
 
-        public string CreateToken(User user)
+        public string CreateToken(Account account, List<string> roleNames)
         {
-            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
+            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? string.Empty);
             if (key.Length < 32)
                 throw new Exception("JWT Key must be at least 256 bits (32 chars).");
 
@@ -38,11 +38,23 @@ namespace AppBackend.Services.ServicesHelpers
 
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                new Claim(ClaimTypes.Name, user.FullName ?? ""),
-                new Claim(ClaimTypes.Role, user.Role?.RoleName ?? "User"),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(ClaimTypes.NameIdentifier, account.AccountId.ToString()),
+                new Claim(ClaimTypes.Name, account.Username ?? "")
             };
+
+            if (roleNames != null && roleNames.Count > 0)
+            {
+                foreach (var roleName in roleNames)
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, roleName));
+                }
+            }
+            else
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "User"));
+            }
+
+            claims.Add(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
 
             var now = DateTime.UtcNow;
             var expiresMinutes = int.Parse(_configuration["Jwt:AccessTokenExpirationMinutes"] ?? "30");

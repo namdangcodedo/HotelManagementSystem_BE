@@ -1,4 +1,4 @@
-using AppBackend.ApiCore.Extendsions;
+using AppBackend.ApiCore.Extensions;
 using AppBackend.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +19,9 @@ builder.Services.AddServicesConfig();
 builder.Services.AddAutoMapperConfig();
 builder.Services.AddRateLimitConfig();   
 
+builder.Services.AddScoped<AppBackend.Services.Authentication.IAuthenticationService, AppBackend.Services.Authentication.AuthenticationService>();
+builder.Services.AddScoped<AppBackend.Services.AccountServices.IAccountService, AppBackend.Services.AccountServices.AccountService>();
+
 builder.Services.AddControllers()   
     .AddJsonOptions(options =>
     {
@@ -28,8 +31,12 @@ builder.Services.AddControllers()
 
 var app = builder.Build();
 
-// Run seeding once
-SeedData.Initialize(app);
+// Seed initial data (only runs if tables are empty)
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppBackend.BusinessObjects.Data.HotelManagementContext>();
+    await AppBackend.ApiCore.Extension.SeedingData.SeedAsync(context);
+}
 
 // Middleware
 if (app.Environment.IsDevelopment())

@@ -815,7 +815,15 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("RoleName")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("RoleValue")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1216,7 +1224,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
                         .WithMany("BookingRooms")
                         .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("BookedByAccount");
@@ -1231,13 +1239,13 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.Amenity", "Amenity")
                         .WithMany("BookingRoomAmenities")
                         .HasForeignKey("AmenityId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AppBackend.BusinessObjects.Models.BookingRoom", "BookingRoom")
                         .WithMany("BookingRoomAmenities")
                         .HasForeignKey("BookingRoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Amenity");
@@ -1250,13 +1258,13 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.BookingRoom", "BookingRoom")
                         .WithMany("BookingRoomServices")
                         .HasForeignKey("BookingRoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Service", "Service")
                         .WithMany("BookingRoomServices")
                         .HasForeignKey("ServiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("BookingRoom");

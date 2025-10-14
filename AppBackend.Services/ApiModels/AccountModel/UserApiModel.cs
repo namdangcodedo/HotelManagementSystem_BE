@@ -8,9 +8,9 @@ namespace AppBackend.Services.ApiModels
         [StringLength(255, ErrorMessage = "Full name cannot exceed 255 characters.")]
         public string FullName { get; set; } = null!;
 
-        [Required(ErrorMessage = "Email is required.")]
+        [Required(ErrorMessage = "EmailServices is required.")]
         [EmailAddress(ErrorMessage = "Invalid email format.")]
-        [StringLength(255, ErrorMessage = "Email cannot exceed 255 characters.")]
+        [StringLength(255, ErrorMessage = "EmailServices cannot exceed 255 characters.")]
         public string Email { get; set; } = null!;
 
         [Phone(ErrorMessage = "Invalid phone number format.")]
@@ -49,19 +49,5 @@ namespace AppBackend.Services.ApiModels
         public string? Phone { get; set; }
         public int? RoleId { get; set; }
         public string? AvatarUrl { get; set; }
-    }
-    public class RegisterRequest
-    {
-        [Required] public string FullName { get; set; } = null!;
-        [Required, EmailAddress] public string Email { get; set; } = null!;
-        [Required, MinLength(8)] public string Password { get; set; } = null!;
-        public string? Phone { get; set; }
-        [Required] public int RoleId { get; set; }
-    }
-
-    public class LoginRequest
-    {
-        [Required, EmailAddress] public string Email { get; set; } = null!;
-        [Required] public string Password { get; set; } = null!;
     }
 }

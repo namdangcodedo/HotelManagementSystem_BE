@@ -78,27 +78,27 @@ public class HotelManagementContext : DbContext
             .HasOne(br => br.Room)
             .WithMany(r => r.BookingRooms)
             .HasForeignKey(br => br.RoomId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BookingRoomAmenity>()
             .HasOne(bra => bra.BookingRoom)
             .WithMany(br => br.BookingRoomAmenities)
             .HasForeignKey(bra => bra.BookingRoomId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BookingRoomAmenity>()
             .HasOne(bra => bra.Amenity)
             .WithMany(a => a.BookingRoomAmenities)
             .HasForeignKey(bra => bra.AmenityId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BookingRoomService>()
             .HasOne(brs => brs.BookingRoom)
             .WithMany(br => br.BookingRoomServices)
             .HasForeignKey(brs => brs.BookingRoomId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BookingRoomService>()
             .HasOne(brs => brs.Service)
             .WithMany(s => s.BookingRoomServices)
             .HasForeignKey(brs => brs.ServiceId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<CommonCode>()
             .HasOne(cc => cc.GroupCommonCode)
             .WithMany(gcc => gcc.CommonCodes)

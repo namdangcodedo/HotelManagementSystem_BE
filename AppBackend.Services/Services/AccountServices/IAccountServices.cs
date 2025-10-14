@@ -1,8 +1,10 @@
 using AppBackend.Services.ApiModels;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Identity.Data;
+using RegisterRequest = AppBackend.Services.ApiModels.RegisterRequest;
 
-namespace AppBackend.Services.Services.Account
+namespace AppBackend.Services.AccountServices
 {
     public interface IAccountService
     {

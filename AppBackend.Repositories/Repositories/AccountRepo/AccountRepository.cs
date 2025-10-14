@@ -2,6 +2,8 @@ using AppBackend.BusinessObjects.Data;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.Generic;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace AppBackend.Repositories.Repositories.AccountRepo
@@ -17,9 +19,31 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
 
         public async Task<Account?> GetByEmailAsync(string email)
         {
-            return await _context.Accounts.FirstOrDefaultAsync(a => a.Email == email);
+            return await _context.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Email == email);
         }
-        // Thêm các phương thức đặc thù nếu cần
+
+        public async Task<List<string>> GetRoleNamesByAccountIdAsync(int accountId)
+        {
+            return await _context.Accounts
+                .AsNoTracking()
+                .Where(a => a.AccountId == accountId)
+                .SelectMany(a => a.AccountRoles)
+                .Select(ar => ar.Role.RoleName)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        public async Task<List<Role>> GetRolesByAccountIdAsync(int accountId)
+        {
+            return await _context.Accounts
+                .AsNoTracking()
+                .Where(a => a.AccountId == accountId)
+                .SelectMany(a => a.AccountRoles)
+                .Select(ar => ar.Role)
+                .Distinct()
+                .ToListAsync();
+        }
     }
 }
-
