@@ -12,7 +12,7 @@ public class Transaction
     public int TransactionId { get; set; }
 
     [Required]
-    [ForeignKey("Booking")]
+    [ForeignKey("BookingDtos")]
     public int BookingId { get; set; }
 
     [Required]

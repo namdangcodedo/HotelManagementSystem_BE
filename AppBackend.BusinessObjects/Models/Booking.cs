@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AppBackend.BusinessObjects.Models;
 
-[Table("Booking")]
+[Table("BookingDtos")]
 public class Booking
 {
     [Key]

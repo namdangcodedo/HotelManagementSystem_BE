@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AppBackend.BusinessObjects.Models;
 
-[Table("Amenity")]
+[Table("AmenityModel")]
 public partial class Amenity
 {
     [Key]

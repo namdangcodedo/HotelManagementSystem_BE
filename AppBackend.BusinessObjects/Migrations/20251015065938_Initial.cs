@@ -34,7 +34,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Amenity",
+                name: "AmenityModel",
                 columns: table => new
                 {
                     AmenityId = table.Column<int>(type: "int", nullable: false)
@@ -445,7 +445,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_RoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "Amenity",
+                        principalTable: "AmenityModel",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -489,7 +489,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Booking",
+                name: "BookingDtos",
                 columns: table => new
                 {
                     BookingId = table.Column<int>(type: "int", nullable: false)
@@ -560,7 +560,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_BookingRoom_Booking_BookingId",
                         column: x => x.BookingId,
-                        principalTable: "Booking",
+                        principalTable: "BookingDtos",
                         principalColumn: "BookingId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -592,7 +592,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_BookingService_Booking_BookingId",
                         column: x => x.BookingId,
-                        principalTable: "Booking",
+                        principalTable: "BookingDtos",
                         principalColumn: "BookingId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -627,7 +627,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_Feedback_Booking_BookingId",
                         column: x => x.BookingId,
-                        principalTable: "Booking",
+                        principalTable: "BookingDtos",
                         principalColumn: "BookingId");
                     table.ForeignKey(
                         name: "FK_Feedback_CommonCode_FeedbackTypeId",
@@ -676,7 +676,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_Transaction_Booking_BookingId",
                         column: x => x.BookingId,
-                        principalTable: "Booking",
+                        principalTable: "BookingDtos",
                         principalColumn: "BookingId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -722,7 +722,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_BookingRoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "Amenity",
+                        principalTable: "AmenityModel",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -773,22 +773,22 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_Booking_BookingTypeId",
-                table: "Booking",
+                table: "BookingDtos",
                 column: "BookingTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Booking_CustomerId",
-                table: "Booking",
+                table: "BookingDtos",
                 column: "CustomerId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Booking_RoomId",
-                table: "Booking",
+                table: "BookingDtos",
                 column: "RoomId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Booking_StatusId",
-                table: "Booking",
+                table: "BookingDtos",
                 column: "StatusId");
 
             migrationBuilder.CreateIndex(
@@ -1035,13 +1035,13 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "BookingRoom");
 
             migrationBuilder.DropTable(
-                name: "Amenity");
+                name: "AmenityModel");
 
             migrationBuilder.DropTable(
                 name: "Employee");
 
             migrationBuilder.DropTable(
-                name: "Booking");
+                name: "BookingDtos");
 
             migrationBuilder.DropTable(
                 name: "Customer");

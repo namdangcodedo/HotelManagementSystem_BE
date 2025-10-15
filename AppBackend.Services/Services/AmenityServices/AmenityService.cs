@@ -39,7 +39,7 @@ namespace AppBackend.Services.Services.AmenityServices
                         FilePath = dto.ImageLinks[i],
                         ReferenceTable = nameof(BusinessObjects.Models.Amenity),
                         ReferenceKey = amenity.AmenityId.ToString(),
-                        Description = $"Amenity image {i+1}",
+                        Description = $"AmenityModel image {i+1}",
                         DisplayOrder = i,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow,
@@ -83,7 +83,7 @@ namespace AppBackend.Services.Services.AmenityServices
                         FilePath = dto.ImageLinks[i],
                         ReferenceTable = nameof(BusinessObjects.Models.Amenity),
                         ReferenceKey = amenity.AmenityId.ToString(),
-                        Description = $"Amenity image {i+1}",
+                        Description = $"AmenityModel image {i+1}",
                         DisplayOrder = i,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow,
@@ -115,7 +115,7 @@ namespace AppBackend.Services.Services.AmenityServices
             var amenityWithImagesList = new List<AmenityWithMediumDto>();
             foreach (var amenity in list)
             {
-                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "AmenityModel" && m.ReferenceKey == amenity.AmenityId.ToString());
                 var imageLinks = mediumList.Select(m => m.FilePath).ToList();
                 var amenityDto = _mapper.Map<AmenityWithMediumDto>(amenity);
                 amenityDto.Images = imageLinks;
@@ -137,7 +137,7 @@ namespace AppBackend.Services.Services.AmenityServices
             var amenityWithMediumList = new List<AmenityWithMediumDto>();
             foreach (var amenity in items)
             {
-                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "AmenityModel" && m.ReferenceKey == amenity.AmenityId.ToString());
                 var imageLinks = mediumList.Select(m => m.FilePath).ToList();
                 var amenityDto = _mapper.Map<AmenityWithMediumDto>(amenity);
                 amenityDto.Images = imageLinks;
