@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251015093743_Initial")]
+    [Migration("20251015095213_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -56,10 +56,6 @@ namespace AppBackend.BusinessObjects.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -511,6 +507,10 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Property<DateOnly>("HireDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateOnly?>("TerminationDate")
                         .HasColumnType("date");

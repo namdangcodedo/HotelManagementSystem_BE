@@ -54,10 +54,6 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
-                    b.Property<string>("Phone")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -508,6 +504,10 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Property<DateOnly>("HireDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateOnly?>("TerminationDate")
                         .HasColumnType("date");
