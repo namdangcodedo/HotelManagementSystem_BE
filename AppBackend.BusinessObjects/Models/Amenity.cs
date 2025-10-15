@@ -31,6 +31,8 @@ public partial class Amenity
     [Column(TypeName = "decimal(18,2)")]
     public decimal Price { get; set; }
 
+    public bool IsActive { get; set; } = true;
+
     public virtual ICollection<RoomAmenity> RoomAmenities { get; set; } = new List<RoomAmenity>();
 
     public virtual ICollection<BookingRoomAmenity> BookingRoomAmenities { get; set; } = new List<BookingRoomAmenity>();

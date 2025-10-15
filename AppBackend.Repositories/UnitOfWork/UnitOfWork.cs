@@ -6,6 +6,7 @@ using AppBackend.Repositories.Repositories.RoomRepo;
 using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using System.Threading.Tasks;
+using AppBackend.Repositories.Repositories.AmenityRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -18,6 +19,7 @@ namespace AppBackend.Repositories.UnitOfWork
         private IRoomRepository? _roomRepository;
         private ICustomerRepository? _customerRepository;
         private IMediumRepository? _mediumRepository;
+        private IAmenityRepository? _amenityRepository;
 
         public UnitOfWork(HotelManagementContext context)
         {
@@ -30,6 +32,7 @@ namespace AppBackend.Repositories.UnitOfWork
         public IRoomRepository Rooms => _roomRepository ??= new RoomRepository(_context);
         public ICustomerRepository Customers => _customerRepository ??= new CustomerRepository(_context);
         public IMediumRepository Mediums => _mediumRepository ??= new MediumRepository(_context);
+        public IAmenityRepository Amenities => _amenityRepository ??= new AmenityRepository(_context);
 
         public async Task<int> SaveChangesAsync()
         {

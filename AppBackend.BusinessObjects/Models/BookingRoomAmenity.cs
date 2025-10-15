@@ -16,7 +16,7 @@ namespace AppBackend.BusinessObjects.Models
         public virtual BookingRoom BookingRoom { get; set; } = null!;
 
         [Required]
-        [ForeignKey("Amenity")]
+        [ForeignKey("AmenityServices")]
         public int AmenityId { get; set; }
         public virtual Amenity Amenity { get; set; } = null!;
 

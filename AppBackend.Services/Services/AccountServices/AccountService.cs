@@ -81,7 +81,8 @@ public class AccountService : IAccountService
                 // Create new avatar Medium
                 var newAvatar = new Medium
                 {
-                    CustomerId = account.Customer.CustomerId,
+                    ReferenceKey = account.Customer.CustomerId.ToString(),
+                    ReferenceTable = nameof(account.Customer),
                     FilePath = request.AvatarUrl,
                     Description = "Avatar",
                     DisplayOrder = 0,

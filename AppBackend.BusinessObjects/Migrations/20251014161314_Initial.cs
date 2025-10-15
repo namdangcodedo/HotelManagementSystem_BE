@@ -34,7 +34,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Amenity",
+                name: "AmenityServices",
                 columns: table => new
                 {
                     AmenityId = table.Column<int>(type: "int", nullable: false)
@@ -409,7 +409,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_RoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "Amenity",
+                        principalTable: "AmenityServices",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -603,7 +603,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_BookingRoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "Amenity",
+                        principalTable: "AmenityServices",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -1064,7 +1064,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "BookingRoom");
 
             migrationBuilder.DropTable(
-                name: "Amenity");
+                name: "AmenityServices");
 
             migrationBuilder.DropTable(
                 name: "Employee");

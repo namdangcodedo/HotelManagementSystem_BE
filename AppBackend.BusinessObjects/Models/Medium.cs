@@ -11,17 +11,8 @@ public partial class Medium
     [Key]
     public int MediaId { get; set; }
 
-    [ForeignKey("Room")]
-    public int? RoomId { get; set; }
-
     [StringLength(100)]
     public string? PublishId { get; set; }
-
-    [ForeignKey("Service")]
-    public int? ServiceId { get; set; }
-
-    [ForeignKey("Customer")]
-    public int? CustomerId { get; set; }
 
     [Required]
     [StringLength(255)]
@@ -40,9 +31,13 @@ public partial class Medium
 
     public int? UpdatedBy { get; set; }
 
-    public virtual Room? Room { get; set; }
+    [Required]
+    [StringLength(50)]
+    public string ReferenceTable { get; set; } = null!;
 
-    public virtual Service? Service { get; set; }
+    [Required]
+    [StringLength(50)]
+    public string ReferenceKey { get; set; } = null!;
 
-    public virtual Customer? Customer { get; set; }
+    public bool IsActive { get; set; } = true;
 }

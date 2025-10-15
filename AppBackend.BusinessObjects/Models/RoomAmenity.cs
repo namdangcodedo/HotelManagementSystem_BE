@@ -14,7 +14,7 @@ public partial class RoomAmenity
     public int RoomId { get; set; }
     [Key]
     [Column(Order = 1)]
-    [ForeignKey("Amenity")]
+    [ForeignKey("AmenityServices")]
     public int AmenityId { get; set; }
     [Required]
     public DateTime CreatedAt { get; set; }

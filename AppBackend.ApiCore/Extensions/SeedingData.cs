@@ -69,6 +69,22 @@ namespace AppBackend.ApiCore.Extension
                 });
                 await context.SaveChangesAsync();
             }
+
+            // Seed AmenityServices if empty
+            if (!context.Amenities.Any())
+            {
+                context.Amenities.AddRange(new List<Amenity>
+                {
+                    new Amenity { AmenityName = "Wifi miễn phí", Description = "Kết nối internet tốc độ cao miễn phí cho khách.", Price = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Bữa sáng miễn phí", Description = "Bữa sáng buffet đa dạng cho khách lưu trú.", Price = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Dịch vụ giặt ủi", Description = "Giặt ủi quần áo theo yêu cầu.", Price = 50000, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Hồ bơi", Description = "Hồ bơi ngoài trời dành cho khách.", Price = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Xe đưa đón sân bay", Description = "Dịch vụ xe đưa đón sân bay tiện lợi.", Price = 200000, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Phòng gym", Description = "Phòng tập thể hình hiện đại.", Price = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new Amenity { AmenityName = "Spa & Massage", Description = "Dịch vụ spa và massage thư giãn.", Price = 300000, IsActive = true, CreatedAt = DateTime.UtcNow }
+                });
+                await context.SaveChangesAsync();
+            }
         }
     }
 }

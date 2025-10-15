@@ -6,6 +6,7 @@ using AppBackend.Repositories.Repositories.CustomerRepo;
 using System;
 using System.Threading.Tasks;
 using AppBackend.Repositories.Repositories.MediumRepo;
+using AppBackend.Repositories.Repositories.AmenityRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -17,6 +18,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IRoomRepository Rooms { get; }
         ICustomerRepository Customers { get; }
         IMediumRepository Mediums { get; }
+        IAmenityRepository Amenities { get; }
         Task<int> SaveChangesAsync();
     }
 }
