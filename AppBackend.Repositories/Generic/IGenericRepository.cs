@@ -7,6 +7,7 @@ namespace AppBackend.Repositories.Generic
         Task<IEnumerable<T>> GetAllAsync();
         Task<T?> GetByIdAsync(object id);
         Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate);
+        Task<T?> GetSingleAsync(Expression<Func<T, bool>> predicate, params Expression<Func<T, object>>[] includes);
 
         Task AddAsync(T entity);
         Task AddRangeAsync(IEnumerable<T> entities);
@@ -14,11 +15,5 @@ namespace AppBackend.Repositories.Generic
         Task UpdateAsync(T entity);
         Task DeleteAsync(T entity);
         Task DeleteByIdAsync(object id);
-
-        Task<int> SaveChangesAsync();
-
-        Task BeginTransactionAsync();
-        Task CommitTransactionAsync();
-        Task RollbackTransactionAsync();
     }
 }

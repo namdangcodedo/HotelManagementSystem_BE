@@ -1,24 +1,29 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.EntityFrameworkCore;
 
 namespace AppBackend.BusinessObjects.Models;
 
-public partial class Role
+[Table("Role")]
+public class Role
 {
-    [Key]
-    [Column("role_id")]
-    public int RoleId { get; set; }
-
-    [Column("role_name")]
-    [StringLength(255)]
-    public string? RoleName { get; set; }
-
-    [Column("description")]
-    public string? Description { get; set; }
-
-    [InverseProperty("Role")]
-    public virtual ICollection<User> Users { get; set; } = new List<User>();
+  [Key]
+  public int RoleId { get; set; }
+  [Required]
+  [StringLength(50)]
+  public string RoleValue { get; set; } = string.Empty; // English value for authentication
+  [Required]
+  [StringLength(50)]
+  public string RoleName { get; set; } = string.Empty; // Vietnamese display name
+  [StringLength(255)]
+  public string? Description { get; set; }
+  [Required]
+  public DateTime CreatedAt { get; set; }
+  public int? CreatedBy { get; set; }
+  public DateTime? UpdatedAt { get; set; }
+  public int? UpdatedBy { get; set; }
+  [Required]
+  public bool IsActive { get; set; }
+  public virtual ICollection<AccountRole> AccountRoles { get; set; } = new List<AccountRole>();
 }

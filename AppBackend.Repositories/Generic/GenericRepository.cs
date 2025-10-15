@@ -1,54 +1,53 @@
 using System.Linq.Expressions;
+using AppBackend.BusinessObjects.Data;
 using AppBackend.BusinessObjects.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AppBackend.Repositories.Generic
 {
     public class GenericRepository<T> : IGenericRepository<T> where T : class
     {
-        protected readonly IOTShowroomContext _context;
-        private IDbContextTransaction? _transaction;
+        protected readonly HotelManagementContext Context;
 
-        public GenericRepository(IOTShowroomContext context)
+        public GenericRepository(HotelManagementContext context)
         {
-            _context = context;
+            Context = context;
         }
 
         public async Task<IEnumerable<T>> GetAllAsync()
         {
-            return await _context.Set<T>().ToListAsync();
+            return await Context.Set<T>().ToListAsync();
         }
 
         public async Task<T?> GetByIdAsync(object id)
         {
-            return await _context.Set<T>().FindAsync(id);
+            return await Context.Set<T>().FindAsync(id);
         }
 
         public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
         {
-            return await _context.Set<T>().Where(predicate).ToListAsync();
+            return await Context.Set<T>().Where(predicate).ToListAsync();
         }
 
         public async Task AddAsync(T entity)
         {
-            await _context.Set<T>().AddAsync(entity);
+            await Context.Set<T>().AddAsync(entity);
         }
 
         public async Task AddRangeAsync(IEnumerable<T> entities)
         {
-            await _context.Set<T>().AddRangeAsync(entities);
+            await Context.Set<T>().AddRangeAsync(entities);
         }
 
         public Task UpdateAsync(T entity)
         {
-            _context.Set<T>().Update(entity);
+            Context.Set<T>().Update(entity);
             return Task.CompletedTask;
         }
 
         public async Task DeleteAsync(T entity)
         {
-            _context.Set<T>().Remove(entity);
+            Context.Set<T>().Remove(entity);
             await Task.CompletedTask;
         }
 
@@ -57,41 +56,21 @@ namespace AppBackend.Repositories.Generic
             var entity = await GetByIdAsync(id);
             if (entity != null)
             {
-                _context.Set<T>().Remove(entity);
+                Context.Set<T>().Remove(entity);
             }
         }
 
-        public async Task<int> SaveChangesAsync()
+        public async Task<T?> GetSingleAsync(Expression<Func<T, bool>> predicate, params Expression<Func<T, object>>[] includes)
         {
-            return await _context.SaveChangesAsync();
-        }
-
-        public async Task BeginTransactionAsync()
-        {
-            if (_transaction == null)
+            IQueryable<T> query = Context.Set<T>();
+            if (includes != null)
             {
-                _transaction = await _context.Database.BeginTransactionAsync();
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
             }
-        }
-
-        public async Task CommitTransactionAsync()
-        {
-            if (_transaction != null)
-            {
-                await _transaction.CommitAsync();
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
-        }
-
-        public async Task RollbackTransactionAsync()
-        {
-            if (_transaction != null)
-            {
-                await _transaction.RollbackAsync();
-                await _transaction.DisposeAsync();
-                _transaction = null;
-            }
+            return await query.FirstOrDefaultAsync(predicate);
         }
     }
 }

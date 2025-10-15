@@ -2,38 +2,35 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.EntityFrameworkCore;
 
 namespace AppBackend.BusinessObjects.Models;
 
-public partial class Notification
+[Table("Notification")]
+public class Notification
 {
     [Key]
-    [Column("notification_id")]
     public int NotificationId { get; set; }
 
-    [Column("user_id")]
-    public int? UserId { get; set; }
+    [Required]
+    [ForeignKey("Account")]
+    public int AccountId { get; set; }
 
-    [Column("title")]
+    [Required]
     [StringLength(255)]
-    public string? Title { get; set; }
+    public string Message { get; set; } = null!;
 
-    [Column("message")]
-    public string? Message { get; set; }
+    [Required]
+    [ForeignKey("NotificationType")]
+    public int NotificationTypeId { get; set; }
+    public virtual CommonCode NotificationType { get; set; } = null!;
 
-    [Column("type")]
-    [StringLength(255)]
-    public string? Type { get; set; }
+    [Required]
+    public bool IsRead { get; set; }
 
-    [Column("is_read")]
-    public bool? IsRead { get; set; }
+    [Required]
+    public DateTime CreatedAt { get; set; }
 
-    [Column("created_at")]
-    [Precision(0)]
-    public DateTime? CreatedAt { get; set; }
+    public int? CreatedBy { get; set; }
 
-    [ForeignKey("UserId")]
-    [InverseProperty("Notifications")]
-    public virtual User? User { get; set; }
+    public virtual Account Account { get; set; } = null!;
 }
