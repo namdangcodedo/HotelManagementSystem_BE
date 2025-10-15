@@ -61,7 +61,7 @@ public class AccountService : IAccountService
                     StatusCodes.Status404NotFound
                 );
             account.Email = request.Email ?? account.Email;
-            account.Phone = request.Phone ?? account.Phone;
+            account.Customer.PhoneNumber = request.PhoneNumber ?? account.Customer.PhoneNumber;
             account.Customer.FullName = request.FullName ?? account.Customer.FullName;
             account.Customer.IdentityCard = request.IdentityCard ?? account.Customer.IdentityCard;
             account.Customer.Address = request.Address ?? account.Customer.Address;
@@ -146,7 +146,7 @@ public class AccountService : IAccountService
                     StatusCodes.Status404NotFound
                 );
             account.Email = request.Email ?? account.Email;
-            account.Phone = request.Phone ?? account.Phone;
+            account.Employee.PhoneNumber = request.Phone ?? account.Employee.PhoneNumber;
             account.Employee.FullName = request.FullName ?? account.Employee.FullName;
             if (request.EmployeeTypeId.HasValue) account.Employee.EmployeeTypeId = request.EmployeeTypeId.Value;
             if (request.HireDate.HasValue) account.Employee.HireDate = request.HireDate.Value;

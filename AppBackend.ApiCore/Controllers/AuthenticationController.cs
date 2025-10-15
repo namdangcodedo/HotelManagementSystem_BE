@@ -70,7 +70,7 @@ namespace AppBackend.ApiCore.Controllers
         ///// <returns>.</returns>
         //[HttpPost("send-verification-email")]
         [HttpPost("manager/reset-password")]
-        [Authorize(Roles = "Admin,Manager")]
+        // [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> SendOtpEmail([FromBody] ResetPasswordRequest request)
         {
             var result = await _authService.ResetPasswordAsync(request.Email, request.Password);

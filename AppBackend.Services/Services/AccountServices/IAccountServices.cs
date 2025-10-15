@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using AppBackend.Services.ApiModels;
 
 namespace AppBackend.Services.AccountServices;

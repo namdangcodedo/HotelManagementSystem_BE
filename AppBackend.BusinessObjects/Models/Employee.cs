@@ -16,7 +16,10 @@ public class Employee
     [Required]
     [StringLength(100)]
     public string FullName { get; set; } = null!;
-
+    
+    [StringLength(100)]
+    public string? PhoneNumber { get; set; } = null!;
+    
     [Required]
     [ForeignKey("EmployeeType")]
     public int EmployeeTypeId { get; set; }

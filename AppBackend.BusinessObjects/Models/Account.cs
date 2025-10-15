@@ -24,9 +24,6 @@ public class Account
     [StringLength(100)]
     public string Email { get; set; } = null!;
 
-    [StringLength(20)]
-    public string? Phone { get; set; }
-
     [Required]
     public bool IsLocked { get; set; }
 

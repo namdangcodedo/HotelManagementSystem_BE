@@ -431,7 +431,8 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CustomerId"));
 
-                    b.Property<int>("AccountId")
+                    b.Property<int?>("AccountId")
+                        .IsRequired()
                         .HasColumnType("int");
 
                     b.Property<string>("Address")
@@ -455,6 +456,10 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("IdentityCard")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
