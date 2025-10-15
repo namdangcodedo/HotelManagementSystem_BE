@@ -49,6 +49,9 @@ namespace AppBackend.Services.Authentication
             };
             await _unitOfWork.Accounts.AddAsync(account);
             await _unitOfWork.SaveChangesAsync();
+            
+            if (account.AccountId == 0)
+                return new ResultModel { IsSuccess = false, Message = "Không thể tạo Account, AccountId không hợp lệ." };
 
             // Create Customer linked to Account
             var customer = new Customer
@@ -57,6 +60,7 @@ namespace AppBackend.Services.Authentication
                 FullName = request.FullName,
                 IdentityCard = request.IdentityCard,
                 Address = request.Address,
+                PhoneNumber = request.PhoneNumber, // Truyền số điện thoại
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = null,
                 UpdatedAt = null,
@@ -223,6 +227,17 @@ namespace AppBackend.Services.Authentication
                 };
                 await _unitOfWork.Accounts.AddAsync(account);
                 await _unitOfWork.SaveChangesAsync();
+                var customer = new Customer
+                {
+                    AccountId = account.AccountId,
+                    FullName = userInfo.Name,
+                    Address = "",
+                    IdentityCard = "",
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.Customers.AddAsync(customer);
+                
+                await _unitOfWork.SaveChangesAsync();
 
                 var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
                 if (userRole != null)
@@ -328,6 +343,19 @@ namespace AppBackend.Services.Authentication
             await _unitOfWork.SaveChangesAsync();
             _cacheHelper.Remove(CachePrefix.OtpCode, email);
             return new ResultModel { IsSuccess = true, Message = "Đổi mật khẩu thành công." };
+        }
+
+        public async Task<ResultModel> GetTokenAsync(int accountId, string refreshToken)
+        {
+            var cachedRefreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.ToString());
+            if (string.IsNullOrEmpty(cachedRefreshToken) || cachedRefreshToken != refreshToken)
+                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
+            var account = await _unitOfWork.Accounts.GetByIdAsync(accountId);
+            if (account == null)
+                return new ResultModel { IsSuccess = false, Message = "Tài khoản không tồn tại." };
+            var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
+            var accessToken = _accountHelper.CreateToken(account, roleNames);
+            return new ResultModel { IsSuccess = true, Message = "Lấy access token thành công.", Data = new { AccessToken = accessToken } };
         }
     }
 }
