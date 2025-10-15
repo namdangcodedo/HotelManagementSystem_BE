@@ -1,5 +1,7 @@
 ## 🧭 Layer Responsibilities
 
+scp AppBackend.ApiCore/appsettings.json root@103.38.236.148:/root/hotel_app/config/
+
 - **ApiCore (Presentation Layer)**
   - Expose REST APIs.
   - Handle HTTP requests/responses.
