@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomModel;
 using AppBackend.Services.Services.RoomServices;
-using System.Security.Claims;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -12,7 +10,7 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    public class RoomController : ControllerBase
+    public class RoomController : BaseApiController
     {
         private readonly IRoomService _roomService;
 
@@ -49,9 +47,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetRoomDetail(int id)
         {
             var result = await _roomService.GetRoomDetailAsync(id);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -59,17 +55,17 @@ namespace AppBackend.ApiCore.Controllers
         /// </summary>
         /// <param name="request">Thông tin phòng mới (bao gồm danh sách URL hình ảnh)</param>
         /// <returns>Thông tin phòng đã thêm</returns>
-        /// <response code="200">Thêm phòng thành công</response>
+        /// <response code="201">Thêm phòng thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> AddRoom([FromBody] AddRoomRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _roomService.AddRoomAsync(request, userId);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
+            var result = await _roomService.AddRoomAsync(request, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -85,16 +81,12 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateRoom(int id, [FromBody] UpdateRoomRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
             request.RoomId = id;
-            var result = await _roomService.UpdateRoomAsync(request, userId);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            var result = await _roomService.UpdateRoomAsync(request, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -108,11 +100,8 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteRoom(int id)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _roomService.DeleteRoomAsync(id, userId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            var result = await _roomService.DeleteRoomAsync(id, CurrentUserId);
+            return HandleResult(result);
         }
 
         #endregion
@@ -145,9 +134,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetRoomTypeDetail(int id)
         {
             var result = await _roomService.GetRoomTypeDetailAsync(id);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -155,17 +142,17 @@ namespace AppBackend.ApiCore.Controllers
         /// </summary>
         /// <param name="request">Thông tin loại phòng mới (bao gồm danh sách URL hình ảnh)</param>
         /// <returns>Thông tin loại phòng đã thêm</returns>
-        /// <response code="200">Thêm loại phòng thành công</response>
+        /// <response code="201">Thêm loại phòng thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost("types")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> AddRoomType([FromBody] AddRoomTypeRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _roomService.AddRoomTypeAsync(request, userId);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
+            var result = await _roomService.AddRoomTypeAsync(request, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -181,16 +168,12 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateRoomType(int id, [FromBody] UpdateRoomTypeRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
             request.RoomTypeId = id;
-            var result = await _roomService.UpdateRoomTypeAsync(request, userId);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            var result = await _roomService.UpdateRoomTypeAsync(request, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -199,24 +182,16 @@ namespace AppBackend.ApiCore.Controllers
         /// <param name="id">ID của loại phòng</param>
         /// <returns>Kết quả thực hiện</returns>
         /// <response code="200">Xóa thành công</response>
-        /// <response code="400">Không thể xóa vì đang có phòng sử dụng</response>
         /// <response code="404">Không tìm thấy loại phòng</response>
+        /// <response code="400">Không thể xóa vì còn phòng đang sử dụng loại này</response>
         [HttpDelete("types/{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteRoomType(int id)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _roomService.DeleteRoomTypeAsync(id, userId);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            var result = await _roomService.DeleteRoomTypeAsync(id, CurrentUserId);
+            return HandleResult(result);
         }
 
         #endregion
     }
 }
-

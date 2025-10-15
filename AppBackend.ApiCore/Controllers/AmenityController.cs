@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using AppBackend.BusinessObjects.Dtos;
-using System.Threading.Tasks;
 using AppBackend.Services.Services.AmenityServices;
-using System.Security.Claims;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -12,7 +10,7 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    public class AmenityController : ControllerBase
+    public class AmenityController : BaseApiController
     {
         private readonly IAmenityService _amenityService;
         
@@ -61,9 +59,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetAmenityDetail(int id)
         {
             var result = await _amenityService.GetAmenityDetailAsync(id);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -71,20 +67,17 @@ namespace AppBackend.ApiCore.Controllers
         /// </summary>
         /// <param name="dto">Thông tin tiện ích mới</param>
         /// <returns>Thông tin tiện ích đã thêm</returns>
-        /// <response code="200">Thêm tiện ích thành công</response>
+        /// <response code="201">Thêm tiện ích thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> AddAmenity([FromBody] AmenityDto dto)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            int userId = 0;
-            int.TryParse(userIdStr, out userId);
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
             
-            var result = await _amenityService.AddAmenityAsync(dto, userId);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            var result = await _amenityService.AddAmenityAsync(dto, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -100,19 +93,12 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateAmenity(int id, [FromBody] AmenityDto dto)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            int userId = 0;
-            int.TryParse(userIdStr, out userId);
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
             
-            dto.AmenityId = id; // Đảm bảo ID từ route được sử dụng
-            var result = await _amenityService.UpdateAmenityAsync(dto, userId);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            dto.AmenityId = id;
+            var result = await _amenityService.UpdateAmenityAsync(dto, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -126,14 +112,8 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeleteAmenity(int id)
         {
-            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            int userId = 0;
-            int.TryParse(userIdStr, out userId);
-            
-            var result = await _amenityService.DeleteAmenityAsync(id, userId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            var result = await _amenityService.DeleteAmenityAsync(id, CurrentUserId);
+            return HandleResult(result);
         }
     }
 }

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.EmployeeModel;
 using AppBackend.Services.Services.EmployeeServices;
 
@@ -12,7 +11,7 @@ namespace AppBackend.ApiCore.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class EmployeeController : ControllerBase
+    public class EmployeeController : BaseApiController
     {
         private readonly IEmployeeService _employeeService;
 
@@ -33,9 +32,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetEmployeeDetail(int employeeId)
         {
             var result = await _employeeService.GetEmployeeDetailAsync(employeeId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -57,24 +54,17 @@ namespace AppBackend.ApiCore.Controllers
         /// </summary>
         /// <param name="request">Thông tin nhân viên mới</param>
         /// <returns>Thông tin nhân viên đã thêm</returns>
-        /// <response code="200">Thêm nhân viên thành công</response>
+        /// <response code="201">Thêm nhân viên thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> AddEmployee([FromBody] AddEmployeeRequest request)
         {
             if (!ModelState.IsValid)
-                return BadRequest(new ResultModel 
-                { 
-                    IsSuccess = false, 
-                    Message = "Dữ liệu không hợp lệ",
-                    StatusCode = 400
-                });
+                return ValidationError("Dữ liệu không hợp lệ");
 
             var result = await _employeeService.AddEmployeeAsync(request);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -90,15 +80,12 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateEmployee(int employeeId, [FromBody] UpdateEmployeeRequest request)
         {
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
             request.EmployeeId = employeeId;
             var result = await _employeeService.UpdateEmployeeAsync(request);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -115,10 +102,7 @@ namespace AppBackend.ApiCore.Controllers
         {
             request.EmployeeId = employeeId;
             var result = await _employeeService.BanEmployeeAsync(request);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
     }
 }
-

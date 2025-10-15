@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.CommonCodeModel;
 using AppBackend.Services.Services.CommonCodeServices;
 
@@ -11,7 +10,7 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    public class CommonCodeController : ControllerBase
+    public class CommonCodeController : BaseApiController
     {
         private readonly ICommonCodeService _commonCodeService;
 
@@ -73,9 +72,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetCommonCodeById(int codeId)
         {
             var result = await _commonCodeService.GetCommonCodeByIdAsync(codeId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -83,24 +80,17 @@ namespace AppBackend.ApiCore.Controllers
         /// </summary>
         /// <param name="request">Thông tin Common Code mới</param>
         /// <returns>Thông tin Common Code đã thêm</returns>
-        /// <response code="200">Thêm Common Code thành công</response>
+        /// <response code="201">Thêm Common Code thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> AddCommonCode([FromBody] AddCommonCodeRequest request)
         {
             if (!ModelState.IsValid)
-                return BadRequest(new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Dữ liệu không hợp lệ",
-                    StatusCode = 400
-                });
+                return ValidationError("Dữ liệu không hợp lệ");
 
             var result = await _commonCodeService.AddCommonCodeAsync(request);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -116,15 +106,12 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateCommonCode(int codeId, [FromBody] UpdateCommonCodeRequest request)
         {
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
             request.CodeId = codeId;
             var result = await _commonCodeService.UpdateCommonCodeAsync(request);
-            if (!result.IsSuccess)
-            {
-                if (result.ResponseCode == "NOT_FOUND")
-                    return NotFound(result);
-                return BadRequest(result);
-            }
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -139,10 +126,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> DeleteCommonCode(int codeId)
         {
             var result = await _commonCodeService.DeleteCommonCodeAsync(codeId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            return HandleResult(result);
         }
     }
 }
-

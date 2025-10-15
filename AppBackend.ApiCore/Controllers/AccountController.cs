@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AppBackend.Services.ApiModels;
-using System.Security.Claims;
 using AppBackend.Services.Services.AccountServices;
 
 namespace AppBackend.ApiCore.Controllers
@@ -12,7 +11,7 @@ namespace AppBackend.ApiCore.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class AccountController : ControllerBase
+    public class AccountController : BaseApiController
     {
         private readonly IAccountService _accountService;
 
@@ -28,15 +27,10 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="200">Profile retrieved successfully</response>
         /// <response code="404">Profile not found</response>
         [HttpGet("customer-profile")]
-        [Authorize]
         public async Task<IActionResult> ViewCustomerProfile()
         {
-            // Get current user's AccountId from claims
-            int accountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _accountService.GetCustomerProfileAsync(accountId);
-            if (!result.IsSuccess)
-                return NotFound(result);
-            return Ok(result);
+            var result = await _accountService.GetCustomerProfileAsync(CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -47,15 +41,14 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="200">Profile updated successfully</response>
         /// <response code="400">Invalid input data</response>
         [HttpPut("customer-profile")]
-        [Authorize]
         public async Task<IActionResult> EditCustomerProfile([FromBody] EditCustomerProfileRequest request)
         {
-            // Get current user's AccountId from claims
-            request.AccountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
+            request.AccountId = CurrentUserId;
             var result = await _accountService.EditCustomerProfileAsync(request);
-            if (!result.IsSuccess)
-                return BadRequest(result);
-            return Ok(result);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -67,31 +60,24 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="404">Không tìm thấy tài khoản</response>
         /// <response code="403">Không có quyền xem tài khoản này</response>
         [HttpGet("summary")]
-        [Authorize]
         public async Task<IActionResult> ViewAccountSummary([FromQuery] int? accountId = null)
         {
-            // Get current user's AccountId
-            int currentAccountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
-            // Nếu không truyền accountId, xem summary của chính mình
-            int targetAccountId = accountId ?? currentAccountId;
+            int targetAccountId = accountId ?? CurrentUserId;
             
             // Kiểm tra quyền: chỉ được xem summary của chính mình, trừ khi là Admin
-            var currentUserRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
-            bool isAdmin = currentUserRoles.Contains("Admin");
-            
-            if (!isAdmin && targetAccountId != currentAccountId)
+            if (!IsAdmin && targetAccountId != CurrentUserId)
             {
-                return Forbid(); // 403 - Không có quyền xem tài khoản khác
+                return StatusCode(403, new ResultModel
+                {
+                    IsSuccess = false,
+                    ResponseCode = "FORBIDDEN",
+                    StatusCode = 403,
+                    Message = "Bạn không có quyền xem tài khoản này"
+                });
             }
             
-            // Truyền requesterId để service biết có cần lấy statistics không
-            var result = await _accountService.GetAccountSummaryAsync(targetAccountId, currentAccountId);
-            
-            if (!result.IsSuccess)
-                return NotFound(result);
-            
-            return Ok(result);
+            var result = await _accountService.GetAccountSummaryAsync(targetAccountId, CurrentUserId);
+            return HandleResult(result);
         }
 
         /// <summary>
@@ -105,13 +91,8 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> ViewAccountSummaryById(int id)
         {
-            int currentAccountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            var result = await _accountService.GetAccountSummaryAsync(id, currentAccountId);
-            
-            if (!result.IsSuccess)
-                return NotFound(result);
-            
-            return Ok(result);
+            var result = await _accountService.GetAccountSummaryAsync(id, CurrentUserId);
+            return HandleResult(result);
         }
     }
 }
