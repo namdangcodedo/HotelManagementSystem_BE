@@ -116,8 +116,24 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPost("get-token")]
         public async Task<IActionResult> GetToken([FromBody] GetTokenRequest request)
         {
-            var result = await _authService.GetTokenAsync(request.RefreshToken);
+            var result = await _authService.GetTokenAsync(request.AccountId, request.RefreshToken);
             return Ok(result);
+        }
+
+        /// <summary>
+        /// Lấy refresh token từ cache theo accountId (chỉ cho phép lấy của chính mình)
+        /// </summary>
+        [HttpGet("refresh-token")]
+        [Authorize]
+        public IActionResult GetRefreshToken()
+        {
+            var userClaimId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userClaimId))
+                return Unauthorized();
+            var refreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, userClaimId);
+            if (refreshToken == null)
+                return NotFound(new { Message = "Refresh token không tồn tại hoặc đã hết hạn." });
+            return Ok(new { RefreshToken = refreshToken });
         }
     }
 }
