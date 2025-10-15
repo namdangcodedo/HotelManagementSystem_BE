@@ -6,6 +6,7 @@ using AppBackend.Services.AccountServices;
 using AppBackend.Services.Authentication;
 using AppBackend.Services.Helpers;
 using AppBackend.Services.RateLimiting;
+using AppBackend.Services.Services.AmenityServices;
 using AppBackend.Services.Services.Email;
 
 namespace AppBackend.ApiCore.Extensions;
@@ -32,6 +33,8 @@ public static class ServicesConfig
         services.AddScoped<ICloudinaryService, CloudinaryService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IGoogleLoginService, GoogleLoginService>();
+        services.AddScoped<IAmenityService, AmenityService>();
+        
         services.AddSingleton<RateLimiterStore>();
         #endregion
 

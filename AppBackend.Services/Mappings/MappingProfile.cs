@@ -45,6 +45,13 @@ namespace AppBackend.Services.Mappings
             CreateMap<Employee, EmployeeDto>();
             CreateMap<EmployeeDto, Employee>();
             #endregion
+
+            #region Amenity
+
+            CreateMap<Amenity, AmenityWithMediumDto>()
+                .ForMember(dest => dest.Images, opt => opt.Ignore());
+            CreateMap<Medium, MediumDto>();
+            #endregion
         }
     }
 }

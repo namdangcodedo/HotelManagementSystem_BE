@@ -2,15 +2,18 @@ using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.BusinessObjects.Dtos;
+using AutoMapper;
 
 namespace AppBackend.Services.Services.AmenityServices
 {
     public class AmenityService : IAmenityService
     {
         private readonly IUnitOfWork _unitOfWork;
-        public AmenityService(IUnitOfWork unitOfWork)
+        private readonly IMapper _mapper;
+        public AmenityService(IUnitOfWork unitOfWork, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
         public async Task<ResultModel> AddAmenityAsync(AmenityDto dto, int userId)
         {
@@ -109,7 +112,16 @@ namespace AppBackend.Services.Services.AmenityServices
         public async Task<ResultModel> GetAmenityListAsync(bool? isActive = null)
         {
             var list = await _unitOfWork.Amenities.GetAllAsync(isActive);
-            return new ResultModel { IsSuccess = true, Message = "Lấy danh sách tiện ích thành công.", Data = list };
+            var amenityWithImagesList = new List<AmenityWithMediumDto>();
+            foreach (var amenity in list)
+            {
+                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+                var imageLinks = mediumList.Select(m => m.FilePath).ToList();
+                var amenityDto = _mapper.Map<AmenityWithMediumDto>(amenity);
+                amenityDto.Images = imageLinks;
+                amenityWithImagesList.Add(amenityDto);
+            }
+            return new ResultModel { IsSuccess = true, Message = "Lấy danh sách tiện ích thành công.", Data = amenityWithImagesList };
         }
         public async Task<ResultModel> GetAmenityPagedAsync(PagedAmenityRequestDto request)
         {
@@ -121,13 +133,23 @@ namespace AppBackend.Services.Services.AmenityServices
                 request.SortBy,
                 request.SortDesc
             );
+
+            var amenityWithMediumList = new List<AmenityWithMediumDto>();
+            foreach (var amenity in items)
+            {
+                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+                var imageLinks = mediumList.Select(m => m.FilePath).ToList();
+                var amenityDto = _mapper.Map<AmenityWithMediumDto>(amenity);
+                amenityDto.Images = imageLinks;
+                amenityWithMediumList.Add(amenityDto);
+            }
             return new ResultModel
             {
                 IsSuccess = true,
                 Message = "Lấy danh sách tiện ích thành công.",
                 Data = new
                 {
-                    Items = items,
+                    Items = amenityWithMediumList,
                     TotalCount = totalCount,
                     PageIndex = request.PageIndex,
                     PageSize = request.PageSize

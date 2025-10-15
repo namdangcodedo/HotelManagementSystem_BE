@@ -42,6 +42,9 @@ namespace AppBackend.Repositories.Repositories.AmenityRepo
         }
         public async Task<(IEnumerable<Amenity> Items, int TotalCount)> GetPagedAsync(int pageIndex, int pageSize, bool? isActive = null, string? search = null, string? sortBy = null, bool sortDesc = false)
         {
+            if (pageIndex < 0) pageIndex = 0;
+            if (pageSize <= 0) pageSize = 10;
+
             var query = _context.Amenities.AsQueryable();
             if (isActive.HasValue)
                 query = query.Where(a => a.IsActive == isActive.Value);
@@ -53,14 +56,16 @@ namespace AppBackend.Repositories.Repositories.AmenityRepo
                     query = sortDesc ? query.OrderByDescending(a => a.AmenityName) : query.OrderBy(a => a.AmenityName);
                 else if (sortBy == "Price")
                     query = sortDesc ? query.OrderByDescending(a => a.Price) : query.OrderBy(a => a.Price);
-                // Add more sort options if needed
             }
             else
             {
                 query = query.OrderBy(a => a.AmenityId);
             }
             var totalCount = await query.CountAsync();
-            var items = await query.Skip((pageIndex - 1) * pageSize).Take(pageSize).ToListAsync();
+            // Tính lại pageIndex nếu vượt quá số trang thực tế
+            var maxPageIndex = totalCount > 0 ? (totalCount - 1) / pageSize : 0;
+            if (pageIndex > maxPageIndex) pageIndex = maxPageIndex;
+            var items = await query.Skip(pageIndex * pageSize).Take(pageSize).ToListAsync();
             return (items, totalCount);
         }
     }
