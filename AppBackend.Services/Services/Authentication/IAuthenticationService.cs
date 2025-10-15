@@ -12,5 +12,6 @@ public interface IAuthenticationService
     ResultModel VerifyOtp(string email, string otp);
     Task<ResultModel> ChangePasswordWithOtpAsync(string email, string otp, string newPassword);
     Task<ResultModel> ResetPasswordAsync(string email, string newPassword);
-    Task<ResultModel> GetTokenAsync(int accountId, string refreshToken);
+    Task<ResultModel> GetTokenAsync(string refreshToken);
+
 }

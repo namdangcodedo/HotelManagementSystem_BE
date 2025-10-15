@@ -13,7 +13,7 @@ public partial class Customer
 
     [Required]
     [ForeignKey("Account")]
-    public int? AccountId { get; set; }
+    public int AccountId { get; set; }
 
     [Required]
     [StringLength(100)]
@@ -21,9 +21,6 @@ public partial class Customer
 
     [StringLength(20)]
     public string? IdentityCard { get; set; }
-
-    [StringLength(20)]
-    public string? PhoneNumber { get; set; } 
 
     [StringLength(255)]
     public string? Address { get; set; }
@@ -37,7 +34,7 @@ public partial class Customer
 
     public int? UpdatedBy { get; set; }
 
-    public virtual Account? Account { get; set; } // Cho phép null
+    public virtual Account Account { get; set; } = null!;
 
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 

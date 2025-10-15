@@ -47,11 +47,7 @@ namespace AppBackend.Services.Authentication
                 })
             };
             var tokenResponse = await _httpClient.SendAsync(tokenRequest);
-            if (!tokenResponse.IsSuccessStatusCode)
-            {
-                var errorContent = await tokenResponse.Content.ReadAsStringAsync();
-                throw new HttpRequestException($"Google token request failed: {tokenResponse.StatusCode} - {errorContent}");
-            }
+            tokenResponse.EnsureSuccessStatusCode();
             var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
             using var tokenDoc = JsonDocument.Parse(tokenJson);
             var accessToken = tokenDoc.RootElement.GetProperty("access_token").GetString();
@@ -60,8 +56,6 @@ namespace AppBackend.Services.Authentication
             var userInfoResponse = await _httpClient.GetAsync($"https://www.googleapis.com/oauth2/v2/userinfo?access_token={accessToken}");
             userInfoResponse.EnsureSuccessStatusCode();
             var userInfoJson = await userInfoResponse.Content.ReadAsStringAsync();
-            // Log nội dung JSON trả về để debug
-            Console.WriteLine($"Google user info JSON: {userInfoJson}");
             var userInfo = JsonSerializer.Deserialize<GoogleUserInfo>(userInfoJson);
             return userInfo ?? new GoogleUserInfo();
         }

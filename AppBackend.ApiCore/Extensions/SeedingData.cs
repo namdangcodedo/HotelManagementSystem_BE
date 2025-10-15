@@ -35,7 +35,7 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "FeedbackType", CodeValue = "Khen ngợi", CodeName = "Praise" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     // NotificationType
                     new CommonCode { CodeType = "NotificationType", CodeValue = "Hệ thống", CodeName = "System" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "NotificationType", CodeValue = "Đặt phòng", CodeName = "BookingDtos" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Đặt phòng", CodeName = "Booking" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "NotificationType", CodeValue = "Khuyến mãi", CodeName = "Promotion" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     // BookingType
                     new CommonCode { CodeType = "BookingType", CodeValue = "Đặt trực tuyến", CodeName = "Online" , IsActive = true, CreatedAt = DateTime.UtcNow },

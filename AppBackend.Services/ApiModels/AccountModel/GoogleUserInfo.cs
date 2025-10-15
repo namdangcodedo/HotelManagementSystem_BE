@@ -1,23 +1,11 @@
-using System.Text.Json.Serialization;
-
-namespace AppBackend.Services.ApiModels;
-
-public class GoogleUserInfo
+namespace AppBackend.Services.ApiModels
 {
-    [JsonPropertyName("id")]
-    public string Id { get; set; }
-    [JsonPropertyName("email")]
-    public string Email { get; set; }
-    [JsonPropertyName("verified_email")]
-    public bool VerifiedEmail { get; set; }
-    [JsonPropertyName("name")]
-    public string Name { get; set; }
-    [JsonPropertyName("given_name")]
-    public string GivenName { get; set; }
-    [JsonPropertyName("family_name")]
-    public string FamilyName { get; set; }
-    [JsonPropertyName("picture")]
-    public string Picture { get; set; }
-    [JsonPropertyName("locale")]
-    public string Locale { get; set; }
+    public class GoogleUserInfo
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Picture { get; set; } = string.Empty;
+        public string Id { get; set; } = string.Empty;
+    }
 }
+

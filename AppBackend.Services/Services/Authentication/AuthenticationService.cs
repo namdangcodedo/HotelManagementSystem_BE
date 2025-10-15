@@ -49,9 +49,6 @@ namespace AppBackend.Services.Authentication
             };
             await _unitOfWork.Accounts.AddAsync(account);
             await _unitOfWork.SaveChangesAsync();
-            
-            if (account.AccountId == 0)
-                return new ResultModel { IsSuccess = false, Message = "Không thể tạo Account, AccountId không hợp lệ." };
 
             // Create Customer linked to Account
             var customer = new Customer
@@ -60,7 +57,6 @@ namespace AppBackend.Services.Authentication
                 FullName = request.FullName,
                 IdentityCard = request.IdentityCard,
                 Address = request.Address,
-                PhoneNumber = request.PhoneNumber, // Truyền số điện thoại
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = null,
                 UpdatedAt = null,
@@ -227,17 +223,6 @@ namespace AppBackend.Services.Authentication
                 };
                 await _unitOfWork.Accounts.AddAsync(account);
                 await _unitOfWork.SaveChangesAsync();
-                var customer = new Customer
-                {
-                    AccountId = account.AccountId,
-                    FullName = userInfo.Name,
-                    Address = "",
-                    IdentityCard = "",
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _unitOfWork.Customers.AddAsync(customer);
-                
-                await _unitOfWork.SaveChangesAsync();
 
                 var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
                 if (userRole != null)
@@ -345,11 +330,17 @@ namespace AppBackend.Services.Authentication
             return new ResultModel { IsSuccess = true, Message = "Đổi mật khẩu thành công." };
         }
 
-        public async Task<ResultModel> GetTokenAsync(int accountId, string refreshToken)
+        public async Task<ResultModel> GetTokenAsync(string refreshToken)
         {
+            // Lấy accountId từ cache bằng refreshToken
+            var accountIdStr = _cacheHelper.Get<string>(CachePrefix.RefreshToken, refreshToken);
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out int accountId))
+                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
+            // Kiểm tra lại refreshToken của accountId
             var cachedRefreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.ToString());
             if (string.IsNullOrEmpty(cachedRefreshToken) || cachedRefreshToken != refreshToken)
                 return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
+            // Lấy account từ DB
             var account = await _unitOfWork.Accounts.GetByIdAsync(accountId);
             if (account == null)
                 return new ResultModel { IsSuccess = false, Message = "Tài khoản không tồn tại." };

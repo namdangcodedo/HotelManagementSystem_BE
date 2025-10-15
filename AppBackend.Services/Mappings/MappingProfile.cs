@@ -13,8 +13,8 @@ namespace AppBackend.Services.Mappings
             CreateMap<RegisterRequest, Account>();
             #endregion
 
-            #region BookingDtos
-            // Map BookingDtos entities
+            #region Booking
+            // Map Booking entities
             CreateMap<Booking, BookingDto>();
             CreateMap<BookingDto, Booking>();
             #endregion
@@ -46,7 +46,7 @@ namespace AppBackend.Services.Mappings
             CreateMap<EmployeeDto, Employee>();
             #endregion
 
-            #region AmenityModel
+            #region Amenity
 
             CreateMap<Amenity, AmenityWithMediumDto>()
                 .ForMember(dest => dest.Images, opt => opt.Ignore());
