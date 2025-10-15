@@ -332,16 +332,16 @@ namespace AppBackend.Services.Authentication
 
         public async Task<ResultModel> GetTokenAsync(string refreshToken)
         {
-            // Giải mã token để lấy AccountId
-            int? accountId = TokenHelper.GetAccountIdFromToken(refreshToken);
-            if (accountId == null)
-                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc không có AccountId." };
-            // Lấy refresh token từ cache
-            var cachedRefreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.Value.ToString());
+            // Lấy accountId từ cache bằng refreshToken
+            var accountIdStr = _cacheHelper.Get<string>(CachePrefix.RefreshToken, refreshToken);
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out int accountId))
+                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
+            // Kiểm tra lại refreshToken của accountId
+            var cachedRefreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.ToString());
             if (string.IsNullOrEmpty(cachedRefreshToken) || cachedRefreshToken != refreshToken)
                 return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
             // Lấy account từ DB
-            var account = await _unitOfWork.Accounts.GetByIdAsync(accountId.Value);
+            var account = await _unitOfWork.Accounts.GetByIdAsync(accountId);
             if (account == null)
                 return new ResultModel { IsSuccess = false, Message = "Tài khoản không tồn tại." };
             var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
