@@ -2,14 +2,15 @@ using AppBackend.BusinessObjects.Data;
 using AppBackend.Repositories.Generic;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services;
-using AppBackend.Services.AccountServices;
 using AppBackend.Services.Authentication;
 using AppBackend.Services.Helpers;
 using AppBackend.Services.RateLimiting;
+using AppBackend.Services.Services.AccountServices;
 using AppBackend.Services.Services.AmenityServices;
 using AppBackend.Services.Services.Email;
 using AppBackend.Services.Services.EmployeeServices;
 using AppBackend.Services.Services.CommonCodeServices;
+using AppBackend.Services.Services.RoomServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -38,6 +39,7 @@ public static class ServicesConfig
         services.AddScoped<IAmenityService, AmenityService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ICommonCodeService, CommonCodeService>();
+        services.AddScoped<IRoomService, RoomService>();
         
         services.AddSingleton<RateLimiterStore>();
         #endregion

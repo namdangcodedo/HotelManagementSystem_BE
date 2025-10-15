@@ -1,0 +1,325 @@
+### Test Room & Room Type API Endpoints
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@roomId = 1
+@roomTypeId = 1
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+%}
+
+### 2. Đăng nhập Manager để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+> {%
+    client.global.set("manager_token", response.body.data.token);
+%}
+
+### ===== ROOM TYPE APIs =====
+
+### 3. Lấy danh sách loại phòng (Public)
+GET {{baseUrl}}/Room/types?PageIndex=1&PageSize=10
+
+### 4. Lấy danh sách loại phòng đang active
+GET {{baseUrl}}/Room/types?PageIndex=1&PageSize=10&IsActive=true
+
+### 5. Tìm kiếm loại phòng
+GET {{baseUrl}}/Room/types?PageIndex=1&PageSize=10&Search=Standard
+
+### 6. Lấy chi tiết một loại phòng (Public)
+GET {{baseUrl}}/Room/types/{{roomTypeId}}
+
+### 7. Thêm loại phòng mới (Admin/Manager)
+POST {{baseUrl}}/Room/types
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomTypeName": "Phòng Deluxe",
+  "description": "Phòng cao cấp với đầy đủ tiện nghi hiện đại",
+  "maxOccupancy": 2,
+  "basePrice": 1500000,
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/room_deluxe_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_deluxe_2.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_deluxe_3.jpg"
+  ]
+}
+
+### 8. Thêm loại phòng Suite (Manager)
+POST {{baseUrl}}/Room/types
+Content-Type: application/json
+Authorization: Bearer {{manager_token}}
+
+{
+  "roomTypeName": "Phòng Suite",
+  "description": "Phòng VIP với phòng khách riêng biệt",
+  "maxOccupancy": 4,
+  "basePrice": 3000000,
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/suite_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/suite_2.jpg"
+  ]
+}
+
+### 9. Cập nhật loại phòng
+PUT {{baseUrl}}/Room/types/{{roomTypeId}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomTypeName": "Phòng Standard Plus",
+  "description": "Phòng tiêu chuẩn nâng cấp",
+  "isActive": true,
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/standard_plus_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/standard_plus_2.jpg"
+  ]
+}
+
+### 10. Vô hiệu hóa loại phòng
+PUT {{baseUrl}}/Room/types/{{roomTypeId}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "isActive": false
+}
+
+### 11. Xóa loại phòng (Admin only)
+DELETE {{baseUrl}}/Room/types/{{roomTypeId}}
+Authorization: Bearer {{admin_token}}
+
+### ===== ROOM APIs =====
+
+### 12. Lấy danh sách phòng (Public)
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10
+
+### 13. Lấy danh sách phòng với filter
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10&RoomTypeId=1&StatusId=1
+
+### 14. Lọc phòng theo giá
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10&MinPrice=500000&MaxPrice=2000000
+
+### 15. Tìm kiếm phòng theo số phòng
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10&Search=101
+
+### 16. Lấy chi tiết một phòng (Public)
+GET {{baseUrl}}/Room/{{roomId}}
+
+### 17. Thêm phòng mới (Admin/Manager)
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "101",
+  "roomTypeId": 1,
+  "basePriceNight": 1000000,
+  "basePriceHour": 150000,
+  "statusId": 1,
+  "description": "Phòng 101 tầng 1, view hồ bơi",
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/room_101_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_101_2.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_101_3.jpg"
+  ]
+}
+
+### 18. Thêm phòng 102 (Manager)
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{manager_token}}
+
+{
+  "roomNumber": "102",
+  "roomTypeId": 1,
+  "basePriceNight": 1000000,
+  "basePriceHour": 150000,
+  "statusId": 1,
+  "description": "Phòng 102 tầng 1, view vườn",
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/room_102_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_102_2.jpg"
+  ]
+}
+
+### 19. Thêm phòng 201 (Deluxe)
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "201",
+  "roomTypeId": 2,
+  "basePriceNight": 1500000,
+  "basePriceHour": 200000,
+  "statusId": 1,
+  "description": "Phòng Deluxe tầng 2, view thành phố",
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/room_201.jpg"
+  ]
+}
+
+### 20. Cập nhật thông tin phòng
+PUT {{baseUrl}}/Room/{{roomId}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "101A",
+  "basePriceNight": 1200000,
+  "basePriceHour": 180000,
+  "description": "Phòng 101A đã nâng cấp",
+  "imageUrls": [
+    "https://res.cloudinary.com/demo/image/upload/room_101a_new_1.jpg",
+    "https://res.cloudinary.com/demo/image/upload/room_101a_new_2.jpg"
+  ]
+}
+
+### 21. Cập nhật trạng thái phòng (đang bảo trì)
+PUT {{baseUrl}}/Room/{{roomId}}
+Content-Type: application/json
+Authorization: Bearer {{manager_token}}
+
+{
+  "statusId": 5
+}
+
+### 22. Xóa phòng (Admin only)
+DELETE {{baseUrl}}/Room/{{roomId}}
+Authorization: Bearer {{admin_token}}
+
+### ===== ERROR CASES =====
+
+### 23. Test thêm phòng trùng số (sẽ lỗi 400)
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "101",
+  "roomTypeId": 1,
+  "basePriceNight": 1000000,
+  "basePriceHour": 150000,
+  "statusId": 1,
+  "description": "Duplicate room number"
+}
+
+### 24. Test thêm loại phòng trùng tên (sẽ lỗi 400)
+POST {{baseUrl}}/Room/types
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomTypeName": "Phòng Deluxe",
+  "description": "Duplicate"
+}
+
+### 25. Test xóa loại phòng đang có phòng sử dụng (sẽ lỗi 400)
+DELETE {{baseUrl}}/Room/types/1
+Authorization: Bearer {{admin_token}}
+
+### 26. Test thêm phòng không có token (sẽ lỗi 401)
+POST {{baseUrl}}/Room
+Content-Type: application/json
+
+{
+  "roomNumber": "999",
+  "roomTypeId": 1,
+  "basePriceNight": 1000000,
+  "basePriceHour": 150000,
+  "statusId": 1
+}
+
+### 27. Test xóa phòng với Receptionist (sẽ lỗi 403)
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "receptionist@hotel.com",
+  "password": "Staff@123"
+}
+
+> {%
+    client.global.set("receptionist_token", response.body.data.token);
+%}
+
+###
+DELETE {{baseUrl}}/Room/1
+Authorization: Bearer {{receptionist_token}}
+
+### ===== INTEGRATION TESTS =====
+
+### 28. Flow: Tạo loại phòng -> Tạo phòng -> Cập nhật -> Xóa
+# Step 1: Tạo loại phòng
+POST {{baseUrl}}/Room/types
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomTypeName": "Test Room Type",
+  "description": "For testing",
+  "imageUrls": ["https://example.com/test.jpg"]
+}
+
+> {%
+    client.global.set("test_room_type_id", response.body.data.codeId);
+%}
+
+### Step 2: Tạo phòng với loại phòng vừa tạo
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "TEST-001",
+  "roomTypeId": {{test_room_type_id}},
+  "basePriceNight": 999000,
+  "basePriceHour": 99000,
+  "statusId": 1,
+  "description": "Test room",
+  "imageUrls": ["https://example.com/room_test.jpg"]
+}
+
+> {%
+    client.global.set("test_room_id", response.body.data.roomId);
+%}
+
+### Step 3: Cập nhật phòng test
+PUT {{baseUrl}}/Room/{{test_room_id}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "description": "Updated test room",
+  "basePriceNight": 1099000
+}
+
+### Step 4: Xóa phòng test
+DELETE {{baseUrl}}/Room/{{test_room_id}}
+Authorization: Bearer {{admin_token}}
+
+### Step 5: Xóa loại phòng test (sau khi đã xóa phòng)
+DELETE {{baseUrl}}/Room/types/{{test_room_type_id}}
+Authorization: Bearer {{admin_token}}
+
+### 29. Lấy danh sách phòng sau khi test cleanup
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10
+

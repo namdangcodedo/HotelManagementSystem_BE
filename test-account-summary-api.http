@@ -1,0 +1,201 @@
+### Test Account Summary API Endpoints
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@testAccountId = 1
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+%}
+
+### 2. Đăng nhập Manager để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+> {%
+    client.global.set("manager_token", response.body.data.token);
+%}
+
+### 3. Đăng nhập User/Customer để lấy token (cần tạo trước)
+POST {{baseUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "customer01",
+  "email": "customer01@example.com",
+  "password": "Customer@123",
+  "fullName": "Nguyễn Văn Khách",
+  "phoneNumber": "0911111111",
+  "identityCard": "123456789",
+  "address": "123 Đường ABC, TP.HCM"
+}
+
+> {%
+    client.global.set("customer_token", response.body.data.token);
+%}
+
+### ===== VIEW OWN ACCOUNT SUMMARY =====
+
+### 4. Xem summary của chính mình (Customer)
+GET {{baseUrl}}/Account/summary
+Authorization: Bearer {{customer_token}}
+
+### 5. Xem summary của chính mình (Admin)
+GET {{baseUrl}}/Account/summary
+Authorization: Bearer {{admin_token}}
+
+### 6. Xem summary của chính mình (Manager)
+GET {{baseUrl}}/Account/summary
+Authorization: Bearer {{manager_token}}
+
+### ===== ADMIN VIEW OTHER ACCOUNT SUMMARY (WITH STATISTICS) =====
+
+### 7. Admin xem summary của Customer (có statistics)
+GET {{baseUrl}}/Account/summary?accountId=4
+Authorization: Bearer {{admin_token}}
+
+### 8. Admin xem summary của Employee bằng route param
+GET {{baseUrl}}/Account/summary/2
+Authorization: Bearer {{admin_token}}
+
+### 9. Admin xem summary của Manager
+GET {{baseUrl}}/Account/summary/3
+Authorization: Bearer {{admin_token}}
+
+### 10. Admin xem summary của chính Admin
+GET {{baseUrl}}/Account/summary/1
+Authorization: Bearer {{admin_token}}
+
+### ===== FORBIDDEN CASES (403) =====
+
+### 11. Manager cố xem summary của Admin (sẽ lỗi 403)
+GET {{baseUrl}}/Account/summary?accountId=1
+Authorization: Bearer {{manager_token}}
+
+### 12. Customer cố xem summary của người khác (sẽ lỗi 403)
+GET {{baseUrl}}/Account/summary?accountId=1
+Authorization: Bearer {{customer_token}}
+
+### 13. Manager cố dùng endpoint Admin-only (sẽ lỗi 403)
+GET {{baseUrl}}/Account/summary/1
+Authorization: Bearer {{manager_token}}
+
+### ===== NOT FOUND CASES (404) =====
+
+### 14. Xem summary của account không tồn tại
+GET {{baseUrl}}/Account/summary/99999
+Authorization: Bearer {{admin_token}}
+
+### 15. Xem summary với accountId không tồn tại
+GET {{baseUrl}}/Account/summary?accountId=99999
+Authorization: Bearer {{admin_token}}
+
+### ===== UNAUTHORIZED CASES (401) =====
+
+### 16. Xem summary không có token (sẽ lỗi 401)
+GET {{baseUrl}}/Account/summary
+
+### ===== DETAILED RESPONSE EXAMPLES =====
+
+### 17. Customer với full statistics (Admin view)
+# Expected Response:
+# {
+#   "accountId": 4,
+#   "username": "customer01",
+#   "email": "customer01@example.com",
+#   "isLocked": false,
+#   "lastLoginAt": "2024-10-15T...",
+#   "createdAt": "2024-10-15T...",
+#   "roles": ["User"],
+#   "accountType": "Customer",
+#   "profileDetails": {
+#     "customerId": 1,
+#     "fullName": "Nguyễn Văn Khách",
+#     "phoneNumber": "0911111111",
+#     "identityCard": "123456789",
+#     "address": "123 Đường ABC, TP.HCM",
+#     "avatarUrl": null
+#   },
+#   "statistics": {
+#     "totalBookings": 5,
+#     "completedBookings": 3,
+#     "cancelledBookings": 1,
+#     "totalSpent": 5000000,
+#     "totalFeedbacks": 2,
+#     "totalNotifications": 10,
+#     "unreadNotifications": 3
+#   }
+# }
+GET {{baseUrl}}/Account/summary/4
+Authorization: Bearer {{admin_token}}
+
+### 18. Employee với full statistics (Admin view)
+# Expected Response:
+# {
+#   "accountId": 2,
+#   "username": "manager",
+#   "email": "manager@hotel.com",
+#   "isLocked": false,
+#   "roles": ["Manager"],
+#   "accountType": "Employee",
+#   "profileDetails": {
+#     "employeeId": 2,
+#     "fullName": "Nguyễn Văn Quản Lý",
+#     "phoneNumber": "0900000002",
+#     "employeeTypeId": 13,
+#     "employeeTypeName": "Quản lý",
+#     "hireDate": "2024-04-15",
+#     "terminationDate": null,
+#     "isActive": true
+#   },
+#   "statistics": {
+#     "totalTasksAssigned": 20,
+#     "completedTasks": 18,
+#     "pendingTasks": 2,
+#     "totalAttendance": 120,
+#     "totalSalaryPaid": 60000000,
+#     "workingDays": 183,
+#     "totalNotifications": 15,
+#     "unreadNotifications": 5
+#   }
+# }
+GET {{baseUrl}}/Account/summary/2
+Authorization: Bearer {{admin_token}}
+
+### 19. Customer xem summary của chính mình (không có statistics)
+# Expected Response:
+# {
+#   "accountId": 4,
+#   "username": "customer01",
+#   "email": "customer01@example.com",
+#   "roles": ["User"],
+#   "accountType": "Customer",
+#   "profileDetails": {
+#     "customerId": 1,
+#     "fullName": "Nguyễn Văn Khách",
+#     ...
+#   },
+#   "statistics": null  // Không có statistics vì không phải Admin xem
+# }
+GET {{baseUrl}}/Account/summary
+Authorization: Bearer {{customer_token}}
+
+### 20. Test với Customer có booking thực tế (sau khi tạo booking)
+# Giả sử đã tạo một số booking cho customer
+GET {{baseUrl}}/Account/summary
+Authorization: Bearer {{customer_token}}
+

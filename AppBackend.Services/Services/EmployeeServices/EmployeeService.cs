@@ -143,7 +143,7 @@ namespace AppBackend.Services.Services.EmployeeServices
 
             // Kiểm tra loại nhân viên có tồn tại
             var employeeType = await _unitOfWork.CommonCodes.GetByIdAsync(request.EmployeeTypeId);
-            if (employeeType == null)
+            if (employeeType == null || employeeType.CodeType != "EmployeeType")
             {
                 return new ResultModel
                 {
@@ -189,8 +189,9 @@ namespace AppBackend.Services.Services.EmployeeServices
             await _unitOfWork.Employees.AddAsync(employee);
             await _unitOfWork.SaveChangesAsync();
 
-            // Gán vai trò dựa trên loại nhân viên
-            var role = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.Receptionist.ToString());
+            // Tự động gán vai trò dựa trên EmployeeType.CodeName = Role.RoleValue
+            // Ví dụ: EmployeeType có CodeName="Manager" sẽ tìm Role có RoleValue="Manager"
+            var role = await _unitOfWork.Roles.GetRoleByRoleValueAsync(employeeType.CodeName);
             if (role != null)
             {
                 var accountRole = new AccountRole

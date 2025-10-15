@@ -1,0 +1,179 @@
+### Test Amenity API Endpoints
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@amenityId = 1
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### 2. Đăng nhập Manager để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+> {%
+    client.global.set("manager_token", response.body.data.token);
+%}
+
+### ===== PUBLIC ENDPOINTS (Không cần token) =====
+
+### 3. Lấy danh sách tiện ích với phân trang (Public)
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&Search=&SortBy=AmenityName&SortDesc=false
+
+### 4. Lấy danh sách tiện ích - Chỉ lấy active
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&IsActive=true
+
+### 5. Tìm kiếm tiện ích theo tên
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&Search=Wifi
+
+### 6. Lấy tất cả tiện ích (không phân trang) - Public
+GET {{baseUrl}}/Amenity/all
+
+### 7. Lấy tất cả tiện ích active
+GET {{baseUrl}}/Amenity/all?isActive=true
+
+### 8. Lấy chi tiết một tiện ích (Public)
+GET {{baseUrl}}/Amenity/{{amenityId}}
+
+### ===== PROTECTED ENDPOINTS (Cần Admin hoặc Manager) =====
+
+### 9. Thêm tiện ích mới (Admin)
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "amenityName": "Phòng Karaoke",
+  "description": "Phòng karaoke hiện đại với hệ thống âm thanh cao cấp",
+  "price": 500000,
+  "isActive": true
+}
+
+### 10. Thêm tiện ích mới (Manager)
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+Authorization: Bearer {{manager_token}}
+
+{
+  "amenityName": "Dịch vụ cho thuê xe",
+  "description": "Dịch vụ cho thuê xe máy, ô tô theo ngày",
+  "price": 300000,
+  "isActive": true
+}
+
+### 11. Thêm tiện ích miễn phí
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "amenityName": "Bãi đỗ xe miễn phí",
+  "description": "Bãi đỗ xe rộng rãi, an toàn cho khách",
+  "price": 0,
+  "isActive": true
+}
+
+### 12. Cập nhật tiện ích (Admin)
+PUT {{baseUrl}}/Amenity/{{amenityId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "amenityName": "Wifi miễn phí tốc độ cao",
+  "description": "Kết nối internet tốc độ cao 500Mbps miễn phí",
+  "price": 0,
+  "isActive": true
+}
+
+### 13. Cập nhật tiện ích (Manager)
+PUT {{baseUrl}}/Amenity/{{amenityId}}
+Content-Type: application/json
+Authorization: Bearer {{manager_token}}
+
+{
+  "amenityName": "Wifi miễn phí Premium",
+  "description": "Kết nối internet tốc độ cao 1Gbps miễn phí",
+  "price": 0,
+  "isActive": true
+}
+
+### 14. Vô hiệu hóa tiện ích
+PUT {{baseUrl}}/Amenity/{{amenityId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "amenityName": "Wifi miễn phí",
+  "description": "Kết nối internet tốc độ cao miễn phí",
+  "price": 0,
+  "isActive": false
+}
+
+### 15. Xóa tiện ích (Admin)
+DELETE {{baseUrl}}/Amenity/{{amenityId}}
+Authorization: Bearer {{auth_token}}
+
+### 16. Xóa tiện ích (Manager)
+DELETE {{baseUrl}}/Amenity/8
+Authorization: Bearer {{manager_token}}
+
+### ===== ERROR CASES =====
+
+### 17. Test thêm tiện ích không có token (sẽ lỗi 401)
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+
+{
+  "amenityName": "Test Unauthorized",
+  "description": "Should fail without token",
+  "price": 100000,
+  "isActive": true
+}
+
+### 18. Test cập nhật với Receptionist (sẽ lỗi 403)
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "receptionist@hotel.com",
+  "password": "Staff@123"
+}
+
+> {%
+    client.global.set("receptionist_token", response.body.data.token);
+%}
+
+###
+PUT {{baseUrl}}/Amenity/1
+Content-Type: application/json
+Authorization: Bearer {{receptionist_token}}
+
+{
+  "amenityName": "Test Forbidden",
+  "description": "Should fail with Receptionist role",
+  "price": 100000,
+  "isActive": true
+}
+
+### 19. Test xóa tiện ích không tồn tại (404)
+DELETE {{baseUrl}}/Amenity/99999
+Authorization: Bearer {{auth_token}}
+
+### 20. Test lấy chi tiết tiện ích không tồn tại (404)
+GET {{baseUrl}}/Amenity/99999
+
