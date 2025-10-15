@@ -112,5 +112,12 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _authService.ChangePasswordWithOtpAsync(request.Email, request.Otp, request.NewPassword);
             return Ok(result);
         }
+
+        [HttpPost("get-token")]
+        public async Task<IActionResult> GetToken([FromBody] GetTokenRequest request)
+        {
+            var result = await _authService.GetTokenAsync(request.RefreshToken);
+            return Ok(result);
+        }
     }
 }

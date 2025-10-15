@@ -20,7 +20,7 @@ namespace AppBackend.Services.Services.Email
         public async Task SendEmail(string email, string subject, string body)
         {
             var emailMessage = new MimeMessage();
-            emailMessage.From.Add(new MailboxAddress("My Hotel", _configuration["EmailSettings:SenderEmail"]));
+            emailMessage.From.Add(new MailboxAddress("StayHub", _configuration["EmailSettings:SenderEmail"]));
             emailMessage.To.Add(new MailboxAddress("", email));
             emailMessage.Subject = subject;
             emailMessage.Body = new TextPart("html") { Text = body };

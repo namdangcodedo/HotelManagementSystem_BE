@@ -156,5 +156,16 @@ namespace AppBackend.Services.Services.AmenityServices
                 }
             };
         }
+        public async Task<ResultModel> GetAmenityDetailAsync(int id)
+        {
+            var amenity = await _unitOfWork.Amenities.GetByIdAsync(id);
+            if (amenity == null)
+                return new ResultModel { IsSuccess = false, Message = "Tiện ích không tồn tại." };
+            var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+            var imageLinks = mediumList.Select(m => m.FilePath).ToList();
+            var amenityDto = _mapper.Map<AmenityWithMediumDto>(amenity);
+            amenityDto.Images = imageLinks;
+            return new ResultModel { IsSuccess = true, Message = "Lấy chi tiết tiện ích thành công.", Data = amenityDto };
+        }
     }
 }

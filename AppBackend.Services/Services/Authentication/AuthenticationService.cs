@@ -329,5 +329,24 @@ namespace AppBackend.Services.Authentication
             _cacheHelper.Remove(CachePrefix.OtpCode, email);
             return new ResultModel { IsSuccess = true, Message = "Đổi mật khẩu thành công." };
         }
+
+        public async Task<ResultModel> GetTokenAsync(string refreshToken)
+        {
+            // Giải mã token để lấy AccountId
+            int? accountId = TokenHelper.GetAccountIdFromToken(refreshToken);
+            if (accountId == null)
+                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc không có AccountId." };
+            // Lấy refresh token từ cache
+            var cachedRefreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.Value.ToString());
+            if (string.IsNullOrEmpty(cachedRefreshToken) || cachedRefreshToken != refreshToken)
+                return new ResultModel { IsSuccess = false, Message = "Refresh token không hợp lệ hoặc đã hết hạn." };
+            // Lấy account từ DB
+            var account = await _unitOfWork.Accounts.GetByIdAsync(accountId.Value);
+            if (account == null)
+                return new ResultModel { IsSuccess = false, Message = "Tài khoản không tồn tại." };
+            var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
+            var accessToken = _accountHelper.CreateToken(account, roleNames);
+            return new ResultModel { IsSuccess = true, Message = "Lấy access token thành công.", Data = new { AccessToken = accessToken } };
+        }
     }
 }

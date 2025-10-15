@@ -13,5 +13,6 @@ namespace AppBackend.Services.Services.AmenityServices
         Task<ResultModel> DeleteAmenityAsync(int id, int userId);
         Task<ResultModel> GetAmenityListAsync(bool? isActive = null);
         Task<ResultModel> GetAmenityPagedAsync(PagedAmenityRequestDto request);
+        Task<ResultModel> GetAmenityDetailAsync(int id);
     }
 }

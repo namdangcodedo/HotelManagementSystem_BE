@@ -59,5 +59,12 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _amenityService.GetAmenityPagedAsync(request);
             return Ok(result);
         }
+
+        [HttpGet("detail/{id}")]
+        public async Task<IActionResult> GetAmenityDetail(int id)
+        {
+            var result = await _amenityService.GetAmenityDetailAsync(id);
+            return Ok(result);
+        }
     }
 }
