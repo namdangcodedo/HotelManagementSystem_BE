@@ -89,7 +89,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("AccountRole");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Amenity", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.AmenityModel", b =>
                 {
                     b.Property<int>("AmenityId")
                         .ValueGeneratedOnAdd()
@@ -128,7 +128,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasKey("AmenityId");
 
-                    b.ToTable("Amenity");
+                    b.ToTable("AmenityModel");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Attendance", b =>
@@ -173,7 +173,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("Attendance");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Booking", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingDtos", b =>
                 {
                     b.Property<int>("BookingId")
                         .ValueGeneratedOnAdd()
@@ -230,7 +230,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasIndex("StatusId");
 
-                    b.ToTable("Booking");
+                    b.ToTable("BookingDtos");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoom", b =>
@@ -1166,7 +1166,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Employee");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Booking", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingDtos", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "BookingType")
                         .WithMany()
@@ -1209,7 +1209,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
+                    b.HasOne("AppBackend.BusinessObjects.Models.BookingDtos", "BookingDtos")
                         .WithMany("BookingRooms")
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1223,14 +1223,14 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Navigation("BookedByAccount");
 
-                    b.Navigation("Booking");
+                    b.Navigation("BookingDtos");
 
                     b.Navigation("Room");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoomAmenity", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Amenity", "Amenity")
+                    b.HasOne("AppBackend.BusinessObjects.Models.AmenityModel", "AmenityModel")
                         .WithMany("BookingRoomAmenities")
                         .HasForeignKey("AmenityId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1242,7 +1242,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Amenity");
+                    b.Navigation("AmenityModel");
 
                     b.Navigation("BookingRoom");
                 });
@@ -1268,7 +1268,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingService", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
+                    b.HasOne("AppBackend.BusinessObjects.Models.BookingDtos", "BookingDtos")
                         .WithMany("BookingServices")
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1280,7 +1280,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Booking");
+                    b.Navigation("BookingDtos");
 
                     b.Navigation("Service");
                 });
@@ -1334,7 +1334,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Feedback", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
+                    b.HasOne("AppBackend.BusinessObjects.Models.BookingDtos", "BookingDtos")
                         .WithMany("Feedbacks")
                         .HasForeignKey("BookingId");
 
@@ -1354,7 +1354,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Booking");
+                    b.Navigation("BookingDtos");
 
                     b.Navigation("Customer");
 
@@ -1447,7 +1447,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.RoomAmenity", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Amenity", "Amenity")
+                    b.HasOne("AppBackend.BusinessObjects.Models.AmenityModel", "AmenityModel")
                         .WithMany("RoomAmenities")
                         .HasForeignKey("AmenityId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1459,7 +1459,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Amenity");
+                    b.Navigation("AmenityModel");
 
                     b.Navigation("Room");
                 });
@@ -1485,7 +1485,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Transaction", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
+                    b.HasOne("AppBackend.BusinessObjects.Models.BookingDtos", "BookingDtos")
                         .WithMany("Transactions")
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1514,7 +1514,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Booking");
+                    b.Navigation("BookingDtos");
 
                     b.Navigation("DepositStatus");
 
@@ -1536,14 +1536,14 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Notifications");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Amenity", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.AmenityModel", b =>
                 {
                     b.Navigation("BookingRoomAmenities");
 
                     b.Navigation("RoomAmenities");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Booking", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingDtos", b =>
                 {
                     b.Navigation("BookingRooms");
 

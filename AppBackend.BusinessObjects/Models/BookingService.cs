@@ -12,7 +12,7 @@ public partial class BookingService
     public int BookingServiceId { get; set; }
 
     [Required]
-    [ForeignKey("Booking")]
+    [ForeignKey("BookingDtos")]
     public int BookingId { get; set; }
 
     [Required]

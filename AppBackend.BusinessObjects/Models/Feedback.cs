@@ -13,7 +13,7 @@ public class Feedback
     [ForeignKey("Customer")]
     public int? CustomerId { get; set; }
 
-    [ForeignKey("Booking")]
+    [ForeignKey("BookingDtos")]
     public int? BookingId { get; set; }
 
     [StringLength(100)]

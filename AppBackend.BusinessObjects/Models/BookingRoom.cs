@@ -12,7 +12,7 @@ namespace AppBackend.BusinessObjects.Models
         public int BookingRoomId { get; set; }
 
         [Required]
-        [ForeignKey("Booking")]
+        [ForeignKey("BookingDtos")]
         public int BookingId { get; set; }
         public virtual Booking Booking { get; set; } = null!;
 
