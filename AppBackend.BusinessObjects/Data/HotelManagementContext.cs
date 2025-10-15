@@ -39,7 +39,7 @@ public class HotelManagementContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseSqlServer("Data Source=localhost,1433;Initial Catalog=hotel_management;Persist Security Info=True;User ID=sa;Password=123456789a@;Encrypt=True;Trust Server Certificate=True");
+            optionsBuilder.UseSqlServer("Data Source=103.38.236.148,1433;Initial Catalog=hotel_management;Persist Security Info=True;User ID=sa;Password=123456789a@;Encrypt=True;Trust Server Certificate=True");
         }
     }
 

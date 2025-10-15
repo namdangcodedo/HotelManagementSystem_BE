@@ -34,7 +34,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AmenityServices",
+                name: "Amenity",
                 columns: table => new
                 {
                     AmenityId = table.Column<int>(type: "int", nullable: false)
@@ -45,7 +45,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
+                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -395,6 +396,41 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Medium",
+                columns: table => new
+                {
+                    MediaId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PublishId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    FilePath = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    ReferenceTable = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ReferenceKey = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    RoomId = table.Column<int>(type: "int", nullable: true),
+                    ServiceId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Medium", x => x.MediaId);
+                    table.ForeignKey(
+                        name: "FK_Medium_Room_RoomId",
+                        column: x => x.RoomId,
+                        principalTable: "Room",
+                        principalColumn: "RoomId");
+                    table.ForeignKey(
+                        name: "FK_Medium_Service_ServiceId",
+                        column: x => x.ServiceId,
+                        principalTable: "Service",
+                        principalColumn: "ServiceId");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "RoomAmenity",
                 columns: table => new
                 {
@@ -409,7 +445,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_RoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "AmenityServices",
+                        principalTable: "Amenity",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
@@ -418,6 +454,38 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Room",
                         principalColumn: "RoomId",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Customer",
+                columns: table => new
+                {
+                    CustomerId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AccountId = table.Column<int>(type: "int", nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IdentityCard = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    AvatarMediaId = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Customer", x => x.CustomerId);
+                    table.ForeignKey(
+                        name: "FK_Customer_Account_AccountId",
+                        column: x => x.AccountId,
+                        principalTable: "Account",
+                        principalColumn: "AccountId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Customer_Medium_AvatarMediaId",
+                        column: x => x.AvatarMediaId,
+                        principalTable: "Medium",
+                        principalColumn: "MediaId");
                 });
 
             migrationBuilder.CreateTable(
@@ -454,6 +522,12 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Booking_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
+                        principalColumn: "CustomerId",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_Booking_Room_RoomId",
                         column: x => x.RoomId,
@@ -530,6 +604,51 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Feedback",
+                columns: table => new
+                {
+                    FeedbackId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CustomerId = table.Column<int>(type: "int", nullable: true),
+                    BookingId = table.Column<int>(type: "int", nullable: true),
+                    Subject = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Content = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    Rating = table.Column<int>(type: "int", nullable: true),
+                    FeedbackTypeId = table.Column<int>(type: "int", nullable: false),
+                    StatusId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Feedback", x => x.FeedbackId);
+                    table.ForeignKey(
+                        name: "FK_Feedback_Booking_BookingId",
+                        column: x => x.BookingId,
+                        principalTable: "Booking",
+                        principalColumn: "BookingId");
+                    table.ForeignKey(
+                        name: "FK_Feedback_CommonCode_FeedbackTypeId",
+                        column: x => x.FeedbackTypeId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Feedback_CommonCode_StatusId",
+                        column: x => x.StatusId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Feedback_Customer_CustomerId",
+                        column: x => x.CustomerId,
+                        principalTable: "Customer",
+                        principalColumn: "CustomerId");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Transaction",
                 columns: table => new
                 {
@@ -603,7 +722,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     table.ForeignKey(
                         name: "FK_BookingRoomAmenity_Amenity_AmenityId",
                         column: x => x.AmenityId,
-                        principalTable: "AmenityServices",
+                        principalTable: "Amenity",
                         principalColumn: "AmenityId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -640,116 +759,6 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Service",
                         principalColumn: "ServiceId",
                         onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Customer",
-                columns: table => new
-                {
-                    CustomerId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    AccountId = table.Column<int>(type: "int", nullable: false),
-                    FullName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IdentityCard = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    Address = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    AvatarMediaId = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Customer", x => x.CustomerId);
-                    table.ForeignKey(
-                        name: "FK_Customer_Account_AccountId",
-                        column: x => x.AccountId,
-                        principalTable: "Account",
-                        principalColumn: "AccountId",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Feedback",
-                columns: table => new
-                {
-                    FeedbackId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CustomerId = table.Column<int>(type: "int", nullable: true),
-                    BookingId = table.Column<int>(type: "int", nullable: true),
-                    Subject = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Content = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    Rating = table.Column<int>(type: "int", nullable: true),
-                    FeedbackTypeId = table.Column<int>(type: "int", nullable: false),
-                    StatusId = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Feedback", x => x.FeedbackId);
-                    table.ForeignKey(
-                        name: "FK_Feedback_Booking_BookingId",
-                        column: x => x.BookingId,
-                        principalTable: "Booking",
-                        principalColumn: "BookingId");
-                    table.ForeignKey(
-                        name: "FK_Feedback_CommonCode_FeedbackTypeId",
-                        column: x => x.FeedbackTypeId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Feedback_CommonCode_StatusId",
-                        column: x => x.StatusId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Feedback_Customer_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "Customer",
-                        principalColumn: "CustomerId");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Medium",
-                columns: table => new
-                {
-                    MediaId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RoomId = table.Column<int>(type: "int", nullable: true),
-                    PublishId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    ServiceId = table.Column<int>(type: "int", nullable: true),
-                    CustomerId = table.Column<int>(type: "int", nullable: true),
-                    FilePath = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Medium", x => x.MediaId);
-                    table.ForeignKey(
-                        name: "FK_Medium_Customer_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "Customer",
-                        principalColumn: "CustomerId");
-                    table.ForeignKey(
-                        name: "FK_Medium_Room_RoomId",
-                        column: x => x.RoomId,
-                        principalTable: "Room",
-                        principalColumn: "RoomId");
-                    table.ForeignKey(
-                        name: "FK_Medium_Service_ServiceId",
-                        column: x => x.ServiceId,
-                        principalTable: "Service",
-                        principalColumn: "ServiceId");
                 });
 
             migrationBuilder.CreateIndex(
@@ -842,9 +851,7 @@ namespace AppBackend.BusinessObjects.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_Customer_AvatarMediaId",
                 table: "Customer",
-                column: "AvatarMediaId",
-                unique: true,
-                filter: "[AvatarMediaId] IS NOT NULL");
+                column: "AvatarMediaId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Employee_AccountId",
@@ -901,11 +908,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_HousekeepingTask_TaskTypeId",
                 table: "HousekeepingTask",
                 column: "TaskTypeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Medium_CustomerId",
-                table: "Medium",
-                column: "CustomerId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Medium_RoomId",
@@ -982,42 +984,11 @@ namespace AppBackend.BusinessObjects.Migrations
                 table: "Voucher",
                 column: "Code",
                 unique: true);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Booking_Customer_CustomerId",
-                table: "Booking",
-                column: "CustomerId",
-                principalTable: "Customer",
-                principalColumn: "CustomerId",
-                onDelete: ReferentialAction.Cascade);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Customer_Medium_AvatarMediaId",
-                table: "Customer",
-                column: "AvatarMediaId",
-                principalTable: "Medium",
-                principalColumn: "MediaId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Customer_Account_AccountId",
-                table: "Customer");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_Room_CommonCode_RoomTypeId",
-                table: "Room");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_Room_CommonCode_StatusId",
-                table: "Room");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_Medium_Customer_CustomerId",
-                table: "Medium");
-
             migrationBuilder.DropTable(
                 name: "AccountRole");
 
@@ -1064,7 +1035,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "BookingRoom");
 
             migrationBuilder.DropTable(
-                name: "AmenityServices");
+                name: "Amenity");
 
             migrationBuilder.DropTable(
                 name: "Employee");
@@ -1073,13 +1044,10 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "Booking");
 
             migrationBuilder.DropTable(
-                name: "Account");
-
-            migrationBuilder.DropTable(
-                name: "CommonCode");
-
-            migrationBuilder.DropTable(
                 name: "Customer");
+
+            migrationBuilder.DropTable(
+                name: "Account");
 
             migrationBuilder.DropTable(
                 name: "Medium");
@@ -1089,6 +1057,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "Service");
+
+            migrationBuilder.DropTable(
+                name: "CommonCode");
         }
     }
 }

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251014180519_InitialAmentity")]
-    partial class InitialAmentity
+    [Migration("20251015065938_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
