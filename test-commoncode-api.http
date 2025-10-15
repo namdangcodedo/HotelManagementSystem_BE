@@ -1,0 +1,142 @@
+### Test CommonCode API Endpoints
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@codeId = 1
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### 2. Lấy danh sách tất cả các loại mã (CodeType)
+GET {{baseUrl}}/CommonCode/types
+Content-Type: application/json
+
+### 3. Lấy danh sách Common Code theo loại - EmployeeType
+GET {{baseUrl}}/CommonCode/by-type/EmployeeType
+Content-Type: application/json
+
+### 4. Lấy danh sách Common Code theo loại - RoomType
+GET {{baseUrl}}/CommonCode/by-type/RoomType
+Content-Type: application/json
+
+### 5. Lấy danh sách Common Code theo loại - Status
+GET {{baseUrl}}/CommonCode/by-type/Status
+Content-Type: application/json
+
+### 6. Lấy danh sách Common Code với phân trang
+GET {{baseUrl}}/CommonCode?PageIndex=1&PageSize=10
+Authorization: Bearer {{auth_token}}
+
+### 7. Lấy danh sách Common Code với filter theo CodeType
+GET {{baseUrl}}/CommonCode?PageIndex=1&PageSize=10&CodeType=EmployeeType
+Authorization: Bearer {{auth_token}}
+
+### 8. Lấy danh sách Common Code với filter theo IsActive
+GET {{baseUrl}}/CommonCode?PageIndex=1&PageSize=10&IsActive=true
+Authorization: Bearer {{auth_token}}
+
+### 9. Tìm kiếm Common Code
+GET {{baseUrl}}/CommonCode?PageIndex=1&PageSize=10&Search=Quản
+Authorization: Bearer {{auth_token}}
+
+### 10. Lấy chi tiết một Common Code
+GET {{baseUrl}}/CommonCode/{{codeId}}
+Authorization: Bearer {{auth_token}}
+
+### 11. Thêm Common Code mới
+POST {{baseUrl}}/CommonCode
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "codeType": "EmployeeType",
+  "codeValue": "Nhân viên phục vụ",
+  "codeName": "Waiter",
+  "description": "Nhân viên phục vụ nhà hàng",
+  "displayOrder": 8,
+  "isActive": true
+}
+
+### 12. Thêm Common Code cho RoomType
+POST {{baseUrl}}/CommonCode
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "codeType": "RoomType",
+  "codeValue": "Phòng đôi",
+  "codeName": "Double",
+  "description": "Phòng dành cho 2 người",
+  "displayOrder": 5,
+  "isActive": true
+}
+
+### 13. Cập nhật Common Code
+PUT {{baseUrl}}/CommonCode/{{codeId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "codeName": "StandardRoom",
+  "description": "Phòng tiêu chuẩn cập nhật",
+  "isActive": true
+}
+
+### 14. Vô hiệu hóa Common Code
+PUT {{baseUrl}}/CommonCode/{{codeId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "isActive": false
+}
+
+### 15. Xóa Common Code
+DELETE {{baseUrl}}/CommonCode/{{codeId}}
+Authorization: Bearer {{auth_token}}
+
+### 16. Test thêm Common Code trùng lặp (sẽ lỗi)
+POST {{baseUrl}}/CommonCode
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "codeType": "EmployeeType",
+  "codeValue": "Quản trị viên",
+  "codeName": "Admin",
+  "description": "Duplicate test",
+  "isActive": true
+}
+
+### 17. Lấy tất cả PaymentMethod
+GET {{baseUrl}}/CommonCode/by-type/PaymentMethod
+
+### 18. Lấy tất cả PaymentStatus
+GET {{baseUrl}}/CommonCode/by-type/PaymentStatus
+
+### 19. Lấy tất cả RoomStatus
+GET {{baseUrl}}/CommonCode/by-type/RoomStatus
+
+### 20. Thêm BookingStatus mới
+POST {{baseUrl}}/CommonCode
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "codeType": "BookingStatus",
+  "codeValue": "Đã xác nhận",
+  "codeName": "Confirmed",
+  "description": "Booking đã được xác nhận",
+  "displayOrder": 1,
+  "isActive": true
+}

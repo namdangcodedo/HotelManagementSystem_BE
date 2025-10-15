@@ -1,0 +1,145 @@
+### Test Employee API Endpoints
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@employeeId = 1
+
+### 1. Đăng nhập để lấy token (Admin/Manager)
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### 2. Thêm nhân viên mới (POST)
+POST {{baseUrl}}/Employee
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "username": "nguyenvana",
+  "email": "nguyenvana@hotel.com",
+  "password": "Employee@123",
+  "fullName": "Nguyễn Văn A",
+  "phoneNumber": "0912345678",
+  "employeeTypeId": 1,
+  "hireDate": "2024-01-15"
+}
+
+### 3. Lấy danh sách nhân viên với phân trang (GET)
+GET {{baseUrl}}/Employee?PageIndex=1&PageSize=10&Search=&SortBy=CreatedAt&SortDesc=true
+Authorization: Bearer {{auth_token}}
+
+### 4. Lấy danh sách nhân viên với filter
+GET {{baseUrl}}/Employee?PageIndex=1&PageSize=10&EmployeeTypeId=1&IsActive=true
+Authorization: Bearer {{auth_token}}
+
+### 5. Tìm kiếm nhân viên theo tên
+GET {{baseUrl}}/Employee?PageIndex=1&PageSize=10&Search=Nguyễn
+Authorization: Bearer {{auth_token}}
+
+### 6. Lấy chi tiết nhân viên (GET)
+GET {{baseUrl}}/Employee/{{employeeId}}
+Authorization: Bearer {{auth_token}}
+
+### 7. Cập nhật thông tin nhân viên (PUT)
+PUT {{baseUrl}}/Employee/{{employeeId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "email": "nguyenvana.updated@hotel.com",
+  "phoneNumber": "0987654321",
+  "fullName": "Nguyễn Văn A (Đã cập nhật)",
+  "employeeTypeId": 2,
+  "hireDate": "2024-02-01"
+}
+
+### 8. Khoá tài khoản nhân viên (PATCH)
+PATCH {{baseUrl}}/Employee/{{employeeId}}/ban
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "isLocked": true
+}
+
+### 9. Mở khoá tài khoản nhân viên (PATCH)
+PATCH {{baseUrl}}/Employee/{{employeeId}}/ban
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "isLocked": false
+}
+
+### 10. Test với dữ liệu không hợp lệ - Email đã tồn tại
+POST {{baseUrl}}/Employee
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "username": "duplicate",
+  "email": "nguyenvana@hotel.com",
+  "password": "Employee@123",
+  "fullName": "Test Duplicate",
+  "phoneNumber": "0999999999",
+  "employeeTypeId": 1,
+  "hireDate": "2024-01-15"
+}
+
+### 11. Test validation - Thiếu field bắt buộc
+POST {{baseUrl}}/Employee
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "username": "testuser",
+  "email": "invalid-email",
+  "password": "123"
+}
+
+### 12. Test thêm nhiều nhân viên
+POST {{baseUrl}}/Employee
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "username": "tranthib",
+  "email": "tranthib@hotel.com",
+  "password": "Employee@123",
+  "fullName": "Trần Thị B",
+  "phoneNumber": "0923456789",
+  "employeeTypeId": 2,
+  "hireDate": "2024-03-01"
+}
+
+### 13. Test với hireDate là hôm nay
+POST {{baseUrl}}/Employee
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "username": "levanc",
+  "email": "levanc@hotel.com",
+  "password": "Employee@123",
+  "fullName": "Lê Văn C",
+  "phoneNumber": "0934567890",
+  "employeeTypeId": 3,
+  "hireDate": "2024-10-15"
+}
+
+### 14. Cập nhật với terminationDate
+PUT {{baseUrl}}/Employee/{{employeeId}}
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "terminationDate": "2024-12-31"
+}

@@ -1,0 +1,14 @@
+using AppBackend.Services.ApiModels;
+using AppBackend.Services.ApiModels.EmployeeModel;
+
+namespace AppBackend.Services.Services.EmployeeServices
+{
+    public interface IEmployeeService
+    {
+        Task<ResultModel> GetEmployeeDetailAsync(int employeeId);
+        Task<ResultModel> GetEmployeeListAsync(GetEmployeeListRequest request);
+        Task<ResultModel> AddEmployeeAsync(AddEmployeeRequest request);
+        Task<ResultModel> UpdateEmployeeAsync(UpdateEmployeeRequest request);
+        Task<ResultModel> BanEmployeeAsync(BanEmployeeRequest request);
+    }
+}

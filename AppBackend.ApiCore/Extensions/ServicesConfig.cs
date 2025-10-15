@@ -8,6 +8,8 @@ using AppBackend.Services.Helpers;
 using AppBackend.Services.RateLimiting;
 using AppBackend.Services.Services.AmenityServices;
 using AppBackend.Services.Services.Email;
+using AppBackend.Services.Services.EmployeeServices;
+using AppBackend.Services.Services.CommonCodeServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -34,6 +36,8 @@ public static class ServicesConfig
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IGoogleLoginService, GoogleLoginService>();
         services.AddScoped<IAmenityService, AmenityService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<ICommonCodeService, CommonCodeService>();
         
         services.AddSingleton<RateLimiterStore>();
         #endregion

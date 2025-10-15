@@ -104,7 +104,10 @@ namespace AppBackend.Services.Authentication
             var account = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
             if (account == null || !_accountHelper.VerifyPassword(request.Password, account.PasswordHash))
                 return new ResultModel { IsSuccess = false, Message = "Sai tài khoản hoặc mật khẩu" };
-
+            if (account.IsLocked)
+            {
+                return new ResultModel { IsSuccess = false, Message = "Tài khoản đã bị khoá" };
+            }
             // Update lastLoginAt on successful login
             account.LastLoginAt = DateTime.UtcNow;
             await _unitOfWork.Accounts.UpdateAsync(account);

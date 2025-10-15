@@ -46,6 +46,11 @@ namespace AppBackend.Services.Mappings
             CreateMap<EmployeeDto, Employee>();
             #endregion
 
+            #region CommonCode
+            CreateMap<CommonCode, CommonCodeDto>();
+            CreateMap<CommonCodeDto, CommonCode>();
+            #endregion
+
             #region Amenity
 
             CreateMap<Amenity, AmenityWithMediumDto>()
