@@ -40,6 +40,7 @@ public static class ServicesConfig
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ICommonCodeService, CommonCodeService>();
         services.AddScoped<IRoomService, RoomService>();
+        services.AddScoped<IRoomAmenityService, RoomAmenityService>();
         
         services.AddSingleton<RateLimiterStore>();
         #endregion

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AppBackend.BusinessObjects.Enums;
 
 namespace AppBackend.BusinessObjects.Models;
 
@@ -19,6 +20,10 @@ public partial class Amenity
     public string? Description { get; set; }
 
     [Required]
+    [StringLength(50)]
+    public string AmenityType { get; set; } = nameof(Enums.AmenityType.Common); 
+
+    [Required]
     public DateTime CreatedAt { get; set; }
 
     public int? CreatedBy { get; set; }
@@ -26,10 +31,6 @@ public partial class Amenity
     public DateTime? UpdatedAt { get; set; }
 
     public int? UpdatedBy { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal Price { get; set; }
 
     public bool IsActive { get; set; } = true;
 

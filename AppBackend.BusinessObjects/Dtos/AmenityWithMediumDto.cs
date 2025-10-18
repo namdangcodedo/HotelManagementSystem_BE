@@ -5,7 +5,7 @@ namespace AppBackend.BusinessObjects.Dtos
         public int AmenityId { get; set; }
         public string AmenityName { get; set; } = null!;
         public string? Description { get; set; }
-        public decimal Price { get; set; }
+        public string AmenityType { get; set; } = "Common";
         public bool IsActive { get; set; }
         public DateTime? CreatedAt { get; set; }
         public int? CreatedBy { get; set; }
@@ -14,4 +14,3 @@ namespace AppBackend.BusinessObjects.Dtos
         public List<string> Images { get; set; } = new();
     }
 }
-

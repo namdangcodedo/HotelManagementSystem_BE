@@ -1,6 +1,7 @@
 using AppBackend.BusinessObjects.Constants;
 using AppBackend.BusinessObjects.Dtos;
 using AppBackend.BusinessObjects.Models;
+using AppBackend.BusinessObjects.Enums;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomModel;
@@ -80,7 +81,18 @@ namespace AppBackend.Services.Services.RoomServices
                 .Take(request.PageSize)
                 .ToList();
 
-            // Map sang DTO với images
+            // Lấy tất cả Common amenities một lần duy nhất (tối ưu performance)
+            var allCommonAmenities = (await _unitOfWork.Amenities.GetByTypeAsync(nameof(AmenityType.Common), isActive: true))
+                .Select(a => new AmenityDto
+                {
+                    AmenityId = a.AmenityId,
+                    AmenityName = a.AmenityName,
+                    Description = a.Description,
+                    AmenityType = a.AmenityType,
+                    IsActive = a.IsActive
+                }).ToList();
+
+            // Map sang DTO với images và amenities
             var roomDtos = new List<RoomWithImagesDto>();
             foreach (var room in pagedRooms)
             {
@@ -91,6 +103,22 @@ namespace AppBackend.Services.Services.RoomServices
                     m.ReferenceTable == "Room" && m.ReferenceKey == room.RoomId.ToString()))
                     .OrderBy(m => m.DisplayOrder)
                     .ToList();
+
+                // Lấy Additional amenities đã được add vào room này
+                var roomAmenities = await _unitOfWork.RoomAmenities.GetAmenitiesByRoomIdAsync(room.RoomId);
+                var additionalAmenities = roomAmenities
+                    .Where(ra => ra.Amenity.IsActive && ra.Amenity.AmenityType == nameof(AmenityType.Additional))
+                    .Select(ra => new AmenityDto
+                    {
+                        AmenityId = ra.Amenity.AmenityId,
+                        AmenityName = ra.Amenity.AmenityName,
+                        Description = ra.Amenity.Description,
+                        AmenityType = ra.Amenity.AmenityType,
+                        IsActive = ra.Amenity.IsActive
+                    }).ToList();
+
+                // Concat Common + Additional amenities vào một list duy nhất
+                var allAmenities = allCommonAmenities.Concat(additionalAmenities).ToList();
 
                 var roomDto = new RoomWithImagesDto
                 {
@@ -104,6 +132,7 @@ namespace AppBackend.Services.Services.RoomServices
                     StatusName = status?.CodeValue,
                     Description = room.Description,
                     Images = _mapper.Map<List<MediumDto>>(images),
+                    Amenities = allAmenities,
                     CreatedAt = room.CreatedAt,
                     UpdatedAt = room.UpdatedAt
                 };
@@ -150,6 +179,33 @@ namespace AppBackend.Services.Services.RoomServices
                 .OrderBy(m => m.DisplayOrder)
                 .ToList();
 
+            // Lấy tất cả Common amenities (tự động hiển thị)
+            var commonAmenities = (await _unitOfWork.Amenities.GetByTypeAsync(nameof(AmenityType.Common), isActive: true))
+                .Select(a => new AmenityDto
+                {
+                    AmenityId = a.AmenityId,
+                    AmenityName = a.AmenityName,
+                    Description = a.Description,
+                    AmenityType = a.AmenityType,
+                    IsActive = a.IsActive
+                }).ToList();
+
+            // Lấy Additional amenities đã được add vào room này
+            var roomAmenities = await _unitOfWork.RoomAmenities.GetAmenitiesByRoomIdAsync(roomId);
+            var additionalAmenities = roomAmenities
+                .Where(ra => ra.Amenity.IsActive && ra.Amenity.AmenityType == nameof(AmenityType.Additional))
+                .Select(ra => new AmenityDto
+                {
+                    AmenityId = ra.Amenity.AmenityId,
+                    AmenityName = ra.Amenity.AmenityName,
+                    Description = ra.Amenity.Description,
+                    AmenityType = ra.Amenity.AmenityType,
+                    IsActive = ra.Amenity.IsActive
+                }).ToList();
+
+            // Concat Common + Additional amenities vào một list duy nhất
+            var allAmenities = commonAmenities.Concat(additionalAmenities).ToList();
+
             var roomDto = new RoomWithImagesDto
             {
                 RoomId = room.RoomId,
@@ -162,6 +218,7 @@ namespace AppBackend.Services.Services.RoomServices
                 StatusName = status?.CodeValue,
                 Description = room.Description,
                 Images = _mapper.Map<List<MediumDto>>(images),
+                Amenities = allAmenities,
                 CreatedAt = room.CreatedAt,
                 UpdatedAt = room.UpdatedAt
             };

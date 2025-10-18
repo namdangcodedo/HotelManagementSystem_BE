@@ -8,6 +8,7 @@ using AppBackend.Repositories.Repositories.MediumRepo;
 using System.Threading.Tasks;
 using AppBackend.Repositories.Repositories.AmenityRepo;
 using AppBackend.Repositories.Repositories.EmployeeRepo;
+using AppBackend.Repositories.Repositories.RoomAmenityRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -22,6 +23,7 @@ namespace AppBackend.Repositories.UnitOfWork
         private IMediumRepository? _mediumRepository;
         private IAmenityRepository? _amenityRepository;
         private IEmployeeRepository? _employeeRepository;
+        private IRoomAmenityRepository? _roomAmenityRepository;
 
         public UnitOfWork(HotelManagementContext context)
         {
@@ -36,6 +38,7 @@ namespace AppBackend.Repositories.UnitOfWork
         public IMediumRepository Mediums => _mediumRepository ??= new MediumRepository(_context);
         public IAmenityRepository Amenities => _amenityRepository ??= new AmenityRepository(_context);
         public IEmployeeRepository Employees => _employeeRepository ??= new EmployeeRepository(_context);
+        public IRoomAmenityRepository RoomAmenities => _roomAmenityRepository ??= new RoomAmenityRepository(_context);
 
         public async Task<int> SaveChangesAsync()
         {

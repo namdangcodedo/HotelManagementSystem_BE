@@ -6,7 +6,7 @@ using AppBackend.Services.Services.AmenityServices;
 namespace AppBackend.ApiCore.Controllers
 {
     /// <summary>
-    /// APIs for managing hotel amenities
+    /// APIs quản lý tiện nghi khách sạn (Amenities)
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -19,11 +19,13 @@ namespace AppBackend.ApiCore.Controllers
             _amenityService = amenityService;
         }
 
+        #region GET - Public endpoints (No authentication required)
+
         /// <summary>
-        /// Lấy danh sách tiện ích với phân trang
+        /// Lấy danh sách tiện nghi với phân trang và lọc
         /// </summary>
-        /// <param name="request">Thông tin phân trang và lọc</param>
-        /// <returns>Danh sách tiện ích</returns>
+        /// <param name="request">Thông tin phân trang, tìm kiếm, lọc theo type (Common/Premium/VIP) và trạng thái</param>
+        /// <returns>Danh sách tiện nghi có phân trang</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet]
         [AllowAnonymous]
@@ -34,26 +36,27 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Lấy tất cả tiện ích (không phân trang)
+        /// Lấy tất cả tiện nghi (không phân trang) - dùng cho dropdown/select
         /// </summary>
-        /// <param name="isActive">Lọc theo trạng thái hoạt động</param>
-        /// <returns>Danh sách tất cả tiện ích</returns>
+        /// <param name="isActive">Lọc theo trạng thái hoạt động (null = tất cả)</param>
+        /// <param name="amenityType">Lọc theo loại tiện nghi: Common, Premium, VIP</param>
+        /// <returns>Danh sách tất cả tiện nghi</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet("all")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAllAmenities([FromQuery] bool? isActive)
+        public async Task<IActionResult> GetAllAmenities([FromQuery] bool? isActive, [FromQuery] string? amenityType)
         {
-            var result = await _amenityService.GetAmenityListAsync(isActive);
+            var result = await _amenityService.GetAmenityListAsync(isActive, amenityType);
             return Ok(result);
         }
 
         /// <summary>
-        /// Lấy chi tiết một tiện ích
+        /// Lấy chi tiết một tiện nghi
         /// </summary>
-        /// <param name="id">ID của tiện ích</param>
-        /// <returns>Thông tin chi tiết tiện ích</returns>
+        /// <param name="id">ID của tiện nghi</param>
+        /// <returns>Thông tin chi tiết tiện nghi</returns>
         /// <response code="200">Lấy thông tin thành công</response>
-        /// <response code="404">Không tìm thấy tiện ích</response>
+        /// <response code="404">Không tìm thấy tiện nghi</response>
         [HttpGet("{id}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetAmenityDetail(int id)
@@ -62,12 +65,16 @@ namespace AppBackend.ApiCore.Controllers
             return HandleResult(result);
         }
 
+        #endregion
+
+        #region POST/PUT/DELETE - Require Admin or Manager role
+
         /// <summary>
-        /// Thêm tiện ích mới
+        /// Thêm tiện nghi mới
         /// </summary>
-        /// <param name="dto">Thông tin tiện ích mới</param>
-        /// <returns>Thông tin tiện ích đã thêm</returns>
-        /// <response code="201">Thêm tiện ích thành công</response>
+        /// <param name="dto">Thông tin tiện nghi mới (AmenityName, Description, AmenityType: Common/Premium/VIP)</param>
+        /// <returns>Thông tin tiện nghi đã thêm</returns>
+        /// <response code="201">Thêm tiện nghi thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
         [HttpPost]
         [Authorize(Roles = "Admin,Manager")]
@@ -81,14 +88,14 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Cập nhật thông tin tiện ích
+        /// Cập nhật thông tin tiện nghi
         /// </summary>
-        /// <param name="id">ID của tiện ích</param>
-        /// <param name="dto">Thông tin cập nhật</param>
-        /// <returns>Thông tin tiện ích đã cập nhật</returns>
+        /// <param name="id">ID của tiện nghi</param>
+        /// <param name="dto">Thông tin cập nhật (AmenityName, Description, AmenityType, IsActive)</param>
+        /// <returns>Thông tin tiện nghi đã cập nhật</returns>
         /// <response code="200">Cập nhật thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
-        /// <response code="404">Không tìm thấy tiện ích</response>
+        /// <response code="404">Không tìm thấy tiện nghi</response>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpdateAmenity(int id, [FromBody] AmenityDto dto)
@@ -102,12 +109,13 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Xóa tiện ích
+        /// Xóa tiện nghi (soft delete)
         /// </summary>
-        /// <param name="id">ID của tiện ích</param>
+        /// <param name="id">ID của tiện nghi</param>
         /// <returns>Kết quả thực hiện</returns>
         /// <response code="200">Xóa thành công</response>
-        /// <response code="404">Không tìm thấy tiện ích</response>
+        /// <response code="404">Không tìm thấy tiện nghi</response>
+        /// <response code="400">Không thể xóa tiện nghi đang được sử dụng</response>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> DeleteAmenity(int id)
@@ -115,5 +123,7 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _amenityService.DeleteAmenityAsync(id, CurrentUserId);
             return HandleResult(result);
         }
+
+        #endregion
     }
 }

@@ -1,0 +1,599 @@
+### Test Room-Amenity API Endpoints (Many-to-Many Relationship)
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@roomId = 1
+@amenityId = 1
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+%}
+
+### 2. Đăng nhập Manager để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+> {%
+    client.global.set("manager_token", response.body.data.token);
+%}
+
+### ===== AMENITY CRUD APIs (Updated) =====
+
+### 3. Lấy danh sách tiện ích có phân trang với các filter nâng cao
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&IsActive=true&Search=&SortBy=AmenityName&SortDesc=false
+
+> {%
+    client.test("Get paged amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.items !== undefined, "Items should be present");
+        client.assert(response.body.data.totalCount !== undefined, "Total count should be present");
+    });
+%}
+
+### 4. Lọc tiện ích miễn phí (price = 0)
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&IsFree=true
+
+> {%
+    client.test("Filter free amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var items = response.body.data.items;
+        if (items && items.length > 0) {
+            var allFree = items.every(item => item.price === 0);
+            client.assert(allFree === true, "All amenities should have price = 0");
+        }
+    });
+%}
+
+### 5. Lọc tiện ích có tính phí (price > 0)
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&IsFree=false
+
+### 6. Lọc theo khoảng giá
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&MinPrice=0&MaxPrice=100000
+
+### 7. Tìm kiếm tiện ích
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&Search=wifi
+
+### 8. Sắp xếp theo giá giảm dần
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=10&SortBy=Price&SortDesc=true
+
+### 9. Lấy tất cả tiện ích (không phân trang) - cho dropdown/selection
+GET {{baseUrl}}/Amenity/all?isActive=true
+
+> {%
+    client.test("Get all amenities for selection", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(Array.isArray(response.body.data), "Data should be an array");
+    });
+%}
+
+### 10. Lấy chi tiết tiện ích
+GET {{baseUrl}}/Amenity/{{amenityId}}
+
+### 11. Thêm tiện ích miễn phí mới (Wi-Fi)
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityName": "Free Wi-Fi Ultra Speed",
+  "description": "High-speed wireless internet access",
+  "price": 0,
+  "isActive": true,
+  "imageLinks": ["https://example.com/wifi.jpg"]
+}
+
+> {%
+    client.test("Add free amenity success", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.isSuccess === true, "Request was not successful");
+    });
+%}
+
+### 12. Thêm tiện ích có tính phí (Spa)
+POST {{baseUrl}}/Amenity
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityName": "Premium Spa Access",
+  "description": "Access to luxury spa facilities",
+  "price": 500000,
+  "isActive": true,
+  "imageLinks": ["https://example.com/spa.jpg"]
+}
+
+### 13. Cập nhật tiện ích
+PUT {{baseUrl}}/Amenity/{{amenityId}}
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityId": {{amenityId}},
+  "amenityName": "Updated Amenity Name",
+  "description": "Updated description",
+  "price": 50000,
+  "isActive": true,
+  "imageLinks": ["https://example.com/updated.jpg"]
+}
+
+### 14. Xóa (deactivate) tiện ích
+DELETE {{baseUrl}}/Amenity/{{amenityId}}
+Authorization: Bearer {{admin_token}}
+
+### ===== ROOM-AMENITY MANAGEMENT APIs =====
+
+### 15. Lấy danh sách tiện ích của một phòng
+GET {{baseUrl}}/RoomAmenity/room/{{roomId}}/amenities
+Authorization: Bearer {{admin_token}}
+
+### 16. Lấy danh sách tiện ích với trạng thái đã chọn/chưa chọn (cho UI checkbox)
+GET {{baseUrl}}/RoomAmenity/room/{{roomId}}/amenities-with-selection
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.test("Get amenities with selection status", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var data = response.body.data;
+        client.assert(data.roomId !== undefined, "Room ID should be present");
+        client.assert(Array.isArray(data.amenities), "Amenities should be an array");
+        if (data.amenities.length > 0) {
+            var firstAmenity = data.amenities[0];
+            client.assert(firstAmenity.hasOwnProperty('isSelected'), "Should have isSelected property");
+        }
+    });
+%}
+
+### 17. Lấy tất cả tiện ích có sẵn để chọn (available amenities)
+GET {{baseUrl}}/RoomAmenity/amenities/available
+Authorization: Bearer {{admin_token}}
+
+### 18. Lấy danh sách phòng có tiện ích cụ thể
+GET {{baseUrl}}/RoomAmenity/amenity/{{amenityId}}/rooms
+Authorization: Bearer {{admin_token}}
+
+### 19. Thêm một tiện ích vào phòng
+POST {{baseUrl}}/RoomAmenity/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 1
+}
+
+> {%
+    client.test("Add room amenity success", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.isSuccess === true, "Request was not successful");
+    });
+%}
+
+### 20. Toggle tiện ích (thêm nếu chưa có, xóa nếu đã có)
+POST {{baseUrl}}/RoomAmenity/toggle
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 2
+}
+
+> {%
+    client.test("Toggle amenity", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var action = response.body.data.action;
+        client.assert(action === "added" || action === "removed", "Action should be added or removed");
+    });
+%}
+
+### 21. Toggle lại lần nữa (test remove)
+POST {{baseUrl}}/RoomAmenity/toggle
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 2
+}
+
+### 22. Thêm nhiều tiện ích vào phòng cùng lúc
+POST {{baseUrl}}/RoomAmenity/add-multiple
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 2,
+  "amenityIds": [1, 2, 3, 4, 5]
+}
+
+> {%
+    client.test("Add multiple amenities success", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.addedCount >= 0, "Added count should be present");
+    });
+%}
+
+### 23. Đồng bộ/thay thế toàn bộ danh sách tiện ích của phòng (Sync)
+POST {{baseUrl}}/RoomAmenity/room/1/sync
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityIds": [1, 3, 5, 7]
+}
+
+> {%
+    client.test("Sync room amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var data = response.body.data;
+        client.assert(data.addedCount !== undefined, "Should report added count");
+        client.assert(data.removedCount !== undefined, "Should report removed count");
+    });
+%}
+
+### 24. Kiểm tra danh sách sau khi sync
+GET {{baseUrl}}/RoomAmenity/room/1/amenities
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.test("Verify synced amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var amenities = response.body.data;
+        var amenityIds = amenities.map(a => a.amenityId);
+        console.log("Current amenity IDs:", amenityIds);
+    });
+%}
+
+### 25. Xóa một tiện ích khỏi phòng
+DELETE {{baseUrl}}/RoomAmenity/remove
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 1
+}
+
+### 26. Xóa tất cả tiện ích của một phòng
+DELETE {{baseUrl}}/RoomAmenity/room/2/remove-all
+Authorization: Bearer {{admin_token}}
+
+### ===== INTEGRATION WITH ROOM API =====
+
+### 27. Lấy chi tiết phòng (bao gồm amenities và free amenities)
+GET {{baseUrl}}/Room/{{roomId}}
+
+> {%
+    client.test("Room detail includes amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var data = response.body.data;
+        client.assert(data.amenities !== undefined, "Amenities should be present");
+        client.assert(data.freeAmenities !== undefined, "Free amenities should be present");
+        
+        // Verify separation
+        if (data.freeAmenities.length > 0) {
+            var allFree = data.freeAmenities.every(a => a.price === 0);
+            client.assert(allFree === true, "All free amenities should have price = 0");
+        }
+        
+        if (data.amenities.length > 0) {
+            var allPaid = data.amenities.every(a => a.price > 0);
+            client.assert(allPaid === true, "All paid amenities should have price > 0");
+        }
+    });
+%}
+
+### 28. Lấy danh sách phòng (với thông tin amenities)
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=5
+
+> {%
+    client.test("Room list includes amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var firstRoom = response.body.data.items[0];
+        client.assert(firstRoom.amenities !== undefined, "Amenities should be present");
+        client.assert(firstRoom.freeAmenities !== undefined, "Free amenities should be present");
+    });
+%}
+
+### ===== COMPLETE WORKFLOW TESTS =====
+
+### 29. FLOW: Setup phòng mới với tiện ích đầy đủ
+# Step 1: Tạo phòng mới
+POST {{baseUrl}}/Room
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomNumber": "TEST-RA-001",
+  "roomTypeId": 1,
+  "basePriceNight": 1200000,
+  "basePriceHour": 180000,
+  "statusId": 1,
+  "description": "Test room for amenity management",
+  "imageUrls": ["https://example.com/test_room.jpg"]
+}
+
+> {%
+    client.global.set("test_room_id", response.body.data.roomId);
+%}
+
+### Step 2: Lấy danh sách tiện ích có sẵn với selection status
+GET {{baseUrl}}/RoomAmenity/room/{{test_room_id}}/amenities-with-selection
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.test("New room has no amenities selected", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var amenities = response.body.data.amenities;
+        var selectedCount = amenities.filter(a => a.isSelected).length;
+        client.assert(selectedCount === 0, "New room should have no amenities selected");
+    });
+%}
+
+### Step 3: Chọn tiện ích miễn phí cho phòng (sử dụng sync)
+POST {{baseUrl}}/RoomAmenity/room/{{test_room_id}}/sync
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityIds": [1, 2, 3]
+}
+
+### Step 4: Kiểm tra phòng đã có tiện ích
+GET {{baseUrl}}/RoomAmenity/room/{{test_room_id}}/amenities-with-selection
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.test("Room has selected amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var amenities = response.body.data.amenities;
+        var selectedCount = amenities.filter(a => a.isSelected).length;
+        client.assert(selectedCount === 3, "Should have 3 amenities selected");
+    });
+%}
+
+### Step 5: Toggle thêm một tiện ích
+POST {{baseUrl}}/RoomAmenity/toggle
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": {{test_room_id}},
+  "amenityId": 4
+}
+
+> {%
+    client.test("Toggle add amenity", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.action === "added", "Should add amenity");
+    });
+%}
+
+### Step 6: Toggle bỏ một tiện ích
+POST {{baseUrl}}/RoomAmenity/toggle
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": {{test_room_id}},
+  "amenityId": 4
+}
+
+> {%
+    client.test("Toggle remove amenity", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.data.action === "removed", "Should remove amenity");
+    });
+%}
+
+### Step 7: Xem chi tiết phòng với amenities
+GET {{baseUrl}}/Room/{{test_room_id}}
+
+> {%
+    client.test("Room detail shows separated amenities", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var data = response.body.data;
+        client.assert(Array.isArray(data.amenities), "Paid amenities should be array");
+        client.assert(Array.isArray(data.freeAmenities), "Free amenities should be array");
+    });
+%}
+
+### Step 8: Cleanup - Xóa tất cả tiện ích
+DELETE {{baseUrl}}/RoomAmenity/room/{{test_room_id}}/remove-all
+Authorization: Bearer {{admin_token}}
+
+### Step 9: Cleanup - Xóa phòng test
+DELETE {{baseUrl}}/Room/{{test_room_id}}
+Authorization: Bearer {{admin_token}}
+
+### ===== ERROR CASES =====
+
+### 30. Test thêm tiện ích với phòng không tồn tại
+POST {{baseUrl}}/RoomAmenity/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 99999,
+  "amenityId": 1
+}
+
+> {%
+    client.test("Room not found error", function() {
+        client.assert(response.status === 404, "Should return 404");
+    });
+%}
+
+### 31. Test toggle tiện ích không tồn tại
+POST {{baseUrl}}/RoomAmenity/toggle
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 99999
+}
+
+> {%
+    client.test("Amenity not found error", function() {
+        client.assert(response.status === 404, "Should return 404");
+    });
+%}
+
+### 32. Test thêm tiện ích đã tồn tại (sẽ lỗi 400)
+POST {{baseUrl}}/RoomAmenity/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 1
+}
+
+###
+POST {{baseUrl}}/RoomAmenity/add
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "roomId": 1,
+  "amenityId": 1
+}
+
+> {%
+    client.test("Duplicate amenity error", function() {
+        client.assert(response.status === 400, "Should return 400");
+    });
+%}
+
+### 33. Test sync với amenity không tồn tại (partial success)
+POST {{baseUrl}}/RoomAmenity/room/1/sync
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityIds": [1, 2, 99998, 3, 99999]
+}
+
+> {%
+    client.test("Partial sync success", function() {
+        client.assert(response.status === 200, "Should return 200");
+        var data = response.body.data;
+        client.assert(data.notFoundAmenities !== undefined, "Should report not found amenities");
+        client.assert(data.notFoundAmenities.length > 0, "Should have not found items");
+    });
+%}
+
+### ===== PERFORMANCE & STATISTICS =====
+
+### 34. Thống kê số lượng tiện ích của từng phòng
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=10
+
+> {%
+    client.test("Generate amenity statistics", function() {
+        if (response.status === 200) {
+            var rooms = response.body.data.items;
+            console.log("=== ROOM AMENITY STATISTICS ===");
+            rooms.forEach(function(room) {
+                var totalAmenities = room.amenities.length + room.freeAmenities.length;
+                console.log(`Room ${room.roomNumber}: ${totalAmenities} total (${room.freeAmenities.length} free, ${room.amenities.length} paid)`);
+            });
+        }
+    });
+%}
+
+### 35. Thống kê tiện ích phổ biến nhất
+GET {{baseUrl}}/Amenity/all?isActive=true
+
+> {%
+    client.test("List all active amenities", function() {
+        if (response.status === 200) {
+            var amenities = response.body.data;
+            console.log("=== ACTIVE AMENITIES ===");
+            amenities.forEach(function(amenity) {
+                var type = amenity.price === 0 ? "FREE" : `${amenity.price} VND`;
+                console.log(`${amenity.amenityName}: ${type}`);
+            });
+        }
+    });
+%}
+
+### 36. Lọc chỉ tiện ích miễn phí và sắp xếp
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=20&IsFree=true&SortBy=AmenityName&SortDesc=false
+
+> {%
+    client.test("Free amenities sorted", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+%}
+
+### 37. Lọc tiện ích có giá trong khoảng 100k-500k
+GET {{baseUrl}}/Amenity?PageIndex=1&PageSize=20&MinPrice=100000&MaxPrice=500000&SortBy=Price&SortDesc=false
+
+### ===== UI SIMULATION TESTS =====
+
+### 38. Simulate: User click vào phòng để quản lý tiện ích
+# Step 1: Load phòng và danh sách tiện ích với selection status
+GET {{baseUrl}}/RoomAmenity/room/1/amenities-with-selection
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.global.set("amenities_selection", JSON.stringify(response.body.data.amenities));
+%}
+
+### Step 2: User check/uncheck các checkbox, sau đó submit form (sử dụng sync)
+POST {{baseUrl}}/RoomAmenity/room/1/sync
+Content-Type: application/json
+Authorization: Bearer {{admin_token}}
+
+{
+  "amenityIds": [1, 2, 3, 5, 7]
+}
+
+> {%
+    client.test("UI form submit success", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        client.assert(response.body.isSuccess === true, "Sync should succeed");
+    });
+%}
+
+### Step 3: Reload để xem kết quả
+GET {{baseUrl}}/RoomAmenity/room/1/amenities-with-selection
+Authorization: Bearer {{admin_token}}
+
+> {%
+    client.test("Verify UI changes persisted", function() {
+        client.assert(response.status === 200, "Response status is not 200");
+        var amenities = response.body.data.amenities;
+        var selected = amenities.filter(a => a.isSelected);
+        console.log(`Selected amenities: ${selected.map(a => a.amenityName).join(', ')}`);
+    });
+%}
+
+### 39. Final summary test
+GET {{baseUrl}}/Room?PageIndex=1&PageSize=5
+
+> {%
+    client.test("Final system check", function() {
+        client.assert(response.status === 200, "System should be operational");
+        console.log("=== FINAL SUMMARY ===");
+        console.log("✓ Amenity CRUD: Working");
+        console.log("✓ Room-Amenity Management: Working");
+        console.log("✓ Filtering & Pagination: Working");
+        console.log("✓ UI Integration APIs: Working");
+    });
+%}

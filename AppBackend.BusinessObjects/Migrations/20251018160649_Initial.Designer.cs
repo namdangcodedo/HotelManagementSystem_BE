@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251015113919_Initial")]
+    [Migration("20251018160649_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -101,6 +101,11 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("AmenityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -115,9 +120,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -1462,7 +1464,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .IsRequired();
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
-                        .WithMany()
+                        .WithMany("RoomAmenities")
                         .HasForeignKey("RoomId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1601,6 +1603,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("HousekeepingTasks");
 
                     b.Navigation("Media");
+
+                    b.Navigation("RoomAmenities");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Service", b =>

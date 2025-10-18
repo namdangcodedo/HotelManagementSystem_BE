@@ -40,31 +40,66 @@ namespace AppBackend.Repositories.Repositories.AmenityRepo
             if (amenity != null)
                 _context.Amenities.Remove(amenity);
         }
-        public async Task<(IEnumerable<Amenity> Items, int TotalCount)> GetPagedAsync(int pageIndex, int pageSize, bool? isActive = null, string? search = null, string? sortBy = null, bool sortDesc = false)
+        public async Task<List<Amenity>> GetByTypeAsync(string amenityType, bool? isActive = null)
+        {
+            var query = _context.Amenities.AsQueryable();
+            
+            query = query.Where(a => a.AmenityType == amenityType);
+            
+            if (isActive.HasValue)
+                query = query.Where(a => a.IsActive == isActive.Value);
+            
+            return await query.ToListAsync();
+        }
+
+        public async Task<(IEnumerable<Amenity> Items, int TotalCount)> GetPagedAsync(
+            int pageIndex, 
+            int pageSize, 
+            bool? isActive = null, 
+            string? search = null, 
+            string? sortBy = null, 
+            bool sortDesc = false,
+            string? amenityType = null)
         {
             if (pageIndex < 0) pageIndex = 0;
             if (pageSize <= 0) pageSize = 10;
 
             var query = _context.Amenities.AsQueryable();
+            
+            // Lọc theo trạng thái
             if (isActive.HasValue)
                 query = query.Where(a => a.IsActive == isActive.Value);
+            
+            // Tìm kiếm theo tên hoặc mô tả
             if (!string.IsNullOrWhiteSpace(search))
-                query = query.Where(a => a.AmenityName.Contains(search));
+                query = query.Where(a => a.AmenityName.Contains(search) || 
+                                        (a.Description != null && a.Description.Contains(search)));
+            
+            // Lọc theo loại tiện ích
+            if (!string.IsNullOrWhiteSpace(amenityType))
+                query = query.Where(a => a.AmenityType == amenityType);
+            
+            // Sắp xếp
             if (!string.IsNullOrWhiteSpace(sortBy))
             {
                 if (sortBy == "AmenityName")
                     query = sortDesc ? query.OrderByDescending(a => a.AmenityName) : query.OrderBy(a => a.AmenityName);
-                else if (sortBy == "Price")
-                    query = sortDesc ? query.OrderByDescending(a => a.Price) : query.OrderBy(a => a.Price);
+                else if (sortBy == "AmenityType")
+                    query = sortDesc ? query.OrderByDescending(a => a.AmenityType) : query.OrderBy(a => a.AmenityType);
+                else if (sortBy == "CreatedAt")
+                    query = sortDesc ? query.OrderByDescending(a => a.CreatedAt) : query.OrderBy(a => a.CreatedAt);
             }
             else
             {
-                query = query.OrderBy(a => a.AmenityId);
+                query = query.OrderByDescending(a => a.CreatedAt);
             }
+            
             var totalCount = await query.CountAsync();
+            
             // Tính lại pageIndex nếu vượt quá số trang thực tế
             var maxPageIndex = totalCount > 0 ? (totalCount - 1) / pageSize : 0;
             if (pageIndex > maxPageIndex) pageIndex = maxPageIndex;
+            
             var items = await query.Skip(pageIndex * pageSize).Take(pageSize).ToListAsync();
             return (items, totalCount);
         }

@@ -418,6 +418,180 @@ namespace AppBackend.ApiCore.Extension
                     await context.SaveChangesAsync();
                 }
             }
+
+            // Seed Amenities if empty
+            if (!context.Amenities.Any())
+            {
+                var amenities = new List<Amenity>
+                {
+                    // Common Amenities - Tiện nghi cơ bản (miễn phí, có sẵn)
+                    new Amenity
+                    {
+                        AmenityName = "WiFi miễn phí",
+                        Description = "Kết nối WiFi tốc độ cao miễn phí trong phòng",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Điều hòa nhiệt độ",
+                        Description = "Hệ thống điều hòa không khí tự động",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "TV màn hình phẳng",
+                        Description = "TV LED với các kênh truyền hình cáp",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Tủ lạnh mini",
+                        Description = "Tủ lạnh nhỏ để bảo quản đồ uống",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Két an toàn",
+                        Description = "Két sắt điện tử để bảo quản tài sản",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Máy sấy tóc",
+                        Description = "Máy sấy tóc công suất cao",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Bộ đồ dùng phòng tắm",
+                        Description = "Dầu gội, sữa tắm, xà phòng miễn phí",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Ấm đun nước",
+                        Description = "Ấm đun nước điện với trà/cà phê miễn phí",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Máy lạnh",
+                        Description = "Máy lạnh điều chỉnh nhiệt độ",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Bàn làm việc",
+                        Description = "Bàn và ghế làm việc",
+                        AmenityType = "Common",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+
+                    // Additional Amenities - Tiện nghi bổ sung (theo yêu cầu, có thể tính phí)
+                    new Amenity
+                    {
+                        AmenityName = "Bồn tắm nằm",
+                        Description = "Bồn tắm nằm thư giãn",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Máy pha cà phê cao cấp",
+                        Description = "Máy pha cà phê Nespresso với capsule",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Minibar",
+                        Description = "Tủ minibar với đồ uống và snack",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Máy lọc không khí",
+                        Description = "Hệ thống lọc không khí và tạo ẩm",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Áo choàng tắm",
+                        Description = "Áo choàng tắm và dép đi trong phòng",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Loa Bluetooth",
+                        Description = "Loa Bluetooth cao cấp",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Bàn ủi & bàn ủi đồ",
+                        Description = "Bàn ủi và bàn ủi quần áo",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Dịch vụ giặt là",
+                        Description = "Dịch vụ giặt ủi quần áo",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Dịch vụ phòng 24/7",
+                        Description = "Dịch vụ room service 24 giờ",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Amenity
+                    {
+                        AmenityName = "Ban công riêng",
+                        Description = "Ban công với view đẹp",
+                        AmenityType = "Additional",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                };
+
+                await context.Amenities.AddRangeAsync(amenities);
+                await context.SaveChangesAsync();
+            }
         }
     }
 }

@@ -45,6 +45,7 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public string? StatusName { get; set; }
         public string? Description { get; set; }
         public List<MediumDto> Images { get; set; } = new List<MediumDto>();
+        public List<AmenityDto> Amenities { get; set; } = new List<AmenityDto>();
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -88,4 +89,3 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public DateTime? UpdatedAt { get; set; }
     }
 }
-

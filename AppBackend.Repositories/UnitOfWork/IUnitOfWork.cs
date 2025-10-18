@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using AppBackend.Repositories.Repositories.AmenityRepo;
 using AppBackend.Repositories.Repositories.EmployeeRepo;
+using AppBackend.Repositories.Repositories.RoomAmenityRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -21,6 +22,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IMediumRepository Mediums { get; }
         IAmenityRepository Amenities { get; }
         IEmployeeRepository Employees { get; }
+        IRoomAmenityRepository RoomAmenities { get; }
         Task<int> SaveChangesAsync();
     }
 }

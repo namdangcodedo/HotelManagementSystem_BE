@@ -21,7 +21,7 @@ namespace AppBackend.Services.Services.AmenityServices
             {
                 AmenityName = dto.AmenityName,
                 Description = dto.Description,
-                Price = dto.Price,
+                AmenityType = dto.AmenityType,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = dto.IsActive,
                 CreatedBy = userId
@@ -61,7 +61,7 @@ namespace AppBackend.Services.Services.AmenityServices
                 return new ResultModel { IsSuccess = false, Message = "Tiện ích không tồn tại." };
             amenity.AmenityName = dto.AmenityName;
             amenity.Description = dto.Description;
-            amenity.Price = dto.Price;
+            amenity.AmenityType = dto.AmenityType;
             amenity.IsActive = dto.IsActive;
             amenity.UpdatedAt = DateTime.UtcNow;
             amenity.UpdatedBy = userId; 
@@ -109,9 +109,16 @@ namespace AppBackend.Services.Services.AmenityServices
             await _unitOfWork.SaveChangesAsync();
             return new ResultModel { IsSuccess = true, Message = "Gỡ tiện ích thành công." };
         }
-        public async Task<ResultModel> GetAmenityListAsync(bool? isActive = null)
+        public async Task<ResultModel> GetAmenityListAsync(bool? isActive = null, string? amenityType = null)
         {
             var list = await _unitOfWork.Amenities.GetAllAsync(isActive);
+            
+            // Lọc theo AmenityType nếu có
+            if (!string.IsNullOrWhiteSpace(amenityType))
+            {
+                list = list.Where(a => a.AmenityType.Equals(amenityType, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            
             var amenityWithImagesList = new List<AmenityWithMediumDto>();
             foreach (var amenity in list)
             {
@@ -131,7 +138,8 @@ namespace AppBackend.Services.Services.AmenityServices
                 request.IsActive,
                 request.Search,
                 request.SortBy,
-                request.SortDesc
+                request.SortDesc,
+                request.AmenityType
             );
 
             var amenityWithMediumList = new List<AmenityWithMediumDto>();
@@ -152,8 +160,39 @@ namespace AppBackend.Services.Services.AmenityServices
                     Items = amenityWithMediumList,
                     TotalCount = totalCount,
                     PageIndex = request.PageIndex,
-                    PageSize = request.PageSize
+                    PageSize = request.PageSize,
+                    TotalPages = (int)Math.Ceiling((double)totalCount / request.PageSize)
                 }
+            };
+        }
+        
+        public async Task<ResultModel> GetAllAmenitiesAsync()
+        {
+            var list = await _unitOfWork.Amenities.GetAllAsync(isActive: true);
+            var amenityDtoList = new List<AmenityDto>();
+            
+            foreach (var amenity in list)
+            {
+                var mediumList = await _unitOfWork.Mediums.FindAsync(m => m.ReferenceTable == "Amenity" && m.ReferenceKey == amenity.AmenityId.ToString());
+                var imageLinks = mediumList.Select(m => m.FilePath).ToList();
+                
+                var dto = new AmenityDto
+                {
+                    AmenityId = amenity.AmenityId,
+                    AmenityName = amenity.AmenityName,
+                    Description = amenity.Description,
+                    AmenityType = amenity.AmenityType,
+                    IsActive = amenity.IsActive,
+                    ImageLinks = imageLinks
+                };
+                amenityDtoList.Add(dto);
+            }
+            
+            return new ResultModel 
+            { 
+                IsSuccess = true, 
+                Message = "Lấy danh sách tiện ích thành công.", 
+                Data = amenityDtoList 
             };
         }
         public async Task<ResultModel> GetAmenityDetailAsync(int id)
