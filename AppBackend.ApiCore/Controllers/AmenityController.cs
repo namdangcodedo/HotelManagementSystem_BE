@@ -24,7 +24,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <summary>
         /// Lấy danh sách tiện nghi với phân trang và lọc
         /// </summary>
-        /// <param name="request">Thông tin phân trang, tìm kiếm, lọc theo type (Common/Premium/VIP) và trạng thái</param>
+        /// <param name="request">Thông tin phân trang, tìm kiếm, lọc theo type (Common/Additional) và trạng thái</param>
         /// <returns>Danh sách tiện nghi có phân trang</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet]
@@ -39,7 +39,7 @@ namespace AppBackend.ApiCore.Controllers
         /// Lấy tất cả tiện nghi (không phân trang) - dùng cho dropdown/select
         /// </summary>
         /// <param name="isActive">Lọc theo trạng thái hoạt động (null = tất cả)</param>
-        /// <param name="amenityType">Lọc theo loại tiện nghi: Common, Premium, VIP</param>
+        /// <param name="amenityType">Lọc theo loại tiện nghi: Common (cơ bản), Additional (bổ sung)</param>
         /// <returns>Danh sách tất cả tiện nghi</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet("all")]
@@ -72,7 +72,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <summary>
         /// Thêm tiện nghi mới
         /// </summary>
-        /// <param name="dto">Thông tin tiện nghi mới (AmenityName, Description, AmenityType: Common/Premium/VIP)</param>
+        /// <param name="dto">Thông tin tiện nghi mới (AmenityName, Description, AmenityType: Common/Additional)</param>
         /// <returns>Thông tin tiện nghi đã thêm</returns>
         /// <response code="201">Thêm tiện nghi thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
@@ -91,7 +91,7 @@ namespace AppBackend.ApiCore.Controllers
         /// Cập nhật thông tin tiện nghi
         /// </summary>
         /// <param name="id">ID của tiện nghi</param>
-        /// <param name="dto">Thông tin cập nhật (AmenityName, Description, AmenityType, IsActive)</param>
+        /// <param name="dto">Thông tin cập nhật (AmenityName, Description, AmenityType: Common/Additional, IsActive)</param>
         /// <returns>Thông tin tiện nghi đã cập nhật</returns>
         /// <response code="200">Cập nhật thành công</response>
         /// <response code="400">Dữ liệu không hợp lệ</response>
