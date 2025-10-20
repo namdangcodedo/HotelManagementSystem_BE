@@ -35,6 +35,4 @@ public partial class Amenity
     public bool IsActive { get; set; } = true;
 
     public virtual ICollection<RoomAmenity> RoomAmenities { get; set; } = new List<RoomAmenity>();
-
-    public virtual ICollection<BookingRoomAmenity> BookingRoomAmenities { get; set; } = new List<BookingRoomAmenity>();
 }

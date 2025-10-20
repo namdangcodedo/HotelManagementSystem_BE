@@ -592,6 +592,179 @@ namespace AppBackend.ApiCore.Extension
                 await context.Amenities.AddRangeAsync(amenities);
                 await context.SaveChangesAsync();
             }
+
+            // Seed Holidays if empty
+            if (!context.Holidays.Any())
+            {
+                var holidays = new List<Holiday>
+                {
+                    new Holiday
+                    {
+                        Name = "Tết Nguyên Đán 2025",
+                        StartDate = new DateTime(2025, 1, 28),
+                        EndDate = new DateTime(2025, 2, 3),
+                        Description = "Tết Âm lịch - Ngày lễ truyền thống của Việt Nam",
+                        IsActive = true
+                    },
+                    new Holiday
+                    {
+                        Name = "Lễ 30/4 - 1/5",
+                        StartDate = new DateTime(2025, 4, 30),
+                        EndDate = new DateTime(2025, 5, 3),
+                        Description = "Ngày giải phóng miền Nam và Quốc tế Lao động",
+                        IsActive = true
+                    },
+                    new Holiday
+                    {
+                        Name = "Quốc Khánh 2/9",
+                        StartDate = new DateTime(2025, 9, 1),
+                        EndDate = new DateTime(2025, 9, 3),
+                        Description = "Ngày Quốc khánh nước Cộng hòa xã hội chủ nghĩa Việt Nam",
+                        IsActive = true
+                    }
+                };
+
+                await context.Holidays.AddRangeAsync(holidays);
+                await context.SaveChangesAsync();
+
+                // Seed HolidayPricing - Điều chỉnh giá theo ngày lễ
+                // Lấy các phòng để áp dụng giá ngày lễ
+                var room101 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "101");
+                var room102 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "102");
+                var room201 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "201");
+
+                var tetHoliday = holidays.FirstOrDefault(h => h.Name == "Tết Nguyên Đán 2025");
+                var labor30_4Holiday = holidays.FirstOrDefault(h => h.Name == "Lễ 30/4 - 1/5");
+                var nationalDayHoliday = holidays.FirstOrDefault(h => h.Name == "Quốc Khánh 2/9");
+
+                if (tetHoliday != null && labor30_4Holiday != null && nationalDayHoliday != null)
+                {
+                    var holidayPricings = new List<HolidayPricing>();
+
+                    // Tết Nguyên Đán - Tăng giá cho phòng trong dịp Tết
+                    if (room101 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = tetHoliday.HolidayId,
+                            RoomId = room101.RoomId,
+                            PriceAdjustment = 300000m, // Tăng 300k/đêm (800k -> 1,100k)
+                            StartDate = tetHoliday.StartDate,
+                            EndDate = tetHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room102 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = tetHoliday.HolidayId,
+                            RoomId = room102.RoomId,
+                            PriceAdjustment = 300000m, // Tăng 300k/đêm (800k -> 1,100k)
+                            StartDate = tetHoliday.StartDate,
+                            EndDate = tetHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room201 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = tetHoliday.HolidayId,
+                            RoomId = room201.RoomId,
+                            PriceAdjustment = 500000m, // Tăng 500k/đêm (1,500k -> 2,000k)
+                            StartDate = tetHoliday.StartDate,
+                            EndDate = tetHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    // Lễ 30/4 - 1/5 - Tăng giá trong dịp lễ
+                    if (room101 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = labor30_4Holiday.HolidayId,
+                            RoomId = room101.RoomId,
+                            PriceAdjustment = 200000m, // Tăng 200k/đêm (800k -> 1,000k)
+                            StartDate = labor30_4Holiday.StartDate,
+                            EndDate = labor30_4Holiday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room102 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = labor30_4Holiday.HolidayId,
+                            RoomId = room102.RoomId,
+                            PriceAdjustment = 200000m, // Tăng 200k/đêm (800k -> 1,000k)
+                            StartDate = labor30_4Holiday.StartDate,
+                            EndDate = labor30_4Holiday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room201 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = labor30_4Holiday.HolidayId,
+                            RoomId = room201.RoomId,
+                            PriceAdjustment = 300000m, // Tăng 300k/đêm (1,500k -> 1,800k)
+                            StartDate = labor30_4Holiday.StartDate,
+                            EndDate = labor30_4Holiday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    // Quốc Khánh 2/9 - Tăng giá trong dịp lễ Quốc Khánh
+                    if (room101 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = nationalDayHoliday.HolidayId,
+                            RoomId = room101.RoomId,
+                            PriceAdjustment = 200000m, // Tăng 200k/đêm (800k -> 1,000k)
+                            StartDate = nationalDayHoliday.StartDate,
+                            EndDate = nationalDayHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room102 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = nationalDayHoliday.HolidayId,
+                            RoomId = room102.RoomId,
+                            PriceAdjustment = 200000m, // Tăng 200k/đêm (800k -> 1,000k)
+                            StartDate = nationalDayHoliday.StartDate,
+                            EndDate = nationalDayHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    if (room201 != null)
+                    {
+                        holidayPricings.Add(new HolidayPricing
+                        {
+                            HolidayId = nationalDayHoliday.HolidayId,
+                            RoomId = room201.RoomId,
+                            PriceAdjustment = 300000m, // Tăng 300k/đêm (1,500k -> 1,800k)
+                            StartDate = nationalDayHoliday.StartDate,
+                            EndDate = nationalDayHoliday.EndDate,
+                            IsActive = true
+                        });
+                    }
+
+                    await context.HolidayPricings.AddRangeAsync(holidayPricings);
+                    await context.SaveChangesAsync();
+                }
+            }
         }
     }
 }

@@ -11,6 +11,9 @@ using AppBackend.Services.Services.Email;
 using AppBackend.Services.Services.EmployeeServices;
 using AppBackend.Services.Services.CommonCodeServices;
 using AppBackend.Services.Services.RoomServices;
+using AppBackend.Services.Services.BookingServices;
+using AppBackend.Services.Services.RoleServices;
+using AppBackend.Services.MessageQueue;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -41,12 +44,21 @@ public static class ServicesConfig
         services.AddScoped<ICommonCodeService, CommonCodeService>();
         services.AddScoped<IRoomService, RoomService>();
         services.AddScoped<IRoomAmenityService, RoomAmenityService>();
+        services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<IRoleService, RoleService>();
+        
+        // Message Queue Service - Singleton for thread-safe queue
+        services.AddSingleton<IBookingQueueService, BookingQueueService>();
+        
+        // Background Service for processing booking queue
+        services.AddHostedService<BookingQueueProcessor>();
         
         services.AddSingleton<RateLimiterStore>();
         #endregion
 
         #region Helpers
         services.AddScoped<AccountHelper>();
+        services.AddScoped<CacheHelper>();
         #endregion
 
         return services;

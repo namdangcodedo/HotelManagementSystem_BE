@@ -15,9 +15,16 @@ public class HolidayPricing
   public int? RoomId { get; set; }
   [ForeignKey("Service")]
   public int? ServiceId { get; set; }
+  
+  /// <summary>
+  /// Điều chỉnh giá theo đêm (VNĐ)
+  /// Giá mới = BasePriceNight + PriceAdjustment
+  /// Ví dụ: BasePriceNight = 800k, PriceAdjustment = 200k => 1000k/đêm
+  /// </summary>
   [Required]
   [Column(TypeName = "decimal(18,2)")]
   public decimal PriceAdjustment { get; set; }
+  
   [Required]
   public DateTime StartDate { get; set; }
   [Required]

@@ -5,6 +5,10 @@ using System.Collections.Generic;
 
 namespace AppBackend.BusinessObjects.Models
 {
+    /// <summary>
+    /// BookingRoom - Chi tiết đơn đặt phòng (như OrderDetail)
+    /// Lưu thông tin: phòng nào, giá bao nhiêu tại thời điểm đặt, checkin/checkout
+    /// </summary>
     [Table("BookingRoom")]
     public class BookingRoom
     {
@@ -21,19 +25,33 @@ namespace AppBackend.BusinessObjects.Models
         public int RoomId { get; set; }
         public virtual Room Room { get; set; } = null!;
 
+        /// <summary>
+        /// Giá phòng tại thời điểm đặt (có thể khác giá hiện tại)
+        /// </summary>
         [Required]
         [Column(TypeName = "decimal(18,2)")]
-        public decimal PriceAtTime { get; set; }
+        public decimal PricePerNight { get; set; }
+
+        /// <summary>
+        /// Số đêm
+        /// </summary>
+        [Required]
+        public int NumberOfNights { get; set; }
+
+        /// <summary>
+        /// Tổng tiền = PricePerNight * NumberOfNights
+        /// </summary>
+        [Required]
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal SubTotal { get; set; }
 
         [Required]
-        public int Quantity { get; set; } = 1;
+        public DateTime CheckInDate { get; set; }
 
         [Required]
-        [ForeignKey("Account")]
-        public int BookedByAccountId { get; set; }
-        public virtual Account BookedByAccount { get; set; } = null!;
+        public DateTime CheckOutDate { get; set; }
 
-        public virtual ICollection<BookingRoomAmenity> BookingRoomAmenities { get; set; } = new List<BookingRoomAmenity>();
+        // Navigation properties
         public virtual ICollection<BookingRoomService> BookingRoomServices { get; set; } = new List<BookingRoomService>();
     }
 }

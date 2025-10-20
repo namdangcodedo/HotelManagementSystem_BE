@@ -20,6 +20,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<Employee> Employees { get; set; }
     public virtual DbSet<EmployeeSchedule> EmployeeSchedules { get; set; }
     public virtual DbSet<Feedback> Feedbacks { get; set; }
+    public virtual DbSet<Holiday> Holidays { get; set; }
+    public virtual DbSet<HolidayPricing> HolidayPricings { get; set; }
     public virtual DbSet<HousekeepingTask> HousekeepingTasks { get; set; }
     public virtual DbSet<Medium> Media { get; set; }
     public virtual DbSet<Notification> Notifications { get; set; }
@@ -32,7 +34,6 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<Role> Roles { get; set; }
     public virtual DbSet<AccountRole> AccountRoles { get; set; }
     public virtual DbSet<BookingRoom> BookingRooms { get; set; }
-    public virtual DbSet<BookingRoomAmenity> BookingRoomAmenities { get; set; }
     public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -78,16 +79,6 @@ public class HotelManagementContext : DbContext
             .WithMany(r => r.BookingRooms)
             .HasForeignKey(br => br.RoomId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<BookingRoomAmenity>()
-            .HasOne(bra => bra.BookingRoom)
-            .WithMany(br => br.BookingRoomAmenities)
-            .HasForeignKey(bra => bra.BookingRoomId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<BookingRoomAmenity>()
-            .HasOne(bra => bra.Amenity)
-            .WithMany(a => a.BookingRoomAmenities)
-            .HasForeignKey(bra => bra.AmenityId)
-            .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<BookingRoomService>()
             .HasOne(brs => brs.BookingRoom)
             .WithMany(br => br.BookingRoomServices)
@@ -97,6 +88,21 @@ public class HotelManagementContext : DbContext
             .HasOne(brs => brs.Service)
             .WithMany(s => s.BookingRoomServices)
             .HasForeignKey(brs => brs.ServiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<HolidayPricing>()
+            .HasOne(hp => hp.Holiday)
+            .WithMany(h => h.HolidayPricings)
+            .HasForeignKey(hp => hp.HolidayId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<HolidayPricing>()
+            .HasOne(hp => hp.Room)
+            .WithMany()
+            .HasForeignKey(hp => hp.RoomId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<HolidayPricing>()
+            .HasOne(hp => hp.Service)
+            .WithMany()
+            .HasForeignKey(hp => hp.ServiceId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Room>()
             .HasOne(r => r.Status)
@@ -109,9 +115,14 @@ public class HotelManagementContext : DbContext
             .HasForeignKey(r => r.RoomTypeId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Booking>()
-            .HasOne(b => b.Status)
+            .HasOne(b => b.PaymentStatus)
             .WithMany()
-            .HasForeignKey(b => b.StatusId)
+            .HasForeignKey(b => b.PaymentStatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Booking>()
+            .HasOne(b => b.DepositStatus)
+            .WithMany()
+            .HasForeignKey(b => b.DepositStatusId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Booking>()
             .HasOne(b => b.BookingType)

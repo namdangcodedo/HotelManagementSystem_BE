@@ -12,15 +12,16 @@ builder.Services.AddCorsConfig();
 builder.Services.AddSwaggerConfig();
 builder.Services.AddDefaultAuth(builder.Configuration);
 //Optional login with google
-// builder.Services.AddGoogleAuth(builder.Configuration);builder.Services.AddServicesConfig();
+// builder.Services.AddGoogleAuth(builder.Configuration);
 builder.Services.AddSessionConfig();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddServicesConfig();
-builder.Services.AddAutoMapperConfig();
 builder.Services.AddRateLimitConfig();   
 
+// Memory Cache for room locking
 builder.Services.AddMemoryCache();
-builder.Services.AddScoped<AppBackend.Services.Helpers.CacheHelper>();
+
+// All Application Services (includes Booking, Queue, Cache, etc.)
+builder.Services.AddServicesConfig();
 
 builder.Services.AddControllers()   
     .AddJsonOptions(options =>

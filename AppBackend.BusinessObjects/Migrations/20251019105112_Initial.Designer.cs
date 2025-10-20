@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251018160649_Initial")]
+    [Migration("20251019105112_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -182,13 +182,13 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingId"));
 
-                    b.Property<int>("BookingTypeId")
+                    b.Property<int?>("BookingTypeId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CheckIn")
+                    b.Property<DateTime>("CheckInDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("CheckOut")
+                    b.Property<DateTime>("CheckOutDate")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("CreatedAt")
@@ -202,18 +202,24 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int>("CustomerId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("EstimatedPrice")
+                    b.Property<decimal>("DepositAmount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<int>("RoomId")
+                    b.Property<int?>("DepositStatusId")
                         .HasColumnType("int");
 
-                    b.Property<int>("StatusId")
+                    b.Property<int?>("PaymentStatusId")
                         .HasColumnType("int");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SpecialRequests")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -227,9 +233,11 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("RoomId");
+                    b.HasIndex("DepositStatusId");
 
-                    b.HasIndex("StatusId");
+                    b.HasIndex("PaymentStatusId");
+
+                    b.HasIndex("RoomId");
 
                     b.ToTable("Booking");
                 });
@@ -242,59 +250,34 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingRoomId"));
 
-                    b.Property<int>("BookedByAccountId")
-                        .HasColumnType("int");
-
                     b.Property<int>("BookingId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("PriceAtTime")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<DateTime>("CheckInDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<int>("Quantity")
+                    b.Property<DateTime>("CheckOutDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("NumberOfNights")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("PricePerNight")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("RoomId")
                         .HasColumnType("int");
 
-                    b.HasKey("BookingRoomId");
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("decimal(18,2)");
 
-                    b.HasIndex("BookedByAccountId");
+                    b.HasKey("BookingRoomId");
 
                     b.HasIndex("BookingId");
 
                     b.HasIndex("RoomId");
 
                     b.ToTable("BookingRoom");
-                });
-
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoomAmenity", b =>
-                {
-                    b.Property<int>("BookingRoomAmenityId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BookingRoomAmenityId"));
-
-                    b.Property<int>("AmenityId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("BookingRoomId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PriceAtTime")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.HasKey("BookingRoomAmenityId");
-
-                    b.HasIndex("AmenityId");
-
-                    b.HasIndex("BookingRoomId");
-
-                    b.ToTable("BookingRoomAmenity");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoomService", b =>
@@ -433,7 +416,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CustomerId"));
 
                     b.Property<int?>("AccountId")
-                        .IsRequired()
                         .HasColumnType("int");
 
                     b.Property<string>("Address")
@@ -473,7 +455,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasKey("CustomerId");
 
                     b.HasIndex("AccountId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[AccountId] IS NOT NULL");
 
                     b.HasIndex("AvatarMediaId");
 
@@ -635,6 +618,83 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("StatusId");
 
                     b.ToTable("Feedback");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Holiday", b =>
+                {
+                    b.Property<int>("HolidayId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HolidayId"));
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiredDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("HolidayId");
+
+                    b.ToTable("Holiday");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.HolidayPricing", b =>
+                {
+                    b.Property<int>("HolidayPricingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HolidayPricingId"));
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiredDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("HolidayId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("PriceAdjustment")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ServiceId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("HolidayPricingId");
+
+                    b.HasIndex("HolidayId");
+
+                    b.HasIndex("RoomId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.ToTable("HolidayPricings");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.HousekeepingTask", b =>
@@ -1181,8 +1241,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "BookingType")
                         .WithMany()
                         .HasForeignKey("BookingTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Customer", "Customer")
                         .WithMany("Bookings")
@@ -1190,35 +1249,31 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
-                        .WithMany("Bookings")
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
+                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "DepositStatus")
                         .WithMany()
-                        .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("DepositStatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "PaymentStatus")
+                        .WithMany()
+                        .HasForeignKey("PaymentStatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Room", null)
+                        .WithMany("Bookings")
+                        .HasForeignKey("RoomId");
 
                     b.Navigation("BookingType");
 
                     b.Navigation("Customer");
 
-                    b.Navigation("Room");
+                    b.Navigation("DepositStatus");
 
-                    b.Navigation("Status");
+                    b.Navigation("PaymentStatus");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoom", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Account", "BookedByAccount")
-                        .WithMany()
-                        .HasForeignKey("BookedByAccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
                         .WithMany("BookingRooms")
                         .HasForeignKey("BookingId")
@@ -1231,30 +1286,9 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("BookedByAccount");
-
                     b.Navigation("Booking");
 
                     b.Navigation("Room");
-                });
-
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoomAmenity", b =>
-                {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Amenity", "Amenity")
-                        .WithMany("BookingRoomAmenities")
-                        .HasForeignKey("AmenityId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.BookingRoom", "BookingRoom")
-                        .WithMany("BookingRoomAmenities")
-                        .HasForeignKey("BookingRoomId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Amenity");
-
-                    b.Navigation("BookingRoom");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoomService", b =>
@@ -1299,9 +1333,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
                         .WithOne("Customer")
-                        .HasForeignKey("AppBackend.BusinessObjects.Models.Customer", "AccountId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("AppBackend.BusinessObjects.Models.Customer", "AccountId");
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Medium", "AvatarMedium")
                         .WithMany()
@@ -1371,6 +1403,31 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("FeedbackType");
 
                     b.Navigation("Status");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.HolidayPricing", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Holiday", "Holiday")
+                        .WithMany("HolidayPricings")
+                        .HasForeignKey("HolidayId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Holiday");
+
+                    b.Navigation("Room");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.HousekeepingTask", b =>
@@ -1548,8 +1605,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Amenity", b =>
                 {
-                    b.Navigation("BookingRoomAmenities");
-
                     b.Navigation("RoomAmenities");
                 });
 
@@ -1566,8 +1621,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoom", b =>
                 {
-                    b.Navigation("BookingRoomAmenities");
-
                     b.Navigation("BookingRoomServices");
                 });
 
@@ -1587,6 +1640,11 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("HousekeepingTasks");
 
                     b.Navigation("Salaries");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Holiday", b =>
+                {
+                    b.Navigation("HolidayPricings");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Role", b =>

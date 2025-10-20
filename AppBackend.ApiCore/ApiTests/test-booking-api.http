@@ -1,0 +1,439 @@
+### Test Booking API with Holiday Pricing
+### Author: Hotel Management Team
+### Date: 2025-01-19
+### Compatible with: IntelliJ HTTP Client & VS Code REST Client
+
+# Variables
+@baseUrl = http://localhost:8080/api
+@testCustomerId = 1
+@testBookingId = 1
+
+### ===== AUTHENTICATION =====
+
+### 1. Đăng nhập Admin để lấy token
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+    client.global.set("admin_token", response.body.data.token);
+%}
+
+### 2. Đăng nhập Manager để lấy token  
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+> {%
+    client.global.set("manager_token", response.body.data.token);
+%}
+
+### 3. Đăng ký/Đăng nhập Customer để lấy token
+POST {{baseUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "customer_booking",
+  "email": "customer_booking@example.com",
+  "password": "Customer@123",
+  "fullName": "Nguyễn Văn Khách Hàng",
+  "phoneNumber": "0912345678",
+  "identityCard": "001234567890",
+  "address": "123 Lê Lợi, Q1, TP.HCM"
+}
+
+> {%
+    client.global.set("customer_token", response.body.data.token);
+    client.global.set("customer_id", response.body.data.customerId || 1);
+%}
+
+### ===== PREREQUISITE: GET COMMON CODES =====
+
+### 4. Lấy danh sách RoomStatus codes
+GET {{baseUrl}}/CommonCode/type/RoomStatus
+
+### 5. Lấy danh sách PaymentStatus codes
+GET {{baseUrl}}/CommonCode/type/PaymentStatus
+
+### 6. Lấy danh sách BookingType codes
+GET {{baseUrl}}/CommonCode/type/BookingType
+
+### ===== ROOM INFORMATION =====
+
+### 7. Xem thông tin Room 101 (Standard - 800k/đêm)
+GET {{baseUrl}}/Room/1
+
+### 8. Xem thông tin Room 102 (Standard - 800k/đêm)
+GET {{baseUrl}}/Room/2
+
+### 9. Xem thông tin Room 201 (Deluxe - 1,500k/đêm)
+GET {{baseUrl}}/Room/3
+
+### ===== PUBLIC: CHECK AVAILABILITY =====
+
+### 10. Kiểm tra phòng available trong ngày thường (Public - không cần token)
+POST {{baseUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomIds": [1, 2],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00"
+}
+
+### ===== TEST CASE 1: BOOKING NGÀY THƯỜNG (KHÔNG CÓ HOLIDAY PRICING) =====
+
+### 11. Tạo booking ngày thường (2 đêm)
+# Expected Result:
+# - Room 101: 800,000 × 2 = 1,600,000 VNĐ
+# - Room 102: 800,000 × 2 = 1,600,000 VNĐ
+# - Total: 3,200,000 VNĐ
+# - Deposit (30%): 960,000 VNĐ
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1, 2],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00",
+  "bookingType": "Online",
+  "specialRequests": "Test booking - ngày thường"
+}
+
+> {%
+    client.global.set("booking_normal_id", response.body.data.bookingId);
+%}
+
+### ===== TEST CASE 2: BOOKING DỊP TẾT NGUYÊN ĐÁN (28/01 - 03/02/2025) =====
+
+### 12. Xem thông tin Holiday Tết Nguyên Đán
+GET {{baseUrl}}/Holiday/1
+
+### 13. Kiểm tra phòng available trong dịp Tết
+POST {{baseUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomIds": [1, 3],
+  "checkInDate": "2025-01-28T14:00:00",
+  "checkOutDate": "2025-01-30T12:00:00"
+}
+
+### 14. Tạo booking trong dịp Tết (2 đêm)
+# Expected Result with Holiday Pricing:
+# - Room 101: (800,000 + 300,000) × 2 = 2,200,000 VNĐ
+# - Room 201: (1,500,000 + 500,000) × 2 = 4,000,000 VNĐ
+# - Total: 6,200,000 VNĐ
+# - Deposit (30%): 1,860,000 VNĐ
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1, 3],
+  "checkInDate": "2025-01-28T14:00:00",
+  "checkOutDate": "2025-01-30T12:00:00",
+  "bookingType": "Online",
+  "specialRequests": "Test booking - dịp Tết Nguyên Đán"
+}
+
+> {%
+    client.global.set("booking_tet_id", response.body.data.bookingId);
+%}
+
+### ===== TEST CASE 3: BOOKING LỄ 30/4 - 1/5 (30/04 - 03/05/2025) =====
+
+### 15. Kiểm tra phòng available trong dịp lễ 30/4
+POST {{baseUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomIds": [1, 2],
+  "checkInDate": "2025-04-30T14:00:00",
+  "checkOutDate": "2025-05-02T12:00:00"
+}
+
+### 16. Tạo booking trong dịp lễ 30/4 (2 đêm)
+# Expected Result with Holiday Pricing:
+# - Room 101: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
+# - Room 102: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
+# - Total: 4,000,000 VNĐ
+# - Deposit (30%): 1,200,000 VNĐ
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1, 2],
+  "checkInDate": "2025-04-30T14:00:00",
+  "checkOutDate": "2025-05-02T12:00:00",
+  "bookingType": "Online",
+  "specialRequests": "Test booking - dịp lễ 30/4 - 1/5"
+}
+
+> {%
+    client.global.set("booking_labor_id", response.body.data.bookingId);
+%}
+
+### ===== TEST CASE 4: BOOKING QUỐC KHÁNH 2/9 (01/09 - 03/09/2025) =====
+
+### 17. Tạo booking trong dịp Quốc Khánh (2 đêm)
+# Expected Result with Holiday Pricing:
+# - Room 102: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
+# - Room 201: (1,500,000 + 300,000) × 2 = 3,600,000 VNĐ
+# - Total: 5,600,000 VNĐ
+# - Deposit (30%): 1,680,000 VNĐ
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [2, 3],
+  "checkInDate": "2025-09-01T14:00:00",
+  "checkOutDate": "2025-09-03T12:00:00",
+  "bookingType": "Online",
+  "specialRequests": "Test booking - dịp Quốc Khánh 2/9"
+}
+
+> {%
+    client.global.set("booking_national_id", response.body.data.bookingId);
+%}
+
+### ===== TEST CASE 5: BOOKING SPAN ACROSS HOLIDAY =====
+
+### 18. Tạo booking từ trước Tết đến trong Tết (3 đêm)
+# Expected Result:
+# - Đêm 1 (27/01): 800,000 VNĐ (giá thường)
+# - Đêm 2 (28/01): 1,100,000 VNĐ (giá Tết)
+# - Đêm 3 (29/01): 1,100,000 VNĐ (giá Tết)
+# - Total: 3,000,000 VNĐ
+# - Deposit (30%): 900,000 VNĐ
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1],
+  "checkInDate": "2025-01-27T14:00:00",
+  "checkOutDate": "2025-01-30T12:00:00",
+  "bookingType": "Online",
+  "specialRequests": "Test booking - span across Tết holiday"
+}
+
+> {%
+    client.global.set("booking_span_id", response.body.data.bookingId);
+%}
+
+### ===== VIEW BOOKING DETAILS =====
+
+### 19. Xem chi tiết booking của mình (Customer)
+GET {{baseUrl}}/Booking/{{booking_normal_id}}
+Authorization: Bearer {{customer_token}}
+
+### 20. Admin xem chi tiết booking
+GET {{baseUrl}}/Booking/{{booking_tet_id}}
+Authorization: Bearer {{admin_token}}
+
+### 21. Manager xem chi tiết booking
+GET {{baseUrl}}/Booking/{{booking_labor_id}}
+Authorization: Bearer {{manager_token}}
+
+### 22. Customer xem danh sách booking của mình
+GET {{baseUrl}}/Booking/my-bookings
+Authorization: Bearer {{customer_token}}
+
+### ===== PAYMENT FLOW =====
+
+### 23. Xác nhận thanh toán booking (sau khi thanh toán qua PayOS)
+POST {{baseUrl}}/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": {{booking_normal_id}},
+  "orderCode": "251019143000"
+}
+
+### 24. Kiểm tra transaction của booking
+GET {{baseUrl}}/Transaction/booking/{{booking_normal_id}}
+Authorization: Bearer {{customer_token}}
+
+### ===== CANCEL BOOKING =====
+
+### 25. Customer hủy booking của mình
+DELETE {{baseUrl}}/Booking/{{booking_span_id}}
+Authorization: Bearer {{customer_token}}
+
+### 26. Admin hủy booking (admin power)
+DELETE {{baseUrl}}/Booking/{{booking_labor_id}}
+Authorization: Bearer {{admin_token}}
+
+### ===== ERROR CASES: FORBIDDEN (403) =====
+
+### 27. Customer cố xem booking của người khác (sẽ lỗi 403)
+GET {{baseUrl}}/Booking/1
+Authorization: Bearer {{customer_token}}
+
+### 28. Customer cố hủy booking của người khác (sẽ lỗi 403)
+DELETE {{baseUrl}}/Booking/1
+Authorization: Bearer {{customer_token}}
+
+### ===== ERROR CASES: NOT FOUND (404) =====
+
+### 29. Xem booking không tồn tại
+GET {{baseUrl}}/Booking/99999
+Authorization: Bearer {{customer_token}}
+
+### 30. Hủy booking không tồn tại
+DELETE {{baseUrl}}/Booking/99999
+Authorization: Bearer {{admin_token}}
+
+### ===== ERROR CASES: CONFLICT (409) =====
+
+### 31. Tạo booking với phòng đã bị đặt (conflict)
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00",
+  "bookingType": "Online"
+}
+
+### 32. Check availability cho phòng đã booked
+POST {{baseUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomIds": [1, 2],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00"
+}
+
+### ===== ERROR CASES: BAD REQUEST (400) =====
+
+### 33. Tạo booking với checkOut trước checkIn (invalid dates)
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1],
+  "checkInDate": "2025-03-17T14:00:00",
+  "checkOutDate": "2025-03-15T12:00:00",
+  "bookingType": "Online"
+}
+
+### 34. Tạo booking với customerId không tồn tại
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 99999,
+  "roomIds": [1],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00",
+  "bookingType": "Online"
+}
+
+### ===== ERROR CASES: UNAUTHORIZED (401) =====
+
+### 35. Tạo booking không có token (sẽ lỗi 401)
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+
+{
+  "customerId": 1,
+  "roomIds": [1],
+  "checkInDate": "2025-03-15T14:00:00",
+  "checkOutDate": "2025-03-17T12:00:00",
+  "bookingType": "Online"
+}
+
+### 36. Xem booking không có token (sẽ lỗi 401)
+GET {{baseUrl}}/Booking/1
+
+### ===== DETAILED RESPONSE EXAMPLES =====
+
+### 37. Booking với full details (có holiday pricing)
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [1, 3],
+  "checkInDate": "2025-01-28T14:00:00",
+  "checkOutDate": "2025-01-30T12:00:00",
+  "bookingType": "Online"
+}
+
+> {%
+    client.global.set("booking_detail_id", response.body.data.bookingId);
+%}
+
+### 38. Get booking details với BookingRooms
+GET {{baseUrl}}/Booking/{{booking_detail_id}}
+Authorization: Bearer {{customer_token}}
+
+### ===== PERFORMANCE TEST: MULTIPLE BOOKINGS =====
+
+### 39. Tạo nhiều booking liên tiếp (stress test)
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [4],
+  "checkInDate": "2025-03-20T14:00:00",
+  "checkOutDate": "2025-03-22T12:00:00",
+  "bookingType": "Online"
+}
+
+### 40. Kiểm tra tổng số booking của customer
+GET {{baseUrl}}/Booking/my-bookings
+Authorization: Bearer {{customer_token}}
+
+### ===== NOTES & CHECKLIST =====
+
+# 📌 LƯU Ý QUAN TRỌNG:
+# ✅ Tất cả Status và Type đều lấy từ CommonCode
+# ✅ Sử dụng CodeName để query (vd: "Online", "Unpaid", "Available")
+# ✅ Holiday Pricing tự động áp dụng dựa trên StartDate và EndDate
+# ✅ Giá tính theo: BasePriceNight + PriceAdjustment (nếu có holiday)
+# ✅ Deposit mặc định là 30% TotalAmount
+# ✅ Booking tự động hủy sau 15 phút nếu không thanh toán
+
+# 💰 Holiday Pricing Summary:
+# Tết Nguyên Đán (28/01-03/02/2025):
+#   - Room 101/102: +300k/đêm (800k → 1,100k)
+#   - Room 201: +500k/đêm (1,500k → 2,000k)
+#
+# Lễ 30/4-1/5 (30/04-03/05/2025):
+#   - Room 101/102: +200k/đêm (800k → 1,000k)
+#   - Room 201: +300k/đêm (1,500k → 1,800k)
+#
+# Quốc Khánh 2/9 (01/09-03/09/2025):
+#   - Room 101/102: +200k/đêm (800k → 1,000k)
+#   - Room 201: +300k/đêm (1,500k → 1,800k)
+

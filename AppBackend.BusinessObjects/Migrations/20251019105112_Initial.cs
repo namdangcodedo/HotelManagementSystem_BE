@@ -75,6 +75,24 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Holiday",
+                columns: table => new
+                {
+                    HolidayId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ExpiredDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Holiday", x => x.HolidayId);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Role",
                 columns: table => new
                 {
@@ -350,6 +368,44 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "HolidayPricings",
+                columns: table => new
+                {
+                    HolidayPricingId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    HolidayId = table.Column<int>(type: "int", nullable: false),
+                    RoomId = table.Column<int>(type: "int", nullable: true),
+                    ServiceId = table.Column<int>(type: "int", nullable: true),
+                    PriceAdjustment = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ExpiredDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_HolidayPricings", x => x.HolidayPricingId);
+                    table.ForeignKey(
+                        name: "FK_HolidayPricings_Holiday_HolidayId",
+                        column: x => x.HolidayId,
+                        principalTable: "Holiday",
+                        principalColumn: "HolidayId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_HolidayPricings_Room_RoomId",
+                        column: x => x.RoomId,
+                        principalTable: "Room",
+                        principalColumn: "RoomId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_HolidayPricings_Service_ServiceId",
+                        column: x => x.ServiceId,
+                        principalTable: "Service",
+                        principalColumn: "ServiceId",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "HousekeepingTask",
                 columns: table => new
                 {
@@ -462,7 +518,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     CustomerId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    AccountId = table.Column<int>(type: "int", nullable: false),
+                    AccountId = table.Column<int>(type: "int", nullable: true),
                     FullName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     IdentityCard = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
                     PhoneNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
@@ -480,8 +536,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         name: "FK_Customer_Account_AccountId",
                         column: x => x.AccountId,
                         principalTable: "Account",
-                        principalColumn: "AccountId",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "AccountId");
                     table.ForeignKey(
                         name: "FK_Customer_Medium_AvatarMediaId",
                         column: x => x.AvatarMediaId,
@@ -496,17 +551,19 @@ namespace AppBackend.BusinessObjects.Migrations
                     BookingId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     CustomerId = table.Column<int>(type: "int", nullable: false),
-                    RoomId = table.Column<int>(type: "int", nullable: false),
-                    BookingTypeId = table.Column<int>(type: "int", nullable: false),
-                    CheckIn = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CheckOut = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EstimatedPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    StatusId = table.Column<int>(type: "int", nullable: false),
-                    Notes = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    CheckInDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CheckOutDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DepositAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PaymentStatusId = table.Column<int>(type: "int", nullable: true),
+                    DepositStatusId = table.Column<int>(type: "int", nullable: true),
+                    BookingTypeId = table.Column<int>(type: "int", nullable: true),
+                    SpecialRequests = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    RoomId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -518,8 +575,14 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalColumn: "CodeId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Booking_CommonCode_StatusId",
-                        column: x => x.StatusId,
+                        name: "FK_Booking_CommonCode_DepositStatusId",
+                        column: x => x.DepositStatusId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Booking_CommonCode_PaymentStatusId",
+                        column: x => x.PaymentStatusId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
                         onDelete: ReferentialAction.Restrict);
@@ -533,8 +596,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         name: "FK_Booking_Room_RoomId",
                         column: x => x.RoomId,
                         principalTable: "Room",
-                        principalColumn: "RoomId",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "RoomId");
                 });
 
             migrationBuilder.CreateTable(
@@ -545,19 +607,15 @@ namespace AppBackend.BusinessObjects.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     BookingId = table.Column<int>(type: "int", nullable: false),
                     RoomId = table.Column<int>(type: "int", nullable: false),
-                    PriceAtTime = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false),
-                    BookedByAccountId = table.Column<int>(type: "int", nullable: false)
+                    PricePerNight = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    NumberOfNights = table.Column<int>(type: "int", nullable: false),
+                    SubTotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CheckInDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CheckOutDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_BookingRoom", x => x.BookingRoomId);
-                    table.ForeignKey(
-                        name: "FK_BookingRoom_Account_BookedByAccountId",
-                        column: x => x.BookedByAccountId,
-                        principalTable: "Account",
-                        principalColumn: "AccountId",
-                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_BookingRoom_Booking_BookingId",
                         column: x => x.BookingId,
@@ -707,34 +765,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "BookingRoomAmenity",
-                columns: table => new
-                {
-                    BookingRoomAmenityId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    BookingRoomId = table.Column<int>(type: "int", nullable: false),
-                    AmenityId = table.Column<int>(type: "int", nullable: false),
-                    PriceAtTime = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_BookingRoomAmenity", x => x.BookingRoomAmenityId);
-                    table.ForeignKey(
-                        name: "FK_BookingRoomAmenity_Amenity_AmenityId",
-                        column: x => x.AmenityId,
-                        principalTable: "Amenity",
-                        principalColumn: "AmenityId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_BookingRoomAmenity_BookingRoom_BookingRoomId",
-                        column: x => x.BookingRoomId,
-                        principalTable: "BookingRoom",
-                        principalColumn: "BookingRoomId",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "BookingRoomService",
                 columns: table => new
                 {
@@ -783,19 +813,19 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "CustomerId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Booking_DepositStatusId",
+                table: "Booking",
+                column: "DepositStatusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Booking_PaymentStatusId",
+                table: "Booking",
+                column: "PaymentStatusId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Booking_RoomId",
                 table: "Booking",
                 column: "RoomId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Booking_StatusId",
-                table: "Booking",
-                column: "StatusId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_BookingRoom_BookedByAccountId",
-                table: "BookingRoom",
-                column: "BookedByAccountId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookingRoom_BookingId",
@@ -806,16 +836,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_BookingRoom_RoomId",
                 table: "BookingRoom",
                 column: "RoomId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_BookingRoomAmenity_AmenityId",
-                table: "BookingRoomAmenity",
-                column: "AmenityId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_BookingRoomAmenity_BookingRoomId",
-                table: "BookingRoomAmenity",
-                column: "BookingRoomId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookingRoomService_BookingRoomId",
@@ -847,7 +867,8 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_Customer_AccountId",
                 table: "Customer",
                 column: "AccountId",
-                unique: true);
+                unique: true,
+                filter: "[AccountId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Customer_AvatarMediaId",
@@ -889,6 +910,21 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_Feedback_StatusId",
                 table: "Feedback",
                 column: "StatusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HolidayPricings_HolidayId",
+                table: "HolidayPricings",
+                column: "HolidayId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HolidayPricings_RoomId",
+                table: "HolidayPricings",
+                column: "RoomId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HolidayPricings_ServiceId",
+                table: "HolidayPricings",
+                column: "ServiceId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HousekeepingTask_JanitorId",
@@ -997,9 +1033,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "Attendance");
 
             migrationBuilder.DropTable(
-                name: "BookingRoomAmenity");
-
-            migrationBuilder.DropTable(
                 name: "BookingRoomService");
 
             migrationBuilder.DropTable(
@@ -1010,6 +1043,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "Feedback");
+
+            migrationBuilder.DropTable(
+                name: "HolidayPricings");
 
             migrationBuilder.DropTable(
                 name: "HousekeepingTask");
@@ -1034,6 +1070,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "BookingRoom");
+
+            migrationBuilder.DropTable(
+                name: "Holiday");
 
             migrationBuilder.DropTable(
                 name: "Amenity");

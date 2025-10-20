@@ -11,7 +11,7 @@ public partial class Customer
     [Key]
     public int CustomerId { get; set; }
 
-    [Required]
+    // Bỏ [Required] để cho phép guest customer không có account
     [ForeignKey("Account")]
     public int? AccountId { get; set; }
 

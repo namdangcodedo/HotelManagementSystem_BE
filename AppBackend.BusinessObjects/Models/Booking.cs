@@ -8,58 +8,54 @@ namespace AppBackend.BusinessObjects.Models;
 [Table("Booking")]
 public class Booking
 {
-    [Key]
-    public int BookingId { get; set; }
+  [Key]
+  public int BookingId { get; set; }
 
-    [Required]
-    [ForeignKey("Customer")]
-    public int CustomerId { get; set; }
+  [Required]
+  [ForeignKey("Customer")]
+  public int CustomerId { get; set; }
+  public virtual Customer Customer { get; set; } = null!;
 
-    [Required]
-    [ForeignKey("Room")]
-    public int RoomId { get; set; }
+  [Required]
+  public DateTime CheckInDate { get; set; }
 
-    [Required]
-    [ForeignKey("BookingType")]
-    public int BookingTypeId { get; set; }
-    public virtual CommonCode BookingType { get; set; } = null!;
+  [Required]
+  public DateTime CheckOutDate { get; set; }
 
-    [Required]
-    public DateTime CheckIn { get; set; }
+  [Required]
+  [Column(TypeName = "decimal(18,2)")]
+  public decimal TotalAmount { get; set; }
 
-    [Required]
-    public DateTime CheckOut { get; set; }
+  [Column(TypeName = "decimal(18,2)")]
+  public decimal DepositAmount { get; set; }
 
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal EstimatedPrice { get; set; }
+  [ForeignKey("PaymentStatus")]
+  public int? PaymentStatusId { get; set; }
+  public virtual CommonCode? PaymentStatus { get; set; }
 
-    [Required]
-    [ForeignKey("Status")]
-    public int StatusId { get; set; }
-    public virtual CommonCode Status { get; set; } = null!;
+  [ForeignKey("DepositStatus")]
+  public int? DepositStatusId { get; set; }
+  public virtual CommonCode? DepositStatus { get; set; }
 
-    [StringLength(255)]
-    public string? Notes { get; set; }
+  [ForeignKey("BookingType")]
+  public int? BookingTypeId { get; set; }
+  public virtual CommonCode? BookingType { get; set; }
 
-    [Required]
-    public DateTime CreatedAt { get; set; }
+  [StringLength(500)]
+  public string? SpecialRequests { get; set; }
 
-    public int? CreatedBy { get; set; }
+  [Required]
+  public DateTime CreatedAt { get; set; }
 
-    public DateTime? UpdatedAt { get; set; }
+  public int? CreatedBy { get; set; }
 
-    public int? UpdatedBy { get; set; }
+  public DateTime? UpdatedAt { get; set; }
 
-    public virtual ICollection<BookingService> BookingServices { get; set; } = new List<BookingService>();
+  public int? UpdatedBy { get; set; }
 
-    public virtual Customer Customer { get; set; } = null!;
-
-    public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
-
-    public virtual Room Room { get; set; } = null!;
-
-    public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
-
-    public virtual ICollection<BookingRoom> BookingRooms { get; set; } = new List<BookingRoom>();
+  // Navigation properties
+  public virtual ICollection<BookingRoom> BookingRooms { get; set; } = new List<BookingRoom>();
+  public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+  public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
+  public virtual ICollection<BookingService> BookingServices { get; set; } = new List<BookingService>();
 }

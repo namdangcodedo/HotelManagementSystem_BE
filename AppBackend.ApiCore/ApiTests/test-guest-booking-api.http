@@ -1,0 +1,302 @@
+### Test Guest Booking API (Không cần đăng ký/đăng nhập)
+### Author: Hotel Management Team
+### Date: 2025-01-19
+### Compatible with: IntelliJ HTTP Client & VS Code REST Client
+
+# Variables
+@baseUrl = http://localhost:8080/api
+
+### ===== AUTHENTICATION (Optional - for comparison) =====
+
+### 1. Đăng nhập Admin để lấy token (optional - để so sánh)
+POST {{baseUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.token);
+%}
+
+### ===== PUBLIC: CHECK AVAILABILITY =====
+
+### 2. Kiểm tra phòng available (Public - không cần authentication)
+POST {{baseUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomIds": [1, 2],
+  "checkInDate": "2025-10-25T14:00:00",
+  "checkOutDate": "2025-10-27T12:00:00"
+}
+
+### ===== GUEST BOOKING - BASIC FLOW =====
+
+### 3. Guest Booking - Lần đầu (tạo customer mới)
+# Guest chỉ cần nhập thông tin cá nhân, không cần đăng ký tài khoản
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn Khách",
+  "email": "khach.guest@example.com",
+  "phoneNumber": "0987654321",
+  "identityCard": "079123456789",
+  "address": "456 Nguyễn Huệ, Q1, TP.HCM",
+  "roomIds": [1],
+  "checkInDate": "2025-10-25T14:00:00",
+  "checkOutDate": "2025-10-27T12:00:00",
+  "specialRequests": "View biển, tầng cao",
+  "bookingType": "Online"
+}
+
+> {%
+    client.global.set("guest_booking_id", response.body.data.bookingId);
+    client.global.set("guest_payment_url", response.body.data.paymentUrl);
+    client.global.set("guest_customer_id", response.body.data.customerId);
+%}
+
+### 4. Guest Booking - Lần 2 (cùng email/phone - tìm customer cũ)
+# Khi guest book lần 2 với cùng email hoặc phone, hệ thống sẽ tìm customer cũ
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn Khách",
+  "email": "khach.guest@example.com",
+  "phoneNumber": "0987654321",
+  "identityCard": "079123456789",
+  "address": "456 Nguyễn Huệ, Q1, TP.HCM",
+  "roomIds": [2],
+  "checkInDate": "2025-11-01T14:00:00",
+  "checkOutDate": "2025-11-03T12:00:00",
+  "specialRequests": "Gần thang máy",
+  "bookingType": "Online"
+}
+
+> {%
+    client.global.set("guest_booking_id_2", response.body.data.bookingId);
+%}
+
+### 5. Guest Booking - Multiple Rooms (đặt nhiều phòng)
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Trần Thị Lan",
+  "email": "lan.guest@example.com",
+  "phoneNumber": "0912345678",
+  "identityCard": "001234567890",
+  "address": "789 Lê Lợi, Q3, TP.HCM",
+  "roomIds": [1, 2, 3],
+  "checkInDate": "2025-11-15T14:00:00",
+  "checkOutDate": "2025-11-17T12:00:00",
+  "specialRequests": "3 phòng gần nhau cho gia đình",
+  "bookingType": "Online"
+}
+
+> {%
+    client.global.set("guest_booking_id_3", response.body.data.bookingId);
+%}
+
+### 6. Guest Booking - Dịp Tết (với Holiday Pricing)
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Lê Văn Tết",
+  "email": "tet.guest@example.com",
+  "phoneNumber": "0909123456",
+  "roomIds": [1, 3],
+  "checkInDate": "2025-01-28T14:00:00",
+  "checkOutDate": "2025-01-30T12:00:00",
+  "specialRequests": "Booking dịp Tết",
+  "bookingType": "Online"
+}
+
+> {%
+    client.global.set("guest_booking_tet_id", response.body.data.bookingId);
+%}
+
+### ===== PAYMENT FLOW (GUEST) =====
+
+### 7. Xác nhận thanh toán (PayOS callback - Public endpoint)
+POST {{baseUrl}}/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": {{guest_booking_id}},
+  "orderCode": "251019143500",
+  "status": "PAID"
+}
+
+### ===== ERROR CASES: BAD REQUEST (400) =====
+
+### 8. Guest Booking - Thiếu thông tin bắt buộc
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn A",
+  "email": "",
+  "phoneNumber": "",
+  "roomIds": [1],
+  "checkInDate": "2025-10-25T14:00:00",
+  "checkOutDate": "2025-10-27T12:00:00"
+}
+
+### 9. Guest Booking - Ngày check-in trong quá khứ
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn B",
+  "email": "test@example.com",
+  "phoneNumber": "0987654321",
+  "roomIds": [1],
+  "checkInDate": "2025-01-01T14:00:00",
+  "checkOutDate": "2025-01-03T12:00:00"
+}
+
+### 10. Guest Booking - Check-out trước check-in
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn C",
+  "email": "test2@example.com",
+  "phoneNumber": "0987654322",
+  "roomIds": [1],
+  "checkInDate": "2025-10-27T14:00:00",
+  "checkOutDate": "2025-10-25T12:00:00"
+}
+
+### ===== ERROR CASES: NOT FOUND (404) =====
+
+### 11. Guest Booking - Room không tồn tại
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn D",
+  "email": "test3@example.com",
+  "phoneNumber": "0987654323",
+  "roomIds": [99999],
+  "checkInDate": "2025-10-25T14:00:00",
+  "checkOutDate": "2025-10-27T12:00:00"
+}
+
+### ===== ERROR CASES: CONFLICT (409) =====
+
+### 12. Guest Booking - Phòng đang bị lock (test race condition)
+# Chạy 2 request này đồng thời để test
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Guest A",
+  "email": "guestA@example.com",
+  "phoneNumber": "0900000001",
+  "roomIds": [1],
+  "checkInDate": "2025-12-01T14:00:00",
+  "checkOutDate": "2025-12-03T12:00:00"
+}
+
+### 13. Guest Booking - Cùng phòng cùng thời gian (từ tab khác)
+POST {{baseUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Guest B",
+  "email": "guestB@example.com",
+  "phoneNumber": "0900000002",
+  "roomIds": [1],
+  "checkInDate": "2025-12-01T14:00:00",
+  "checkOutDate": "2025-12-03T12:00:00"
+}
+
+### ===== COMPARISON: REGISTERED USER vs GUEST =====
+
+### 14. Registered User Booking (cần authentication) - để so sánh
+POST {{baseUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+  "customerId": 1,
+  "roomIds": [4],
+  "checkInDate": "2025-10-25T14:00:00",
+  "checkOutDate": "2025-10-27T12:00:00",
+  "specialRequests": "Booking với tài khoản đã đăng ký",
+  "bookingType": "Online"
+}
+
+### ===== NOTES & BEST PRACTICES =====
+
+# 📌 LƯU Ý QUAN TRỌNG:
+# ✅ Guest Booking KHÔNG cần authentication - dành cho khách vãng lai
+# ✅ Registered User Booking CẦN authentication - dành cho khách hàng thân thiết
+# ✅ Guest chỉ cần: FullName, Email, PhoneNumber (bắt buộc)
+# ✅ CMND và Address là optional
+# ✅ Hệ thống tự động tạo/tìm Customer dựa trên Email hoặc PhoneNumber
+# ✅ Guest có thể booking nhiều lần mà không cần tài khoản
+# ✅ Lịch sử booking được lưu theo email/phone để tiện tra cứu
+
+# 🎯 KHI NÀO DÙNG GUEST BOOKING:
+# - Khách hàng lần đầu, chưa muốn đăng ký
+# - Cần đặt phòng nhanh, không muốn tạo tài khoản
+# - Khách nước ngoài (tourist)
+# - One-time booking
+
+# 🎯 KHI NÀO DÙNG REGISTERED USER BOOKING:
+# - Khách hàng thường xuyên
+# - Muốn quản lý lịch sử booking
+# - Muốn nhận ưu đãi thành viên
+# - Cần tính năng nâng cao (modify booking, loyalty points, etc.)
+
+# 💰 GIÁ TÍNH GIỐNG NHAU:
+# - Guest và Registered User đều có cùng giá
+# - Holiday pricing áp dụng cho cả 2
+# - Deposit: 30% tổng tiền
+# - Payment timeout: 15 phút
+
+# 🔒 BẢO MẬT:
+# - Guest booking validation email/phone
+# - Room locking mechanism giống nhau
+# - Payment qua PayOS (secure)
+# - Auto-cancel sau 15 phút nếu không thanh toán
+
+# 📊 RESPONSE FORMAT:
+# {
+#   "isSuccess": true,
+#   "message": "Tạo booking thành công. Vui lòng thanh toán trong 15 phút!",
+#   "data": {
+#     "bookingId": 123,
+#     "customerId": 45,
+#     "customerName": "Nguyễn Văn Khách",
+#     "roomIds": [1, 2],
+#     "roomNumbers": ["101", "102"],
+#     "checkInDate": "2025-10-25T14:00:00",
+#     "checkOutDate": "2025-10-27T12:00:00",
+#     "totalAmount": 3200000,
+#     "depositAmount": 960000,
+#     "paymentUrl": "https://pay.payos.vn/web/abc123",
+#     "createdAt": "2025-10-19T10:30:00"
+#   },
+#   "statusCode": 201
+# }
+
+# 🧪 TEST CHECKLIST:
+# [ ] Guest booking lần đầu (tạo customer mới)
+# [ ] Guest booking lần 2 (cùng email/phone - tìm customer cũ)
+# [ ] Guest booking multiple rooms
+# [ ] Guest booking với holiday pricing
+# [ ] Guest payment confirmation
+# [ ] Error: Thiếu thông tin bắt buộc
+# [ ] Error: Ngày không hợp lệ
+# [ ] Error: Room không tồn tại
+# [ ] Error: Race condition (2 người đặt cùng phòng)
+# [ ] So sánh với registered user booking
