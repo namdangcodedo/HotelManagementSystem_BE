@@ -27,7 +27,5 @@ public class Holiday
   [Required]
   public bool IsActive { get; set; }
 
-  public DateTime? ExpiredDate { get; set; }
-
   public virtual ICollection<HolidayPricing> HolidayPricings { get; set; } = new List<HolidayPricing>();
 }

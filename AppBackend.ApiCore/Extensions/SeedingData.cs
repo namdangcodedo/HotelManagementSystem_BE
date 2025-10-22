@@ -31,12 +31,6 @@ namespace AppBackend.ApiCore.Extension
             {
                 context.CommonCodes.AddRange(new List<CommonCode>
                 {
-                    // RoomType
-                    new CommonCode { CodeType = "RoomType", CodeValue = "Phòng tiêu chuẩn", CodeName = "Standard" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomType", CodeValue = "Phòng cao cấp", CodeName = "Deluxe" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomType", CodeValue = "Phòng VIP", CodeName = "VIP" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomType", CodeValue = "Suite", CodeName = "Suite" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    
                     // Status
                     new CommonCode { CodeType = "Status", CodeValue = "Hoạt động", CodeName = "Active" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "Status", CodeValue = "Không hoạt động", CodeName = "Inactive" , IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -92,6 +86,12 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     
+                    // TransactionStatus
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Thất bại", CodeName = "Failed" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    
                     // RoomStatus
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Trống", CodeName = "Available" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đã đặt", CodeName = "Booked" , IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -99,6 +99,69 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , IsActive = true, CreatedAt = DateTime.UtcNow }
                 });
+                await context.SaveChangesAsync();
+            }
+
+            // Seed RoomType if empty (Bảng riêng biệt, không dùng CommonCode)
+            if (!context.Set<RoomType>().Any())
+            {
+                var roomTypes = new List<RoomType>
+                {
+                    new RoomType
+                    {
+                        TypeName = "Phòng tiêu chuẩn",
+                        TypeCode = "STD",
+                        Description = "Phòng tiêu chuẩn với đầy đủ tiện nghi cơ bản, phù hợp cho 1-2 người",
+                        BasePriceNight = 800000m,
+                        MaxOccupancy = 2,
+                        RoomSize = 25m,
+                        NumberOfBeds = 1,
+                        BedType = "Queen",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new RoomType
+                    {
+                        TypeName = "Phòng cao cấp",
+                        TypeCode = "DLX",
+                        Description = "Phòng cao cấp rộng rãi với view đẹp, phù hợp cho 2-3 người",
+                        BasePriceNight = 1500000m,
+                        MaxOccupancy = 3,
+                        RoomSize = 35m,
+                        NumberOfBeds = 2,
+                        BedType = "Queen",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new RoomType
+                    {
+                        TypeName = "Phòng VIP",
+                        TypeCode = "VIP",
+                        Description = "Phòng VIP cao cấp với ban công riêng, view biển, phù hợp cho 2-4 người",
+                        BasePriceNight = 2500000m,
+                        MaxOccupancy = 4,
+                        RoomSize = 45m,
+                        NumberOfBeds = 2,
+                        BedType = "King",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new RoomType
+                    {
+                        TypeName = "Suite",
+                        TypeCode = "SUT",
+                        Description = "Suite sang trọng với phòng khách riêng biệt, view panorama, phù hợp cho gia đình 4-6 người",
+                        BasePriceNight = 4000000m,
+                        MaxOccupancy = 6,
+                        RoomSize = 70m,
+                        NumberOfBeds = 3,
+                        BedType = "King & Queen",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                };
+
+                await context.Set<RoomType>().AddRangeAsync(roomTypes);
                 await context.SaveChangesAsync();
             }
 
@@ -233,15 +296,15 @@ namespace AppBackend.ApiCore.Extension
             // Seed Rooms if empty
             if (!context.Rooms.Any())
             {
-                // Lấy các RoomType và RoomStatus codes
-                var standardRoomType = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomType" && c.CodeName == "Standard");
-                var deluxeRoomType = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomType" && c.CodeName == "Deluxe");
-                var vipRoomType = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomType" && c.CodeName == "VIP");
-                var suiteRoomType = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomType" && c.CodeName == "Suite");
+                // Lấy các RoomType và RoomStatus
+                var standardRoomType = await context.Set<RoomType>()
+                    .FirstOrDefaultAsync(rt => rt.TypeCode == "STD");
+                var deluxeRoomType = await context.Set<RoomType>()
+                    .FirstOrDefaultAsync(rt => rt.TypeCode == "DLX");
+                var vipRoomType = await context.Set<RoomType>()
+                    .FirstOrDefaultAsync(rt => rt.TypeCode == "VIP");
+                var suiteRoomType = await context.Set<RoomType>()
+                    .FirstOrDefaultAsync(rt => rt.TypeCode == "SUT");
 
                 var availableStatus = await context.CommonCodes
                     .FirstOrDefaultAsync(c => c.CodeType == "RoomStatus" && c.CodeName == "Available");
@@ -268,12 +331,10 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomNumber = $"10{i}",
-                            RoomTypeId = standardRoomType.CodeId,
-                            BasePriceNight = 800000m,
-                            BasePriceHour = 120000m,
+                            RoomName = $"Standard-10{i}",
+                            RoomTypeId = standardRoomType.RoomTypeId,
                             StatusId = statusId,
-                            Description = $"Phòng Standard {100 + i}, tầng 1, view sân vườn",
+                            Description = $"Phòng Standard tầng 1 số {100 + i}, view sân vườn",
                             CreatedAt = DateTime.UtcNow
                         });
                     }
@@ -287,12 +348,10 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomNumber = $"20{i}",
-                            RoomTypeId = deluxeRoomType.CodeId,
-                            BasePriceNight = 1500000m,
-                            BasePriceHour = 200000m,
+                            RoomName = $"Deluxe-20{i}",
+                            RoomTypeId = deluxeRoomType.RoomTypeId,
                             StatusId = statusId,
-                            Description = $"Phòng Deluxe {200 + i}, tầng 2, view thành phố",
+                            Description = $"Phòng Deluxe tầng 2 số {200 + i}, view thành phố",
                             CreatedAt = DateTime.UtcNow
                         });
                     }
@@ -306,12 +365,10 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomNumber = $"30{i}",
-                            RoomTypeId = vipRoomType.CodeId,
-                            BasePriceNight = 2500000m,
-                            BasePriceHour = 350000m,
+                            RoomName = $"VIP-30{i}",
+                            RoomTypeId = vipRoomType.RoomTypeId,
                             StatusId = statusId,
-                            Description = $"Phòng VIP {300 + i}, tầng 3, view biển, ban công riêng",
+                            Description = $"Phòng VIP tầng 3 số {300 + i}, view biển, ban công riêng",
                             CreatedAt = DateTime.UtcNow
                         });
                     }
@@ -325,12 +382,10 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomNumber = $"40{i}",
-                            RoomTypeId = suiteRoomType.CodeId,
-                            BasePriceNight = 4000000m,
-                            BasePriceHour = 550000m,
+                            RoomName = $"Suite-40{i}",
+                            RoomTypeId = suiteRoomType.RoomTypeId,
                             StatusId = statusId,
-                            Description = $"Suite {400 + i}, tầng 4, phòng khách riêng, view biển panorama",
+                            Description = $"Suite tầng 4 số {400 + i}, phòng khách riêng, view biển panorama",
                             CreatedAt = DateTime.UtcNow
                         });
                     }
@@ -378,17 +433,17 @@ namespace AppBackend.ApiCore.Extension
                         string[] images;
                         string roomTypeName;
 
-                        if (room.RoomNumber.StartsWith("1")) // Standard
+                        if (room.RoomName.StartsWith("Standard")) // Standard
                         {
                             images = standardImages;
                             roomTypeName = "Standard";
                         }
-                        else if (room.RoomNumber.StartsWith("2")) // Deluxe
+                        else if (room.RoomName.StartsWith("Deluxe")) // Deluxe
                         {
                             images = deluxeImages;
                             roomTypeName = "Deluxe";
                         }
-                        else if (room.RoomNumber.StartsWith("3")) // VIP
+                        else if (room.RoomName.StartsWith("VIP")) // VIP
                         {
                             images = vipImages;
                             roomTypeName = "VIP";
@@ -404,7 +459,7 @@ namespace AppBackend.ApiCore.Extension
                             media.Add(new Medium
                             {
                                 FilePath = images[i],
-                                Description = $"{roomTypeName} Room {room.RoomNumber} - Image {i + 1}",
+                                Description = $"{roomTypeName} Room {room.RoomName} - Image {i + 1}",
                                 DisplayOrder = i + 1,
                                 CreatedAt = DateTime.UtcNow,
                                 ReferenceTable = "Room",
@@ -627,11 +682,11 @@ namespace AppBackend.ApiCore.Extension
                 await context.Holidays.AddRangeAsync(holidays);
                 await context.SaveChangesAsync();
 
-                // Seed HolidayPricing - Điều chỉnh giá theo ngày lễ
+                // Seed HolidayPricing - Điều chỉnh giá theo đêm (KHÔNG TÍNH THEO GIỜ)
                 // Lấy các phòng để áp dụng giá ngày lễ
-                var room101 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "101");
-                var room102 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "102");
-                var room201 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomNumber == "201");
+                var room101 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomName.Contains("101"));
+                var room102 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomName.Contains("102"));
+                var room201 = await context.Rooms.FirstOrDefaultAsync(r => r.RoomName.Contains("201"));
 
                 var tetHoliday = holidays.FirstOrDefault(h => h.Name == "Tết Nguyên Đán 2025");
                 var labor30_4Holiday = holidays.FirstOrDefault(h => h.Name == "Lễ 30/4 - 1/5");
@@ -641,7 +696,7 @@ namespace AppBackend.ApiCore.Extension
                 {
                     var holidayPricings = new List<HolidayPricing>();
 
-                    // Tết Nguyên Đán - Tăng giá cho phòng trong dịp Tết
+                    // Tết Nguyên Đán - Tăng giá cho phòng trong dịp Tết (CHỈ TÍNH THEO ĐÊM)
                     if (room101 != null)
                     {
                         holidayPricings.Add(new HolidayPricing
@@ -681,7 +736,7 @@ namespace AppBackend.ApiCore.Extension
                         });
                     }
 
-                    // Lễ 30/4 - 1/5 - Tăng giá trong dịp lễ
+                    // Lễ 30/4 - 1/5 - Tăng giá trong dịp lễ (CHỈ TÍNH THEO ĐÊM)
                     if (room101 != null)
                     {
                         holidayPricings.Add(new HolidayPricing
@@ -721,7 +776,7 @@ namespace AppBackend.ApiCore.Extension
                         });
                     }
 
-                    // Quốc Khánh 2/9 - Tăng giá trong dịp lễ Quốc Khánh
+                    // Quốc Khánh 2/9 - Tăng giá trong dịp lễ Quốc Khánh (CHỈ TÍNH THEO ĐÊM)
                     if (room101 != null)
                     {
                         holidayPricings.Add(new HolidayPricing

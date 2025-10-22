@@ -17,7 +17,7 @@ public class HolidayPricing
   public int? ServiceId { get; set; }
   
   /// <summary>
-  /// Điều chỉnh giá theo đêm (VNĐ)
+  /// Điều chỉnh giá theo đêm (VNĐ) - CHỈ TÍNH THEO ĐÊM, KHÔNG TÍNH THEO GIỜ
   /// Giá mới = BasePriceNight + PriceAdjustment
   /// Ví dụ: BasePriceNight = 800k, PriceAdjustment = 200k => 1000k/đêm
   /// </summary>
@@ -31,7 +31,6 @@ public class HolidayPricing
   public DateTime EndDate { get; set; }
   [Required]
   public bool IsActive { get; set; }
-  public DateTime? ExpiredDate { get; set; }
   public virtual Holiday Holiday { get; set; } = null!;
   public virtual Room? Room { get; set; }
   public virtual Service? Service { get; set; }
