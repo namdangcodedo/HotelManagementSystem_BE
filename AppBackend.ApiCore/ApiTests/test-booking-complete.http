@@ -1,0 +1,678 @@
+### ============================================
+### BOOKING API - COMPLETE TEST SUITE
+### ============================================
+### Date: 2025-10-22
+### Updated: Logic mới - Không cần gửi bookingType, tự động = "Online"
+### Cache Handling: Room locking, Payment timeout, Conflict resolution
+### ============================================
+
+### Variables
+@baseUrl = http://localhost:8080
+@apiUrl = {{baseUrl}}/api
+
+### ============================================
+### SECTION 1: AUTHENTICATION & SETUP
+### ============================================
+
+### 1.1 Register New Customer (Run this FIRST if you don't have an account)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testcustomer",
+  "email": "testcustomer@gmail.com",
+  "password": "Customer@123",
+  "fullName": "Nguyen Van Test",
+  "phoneNumber": "0912345678",
+  "identityCard": "001234567890",
+  "address": "123 Test Street, District 1, HCMC"
+}
+
+> {%
+    client.global.set("customer_token", response.body.data.token);
+    client.global.set("customer_id", response.body.data.accountId);
+    
+    client.test("Customer registered", function() {
+        client.assert(response.status === 200 || response.status === 201, "Registration should succeed");
+    });
+    
+    client.log("✅ Customer registered successfully");
+    client.log("👤 Account ID: " + response.body.data.accountId);
+    client.log("🔑 Token: " + response.body.data.token.substring(0, 30) + "...");
+    client.log("📧 Email: testcustomer@gmail.com");
+    client.log("🔐 Password: Customer@123");
+    client.log("");
+    client.log("⚠️ If user already exists, use Login (1.2) instead");
+%}
+
+### 1.2 Login as Customer (Use this if already registered)
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "testcustomer@gmail.com",
+  "password": "Customer@123"
+}
+
+> {%
+    client.global.set("customer_token", response.body.data.token);
+    client.global.set("customer_id", response.body.data.accountId);
+    
+    client.test("Customer logged in", function() {
+        client.assert(response.status === 200, "Login should succeed");
+        client.assert(response.body.data.token !== null, "Should return token");
+    });
+    
+    client.log("✅ Customer logged in successfully");
+    client.log("👤 Account ID: " + response.body.data.accountId);
+    client.log("🔑 Token saved to variable: customer_token");
+%}
+
+### 1.3 Login as Admin (For admin operations)
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+    client.log("✅ Admin logged in");
+    client.log("🔑 Admin token saved");
+%}
+
+### ============================================
+### SECTION 2: CHECK ROOM AVAILABILITY
+### ============================================
+
+### 2.1 Check availability - Standard room (Public API)
+# Kiểm tra 2 phòng Standard + 1 phòng Deluxe
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 },
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Check availability success", function() {
+        client.assert(response.status === 200, "Status should be 200");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.data.roomTypes !== null, "Should return room types");
+    });
+    
+    client.log("✅ Availability check completed");
+    client.log("📅 Check-in: 2025-10-25");
+    client.log("📅 Check-out: 2025-10-27");
+    client.log("🌙 Total nights: " + response.body.data.totalNights);
+    client.log("");
+    
+    if (response.body.data && response.body.data.roomTypes) {
+        response.body.data.roomTypes.forEach(function(rt) {
+            client.log("🏨 " + rt.roomTypeName + " (" + rt.roomTypeCode + ")");
+            client.log("   Available: " + rt.availableCount + "/" + rt.requestedQuantity);
+            client.log("   Price: " + rt.basePriceNight.toLocaleString() + " VNĐ/night");
+            client.log("   Status: " + (rt.isAvailable ? "✅ Available" : "❌ Not enough"));
+            client.log("   " + rt.message);
+            client.log("");
+        });
+    }
+%}
+
+### 2.2 Check availability - VIP and Suite rooms
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 3, "quantity": 1 },
+    { "roomTypeId": 4, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-01T14:00:00Z",
+  "checkOutDate": "2025-11-05T12:00:00Z"
+}
+
+> {%
+    client.log("✅ VIP & Suite availability checked");
+%}
+
+### 2.3 Check availability - Overbooking test (should fail)
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 100 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return conflict when requesting too many rooms", function() {
+        client.assert(response.status === 409 || response.status === 200, "Should be conflict or OK");
+        if (response.body.data) {
+            client.assert(response.body.data.isAllAvailable === false, "Should not be all available");
+        }
+    });
+    client.log("⚠️ Expected: Not enough rooms");
+%}
+
+### ============================================
+### SECTION 3: CREATE BOOKING (Authenticated User)
+### ============================================
+### ⚠️ IMPORTANT: Run Section 1 first to get customer_token and customer_id
+
+### 3.1 Create booking - 2 Standard rooms (MAIN TEST)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z",
+  "specialRequests": "Early check-in if possible, non-smoking rooms"
+}
+
+> {%
+    client.global.set("booking_id", response.body.data.bookingId);
+    client.global.set("payment_url", response.body.data.paymentUrl);
+    
+    client.test("Booking created successfully", function() {
+        client.assert(response.status === 201, "Status should be 201 Created");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.data.paymentUrl !== null, "Payment URL should exist");
+        client.assert(response.body.data.bookingId > 0, "Should have booking ID");
+    });
+    
+    client.log("========================================");
+    client.log("✅ BOOKING CREATED SUCCESSFULLY");
+    client.log("========================================");
+    client.log("📋 Booking ID: " + response.body.data.bookingId);
+    client.log("👤 Customer: " + response.body.data.customerName);
+    client.log("🏨 Rooms: " + response.body.data.roomNames.join(", "));
+    client.log("");
+    client.log("📅 Check-in: " + response.body.data.checkInDate);
+    client.log("📅 Check-out: " + response.body.data.checkOutDate);
+    client.log("");
+    client.log("💰 Total Amount: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    client.log("💵 Deposit (30%): " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+    client.log("");
+    client.log("💳 Payment URL: " + response.body.data.paymentUrl);
+    client.log("");
+    client.log("⏰ IMPORTANT: Pay within 15 minutes or booking will be auto-cancelled!");
+    client.log("🔒 Rooms are locked in cache for 10 minutes");
+    client.log("========================================");
+%}
+
+### 3.2 Create booking - Multiple room types (1 Standard + 1 VIP)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 },
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-12T12:00:00Z",
+  "specialRequests": "Connecting rooms preferred"
+}
+
+> {%
+    client.log("✅ Multi-room-type booking created");
+    if (response.body.data) {
+        client.log("💰 Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    }
+%}
+
+### 3.3 Create booking - Long stay (14 nights)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-12-01T14:00:00Z",
+  "checkOutDate": "2025-12-15T12:00:00Z",
+  "specialRequests": "Business trip - need quiet room with good wifi"
+}
+
+> {%
+    client.log("✅ Long-stay booking created (14 nights)");
+    if (response.body.data) {
+        client.log("💰 Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    }
+%}
+
+### ============================================
+### SECTION 4: GUEST BOOKING (No Authentication)
+### ============================================
+
+### 4.1 Guest Booking - First time guest
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyen Van Guest",
+  "email": "guest.test@example.com",
+  "phoneNumber": "0987654321",
+  "identityCard": "079123456789",
+  "address": "456 Nguyen Hue, Q1, HCMC",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-28T14:00:00Z",
+  "checkOutDate": "2025-10-30T12:00:00Z",
+  "specialRequests": "Sea view preferred"
+}
+
+> {%
+    client.global.set("guest_booking_id", response.body.data.bookingId);
+    client.global.set("guest_customer_id", response.body.data.customerId);
+    
+    client.test("Guest booking created", function() {
+        client.assert(response.status === 201, "Status should be 201");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.data.customerId > 0, "Should auto-create customer");
+    });
+    
+    client.log("========================================");
+    client.log("✅ GUEST BOOKING CREATED");
+    client.log("========================================");
+    client.log("📋 Booking ID: " + response.body.data.bookingId);
+    client.log("👤 Customer ID: " + response.body.data.customerId + " (auto-created)");
+    client.log("📧 Email: guest.test@example.com");
+    client.log("📱 Phone: 0987654321");
+    client.log("💰 Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    client.log("💳 Payment URL: " + response.body.data.paymentUrl);
+    client.log("========================================");
+%}
+
+### 4.2 Guest Booking - Returning guest (same phone)
+# Hệ thống sẽ tìm customer cũ theo phone number
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyen Van Guest",
+  "email": "guest.test@example.com",
+  "phoneNumber": "0987654321",
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "specialRequests": "Same customer - should reuse existing customer record"
+}
+
+> {%
+    client.test("Should reuse existing customer", function() {
+        if (client.global.get("guest_customer_id")) {
+            client.assert(response.body.data.customerId === client.global.get("guest_customer_id"), 
+                "Should use same customer ID");
+        }
+    });
+    client.log("✅ Returning guest - Customer reused: ID " + response.body.data.customerId);
+%}
+
+### 4.3 Guest Booking - Family (multiple rooms)
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Tran Thi Lan",
+  "email": "lan.family@example.com",
+  "phoneNumber": "0912222222",
+  "identityCard": "001234567890",
+  "address": "789 Le Loi, Q3, HCMC",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 },
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-15T14:00:00Z",
+  "checkOutDate": "2025-11-17T12:00:00Z",
+  "specialRequests": "3 rooms close together for family with kids"
+}
+
+> {%
+    client.log("✅ Family booking created (3 rooms)");
+    if (response.body.data) {
+        client.log("💰 Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    }
+%}
+
+### ============================================
+### SECTION 5: GET BOOKING DETAILS
+### ============================================
+
+### 5.1 Get booking by ID
+GET {{apiUrl}}/Booking/{{booking_id}}
+Authorization: Bearer {{customer_token}}
+
+> {%
+    client.test("Get booking details", function() {
+        client.assert(response.status === 200, "Status should be 200");
+        client.assert(response.body.data.bookingId > 0, "Should have booking ID");
+    });
+    
+    if (response.body.data) {
+        client.log("========================================");
+        client.log("📋 BOOKING DETAILS");
+        client.log("========================================");
+        client.log("ID: " + response.body.data.bookingId);
+        client.log("Customer: " + response.body.data.customerName);
+        client.log("Rooms: " + response.body.data.roomNames.join(", "));
+        client.log("Check-in: " + response.body.data.checkInDate);
+        client.log("Check-out: " + response.body.data.checkOutDate);
+        client.log("Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+        client.log("Deposit: " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+        client.log("Payment Status: " + response.body.data.paymentStatus);
+        client.log("Deposit Status: " + response.body.data.depositStatus);
+        client.log("Booking Type: " + response.body.data.bookingType);
+        client.log("========================================");
+    }
+%}
+
+### 5.2 Get all my bookings
+GET {{apiUrl}}/Booking/my-bookings
+Authorization: Bearer {{customer_token}}
+
+> {%
+    client.test("Get my bookings", function() {
+        client.assert(response.status === 200, "Status should be 200");
+        client.assert(Array.isArray(response.body.data), "Should return array");
+    });
+    
+    client.log("✅ My bookings retrieved");
+    client.log("📋 Total bookings: " + response.body.data.length);
+    
+    if (response.body.data && response.body.data.length > 0) {
+        client.log("");
+        response.body.data.forEach(function(booking, index) {
+            client.log((index + 1) + ". Booking #" + booking.bookingId);
+            client.log("   Rooms: " + booking.roomNames.join(", "));
+            client.log("   Total: " + booking.totalAmount.toLocaleString() + " VNĐ");
+            client.log("   Status: " + booking.paymentStatus);
+        });
+    }
+%}
+
+### ============================================
+### SECTION 6: EDGE CASES & ERROR SCENARIOS
+### ============================================
+
+### 6.1 Try to book without authentication
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+
+{
+  "customerId": 1,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should require authentication", function() {
+        client.assert(response.status === 401, "Status should be 401 Unauthorized");
+    });
+    client.log("✅ Correctly rejected - No authentication");
+%}
+
+### 6.2 Try to book with invalid customer ID
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 99999,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return not found", function() {
+        client.assert(response.status === 404, "Status should be 404");
+    });
+    client.log("✅ Correctly rejected - Invalid customer ID");
+%}
+
+### 6.3 Try to book with invalid room type
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 999, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return not found", function() {
+        client.assert(response.status === 404, "Status should be 404");
+    });
+    client.log("✅ Correctly rejected - Invalid room type");
+%}
+
+### 6.4 Try to book more rooms than available
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 100 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return conflict", function() {
+        client.assert(response.status === 409, "Status should be 409 Conflict");
+    });
+    client.log("✅ Correctly rejected - Not enough rooms");
+%}
+
+### 6.5 Guest booking with missing email
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "phoneNumber": "0123456789",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return bad request", function() {
+        client.assert(response.status === 400, "Status should be 400");
+    });
+    client.log("✅ Correctly rejected - Missing email");
+%}
+
+### 6.6 Guest booking with missing phone
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@example.com",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
+}
+
+> {%
+    client.test("Should return bad request", function() {
+        client.assert(response.status === 400, "Status should be 400");
+    });
+    client.log("✅ Correctly rejected - Missing phone number");
+%}
+
+### ============================================
+### SECTION 7: CONCURRENT BOOKING TEST
+### ============================================
+### Test cache locking mechanism
+
+### 7.1 Concurrent Test - Request A
+# Run this and Request B at the same time
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-12-20T14:00:00Z",
+  "checkOutDate": "2025-12-22T12:00:00Z",
+  "specialRequests": "Concurrent test - Request A"
+}
+
+> {%
+    if (response.status === 201) {
+        client.log("✅ Request A - SUCCESS (acquired locks)");
+    } else if (response.status === 409) {
+        client.log("❌ Request A - CONFLICT (rooms already locked)");
+    }
+%}
+
+### 7.2 Concurrent Test - Request B
+# Run this immediately after Request A
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-12-20T14:00:00Z",
+  "checkOutDate": "2025-12-22T12:00:00Z",
+  "specialRequests": "Concurrent test - Request B"
+}
+
+> {%
+    if (response.status === 201) {
+        client.log("✅ Request B - SUCCESS (acquired locks)");
+    } else if (response.status === 409) {
+        client.log("❌ Request B - CONFLICT (rooms already locked)");
+    }
+    client.log("");
+    client.log("Expected: One SUCCESS, one CONFLICT (cache locking working)");
+%}
+
+### ============================================
+### SECTION 8: PAYMENT & CANCELLATION
+### ============================================
+
+### 8.1 Simulate payment confirmation (normally from PayOS webhook)
+POST {{apiUrl}}/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": {{booking_id}},
+  "orderCode": "251022143045",
+  "status": "PAID"
+}
+
+> {%
+    client.log("⚠️ Note: This will fail if bookingId variable is not set");
+    client.log("Run Section 3.1 first to create a booking");
+%}
+
+### 8.2 Cancel booking
+DELETE {{apiUrl}}/Booking/{{booking_id}}
+Authorization: Bearer {{customer_token}}
+
+> {%
+    if (response.status === 200) {
+        client.log("✅ Booking cancelled successfully");
+        client.log("🔓 Room locks released");
+        client.log("📈 Room inventory restored");
+    }
+%}
+
+### ============================================
+### TESTING NOTES & INSTRUCTIONS
+### ============================================
+# 
+# 📝 HOW TO USE THIS FILE:
+# 
+# 1. START HERE - Run Section 1:
+#    - Option A: Register new customer (1.1) if first time
+#    - Option B: Login (1.2) if already registered
+#    This saves token to {{customer_token}} variable
+# 
+# 2. Check availability (Section 2)
+#    - Run 2.1 to see available rooms
+#    - No authentication needed
+# 
+# 3. Create booking (Section 3)
+#    - Make sure you have {{customer_token}} from Step 1
+#    - CustomerId is hardcoded to 4 (change if needed)
+#    - Saves {{booking_id}} for later use
+# 
+# 4. Test guest booking (Section 4)
+#    - No authentication needed
+#    - Creates customer automatically
+# 
+# 5. View booking details (Section 5)
+#    - Uses {{booking_id}} from Section 3
+# 
+# 6. Test edge cases (Section 6)
+#    - Various error scenarios
+# 
+# 7. Test concurrent bookings (Section 7)
+#    - Run 7.1 and 7.2 simultaneously
+#    - Tests cache locking
+# 
+# ✅ KEY CHANGES FROM OLD VERSION:
+# - ❌ Removed bookingType field (auto = "Online")
+# - ✅ Using RoomTypes array instead of Dictionary
+# - ✅ Hardcoded customerId = 4 (change as needed)
+# - ✅ Better logging and test assertions
+# - ✅ More comprehensive error scenarios
+# 
+# 🔧 CUSTOMIZATION:
+# - Change customerId from 4 to your actual customer ID
+# - Change dates to future dates as needed
+# - Change room quantities based on availability
+# 
+# ============================================

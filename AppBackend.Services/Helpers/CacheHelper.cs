@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace AppBackend.Services.Helpers
 {
@@ -11,6 +13,7 @@ namespace AppBackend.Services.Helpers
         OtpCode, // Added for OTP caching
         RoomBookingLock, // Lock phòng khi đang được đặt
         BookingPayment // Thông tin booking chờ thanh toán
+        , RoomTypeInventory // Cache tạm thời cho số lượng phòng theo loại đang trong quá trình thanh toán
     }
 
     public static class CachePrefixExtensions
@@ -25,6 +28,7 @@ namespace AppBackend.Services.Helpers
                 CachePrefix.OtpCode => "otp_code:",
                 CachePrefix.RoomBookingLock => "room_booking_lock:",
                 CachePrefix.BookingPayment => "booking_payment:",
+                CachePrefix.RoomTypeInventory => "room_type_inventory:",
                 _ => "cache:"
             };
         }
@@ -65,6 +69,7 @@ namespace AppBackend.Services.Helpers
 
         /// <summary>
         /// Thử lock một resource với timeout
+        /// NOTE: Sử dụng khi cần lock phòng trong quá trình booking để tránh tranh chấp
         /// </summary>
         public bool TryAcquireLock(CachePrefix prefix, string key, string lockValue, TimeSpan? ttl = null)
         {
@@ -82,6 +87,7 @@ namespace AppBackend.Services.Helpers
 
         /// <summary>
         /// Release lock nếu lock value khớp
+        /// NOTE: Chỉ release lock nếu lockValue khớp để đảm bảo chỉ người tạo lock mới release được
         /// </summary>
         public bool ReleaseLock(CachePrefix prefix, string key, string lockValue)
         {
@@ -94,6 +100,75 @@ namespace AppBackend.Services.Helpers
             return false;
         }
 
+        /// <summary>
+        /// Giảm số lượng phòng available theo loại trong cache (dùng khi lock phòng)
+        /// NOTE: Tránh trường hợp nhiều người cùng đặt và vượt quá số lượng phòng available
+        /// </summary>
+        public bool DecrementRoomTypeInventory(int roomTypeId, DateTime checkInDate, DateTime checkOutDate, int quantity)
+        {
+            var key = $"{roomTypeId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+            var cacheKey = CachePrefix.RoomTypeInventory.ToPrefix() + key;
+            
+            if (_cache.TryGetValue(cacheKey, out int currentInventory))
+            {
+                if (currentInventory >= quantity)
+                {
+                    _cache.Set(cacheKey, currentInventory - quantity, DateTimeOffset.UtcNow.AddMinutes(15));
+                    return true;
+                }
+                return false; // Không đủ phòng
+            }
+            
+            // Chưa có trong cache, khởi tạo giá trị âm để tracking
+            // Service layer cần set giá trị ban đầu
+            return false;
+        }
+
+        /// <summary>
+        /// Tăng số lượng phòng available theo loại trong cache (dùng khi release lock)
+        /// </summary>
+        public void IncrementRoomTypeInventory(int roomTypeId, DateTime checkInDate, DateTime checkOutDate, int quantity)
+        {
+            var key = $"{roomTypeId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+            var cacheKey = CachePrefix.RoomTypeInventory.ToPrefix() + key;
+            
+            if (_cache.TryGetValue(cacheKey, out int currentInventory))
+            {
+                _cache.Set(cacheKey, currentInventory + quantity, DateTimeOffset.UtcNow.AddMinutes(15));
+            }
+        }
+
+        /// <summary>
+        /// Khởi tạo inventory cho room type trong khoảng thời gian
+        /// NOTE: Gọi method này trước khi bắt đầu quá trình booking
+        /// </summary>
+        public void InitializeRoomTypeInventory(int roomTypeId, DateTime checkInDate, DateTime checkOutDate, int availableQuantity)
+        {
+            var key = $"{roomTypeId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+            Set(CachePrefix.RoomTypeInventory, key, availableQuantity, TimeSpan.FromMinutes(15));
+        }
+
+        /// <summary>
+        /// Lấy thông tin inventory hiện tại của room type
+        /// </summary>
+        public int? GetRoomTypeInventory(int roomTypeId, DateTime checkInDate, DateTime checkOutDate)
+        {
+            var key = $"{roomTypeId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+            return Get<int?>(CachePrefix.RoomTypeInventory, key);
+        }
+
+        /// <summary>
+        /// Xóa toàn bộ locks của một booking khi thanh toán thành công hoặc hủy
+        /// </summary>
+        public void ReleaseAllBookingLocks(List<int> roomIds, DateTime checkInDate, DateTime checkOutDate, string lockId)
+        {
+            foreach (var roomId in roomIds)
+            {
+                var lockKey = $"{roomId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+                ReleaseLock(CachePrefix.RoomBookingLock, lockKey, lockId);
+            }
+        }
+
         private TimeSpan GetDefaultTTL(CachePrefix prefix)
         {
             return prefix switch
@@ -103,6 +178,7 @@ namespace AppBackend.Services.Helpers
                 CachePrefix.UserSession => _defaultUserSessionTTL,
                 CachePrefix.RoomBookingLock => _defaultRoomBookingLockTTL,
                 CachePrefix.BookingPayment => _defaultBookingPaymentTTL,
+                CachePrefix.RoomTypeInventory => TimeSpan.FromMinutes(15),
                 _ => TimeSpan.FromHours(1)
             };
         }

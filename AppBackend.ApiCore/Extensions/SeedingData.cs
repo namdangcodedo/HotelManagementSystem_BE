@@ -39,6 +39,9 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "Status", CodeValue = "Chờ xử lý", CodeName = "Pending" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "Status", CodeValue = "Đang xử lý", CodeName = "Processing" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "Status", CodeValue = "Đã hủy", CodeName = "Cancelled" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Status", CodeValue = "Đang chờ xác nhận", CodeName = "AwaitingConfirmation" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Status", CodeValue = "Đã xác nhận", CodeName = "Confirmed" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Status", CodeValue = "Bị từ chối", CodeName = "Rejected" , IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // EmployeeType - ĐỒNG BỘ HOÀN TOÀN với Role
                     // CodeValue = Role.RoleName (Tiếng Việt) | CodeName = Role.RoleValue (English - dùng để mapping)
@@ -52,52 +55,70 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Nhân viên phục vụ", CodeName = "Waiter" , Description = "Nhân viên phục vụ nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 8 },
                     
                     // TaskType
-                    new CommonCode { CodeType = "TaskType", CodeValue = "Dọn phòng", CodeName = "Cleaning" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "TaskType", CodeValue = "Bảo trì", CodeName = "Maintenance" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "TaskType", CodeValue = "Kiểm tra", CodeName = "Inspection" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TaskType", CodeValue = "Dọn phòng", CodeName = "Cleaning" , Description = "Nhiệm vụ dọn dẹp vệ sinh phòng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TaskType", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Nhiệm vụ bảo trì sửa chữa", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TaskType", CodeValue = "Kiểm tra", CodeName = "Inspection" , Description = "Nhiệm vụ kiểm tra chất lượng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TaskType", CodeValue = "Giao hàng", CodeName = "Delivery" , Description = "Giao đồ cho khách", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TaskType", CodeValue = "Hỗ trợ khách", CodeName = "CustomerSupport" , Description = "Hỗ trợ yêu cầu khách hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // FeedbackType
-                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Khiếu nại", CodeName = "Complaint" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Đề xuất", CodeName = "Suggestion" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Khen ngợi", CodeName = "Praise" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Khiếu nại", CodeName = "Complaint" , Description = "Phản hồi về vấn đề không hài lòng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Đề xuất", CodeName = "Suggestion" , Description = "Góp ý cải thiện dịch vụ", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Khen ngợi", CodeName = "Praise" , Description = "Đánh giá tích cực về dịch vụ", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "FeedbackType", CodeValue = "Câu hỏi", CodeName = "Question" , Description = "Thắc mắc về dịch vụ", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // NotificationType
-                    new CommonCode { CodeType = "NotificationType", CodeValue = "Hệ thống", CodeName = "System" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "NotificationType", CodeValue = "Đặt phòng", CodeName = "Booking" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "NotificationType", CodeValue = "Khuyến mãi", CodeName = "Promotion" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Hệ thống", CodeName = "System" , Description = "Thông báo từ hệ thống", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Đặt phòng", CodeName = "Booking" , Description = "Thông báo về booking", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Khuyến mãi", CodeName = "Promotion" , Description = "Thông báo ưu đãi khuyến mãi", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Thanh toán", CodeName = "Payment" , Description = "Thông báo về thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "NotificationType", CodeValue = "Check-in/Check-out", CodeName = "CheckInOut" , Description = "Thông báo nhận/trả phòng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // BookingType
-                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt trực tuyến", CodeName = "Online" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt tại quầy", CodeName = "Walkin" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt trực tuyến", CodeName = "Online" , Description = "Đặt phòng qua website/app", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt tại quầy", CodeName = "Walkin" , Description = "Đặt phòng trực tiếp tại lễ tân", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt qua điện thoại", CodeName = "Phone" , Description = "Đặt phòng qua hotline", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "BookingType", CodeValue = "Đặt qua đại lý", CodeName = "Agency" , Description = "Đặt phòng qua đại lý du lịch", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // PaymentStatus
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Chưa thanh toán", CodeName = "Unpaid" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Thanh toán một phần", CodeName = "PartiallyPaid" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán đầy đủ", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Chưa thanh toán", CodeName = "Unpaid" , Description = "Chưa thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Thanh toán một phần", CodeName = "PartiallyPaid" , Description = "Đã thanh toán một phần", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // DepositStatus
-                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã đặt cọc", CodeName = "Paid" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Chưa đặt cọc", CodeName = "Unpaid" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã đặt cọc", CodeName = "Paid" , Description = "Đã thanh toán tiền đặt cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Chưa đặt cọc", CodeName = "Unpaid" , Description = "Chưa thanh toán tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã hoàn cọc", CodeName = "Refunded" , Description = "Đã hoàn lại tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // PaymentMethod
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Tiền mặt", CodeName = "Cash" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Thẻ ngân hàng", CodeName = "Card" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Tiền mặt", CodeName = "Cash" , Description = "Thanh toán bằng tiền mặt", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Thẻ ngân hàng", CodeName = "Card" , Description = "Thanh toán bằng thẻ ATM/Credit", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , Description = "Ví điện tử (Momo, ZaloPay, VNPay)", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "PayOS", CodeName = "PayOS" , Description = "Cổng thanh toán PayOS", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // TransactionStatus
-                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Thất bại", CodeName = "Failed" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , Description = "Giao dịch đang được xử lý", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Giao dịch thành công", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Thất bại", CodeName = "Failed" , Description = "Giao dịch thất bại", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Giao dịch đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // RoomStatus
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Trống", CodeName = "Available" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đã đặt", CodeName = "Booked" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang sử dụng", CodeName = "Occupied" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , IsActive = true, CreatedAt = DateTime.UtcNow }
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Trống", CodeName = "Available" , Description = "Phòng trống, sẵn sàng cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đã đặt", CodeName = "Booked" , Description = "Phòng đã được đặt trước", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang sử dụng", CodeName = "Occupied" , Description = "Phòng đang có khách ở", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , Description = "Phòng đang được dọn dẹp", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Phòng đang bảo trì, không cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Chờ kiểm tra", CodeName = "PendingInspection" , Description = "Phòng chờ kiểm tra chất lượng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    
+                    // Priority Level (cho Task, Feedback)
+                    new CommonCode { CodeType = "Priority", CodeValue = "Thấp", CodeName = "Low" , Description = "Mức ưu tiên thấp", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Trung bình", CodeName = "Medium" , Description = "Mức ưu tiên trung bình", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Cao", CodeName = "High" , Description = "Mức ưu tiên cao", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Khẩn cấp", CodeName = "Urgent" , Description = "Mức ưu tiên khẩn cấp", IsActive = true, CreatedAt = DateTime.UtcNow }
                 });
                 await context.SaveChangesAsync();
             }
@@ -109,9 +130,9 @@ namespace AppBackend.ApiCore.Extension
                 {
                     new RoomType
                     {
-                        TypeName = "Phòng tiêu chuẩn",
+                        TypeName = "Phòng Tiêu Chuẩn",
                         TypeCode = "STD",
-                        Description = "Phòng tiêu chuẩn với đầy đủ tiện nghi cơ bản, phù hợp cho 1-2 người",
+                        Description = "Phòng tiêu chuẩn 25m² với đầy đủ tiện nghi cơ bản, giường Queen size, phù hợp cho 1-2 người. View sân vườn hoặc thành phố.",
                         BasePriceNight = 800000m,
                         MaxOccupancy = 2,
                         RoomSize = 25m,
@@ -122,9 +143,9 @@ namespace AppBackend.ApiCore.Extension
                     },
                     new RoomType
                     {
-                        TypeName = "Phòng cao cấp",
+                        TypeName = "Phòng Cao Cấp",
                         TypeCode = "DLX",
-                        Description = "Phòng cao cấp rộng rãi với view đẹp, phù hợp cho 2-3 người",
+                        Description = "Phòng Deluxe 35m² rộng rãi với 2 giường Queen, view thành phố tuyệt đẹp, không gian hiện đại sang trọng, phù hợp cho 2-3 người.",
                         BasePriceNight = 1500000m,
                         MaxOccupancy = 3,
                         RoomSize = 35m,
@@ -137,7 +158,7 @@ namespace AppBackend.ApiCore.Extension
                     {
                         TypeName = "Phòng VIP",
                         TypeCode = "VIP",
-                        Description = "Phòng VIP cao cấp với ban công riêng, view biển, phù hợp cho 2-4 người",
+                        Description = "Phòng VIP 45m² cao cấp với giường King size, ban công riêng view biển tuyệt đẹp, bồn tắm nằm sang trọng, phù hợp cho 2-4 người. Đầy đủ tiện nghi 5 sao.",
                         BasePriceNight = 2500000m,
                         MaxOccupancy = 4,
                         RoomSize = 45m,
@@ -148,9 +169,9 @@ namespace AppBackend.ApiCore.Extension
                     },
                     new RoomType
                     {
-                        TypeName = "Suite",
+                        TypeName = "Suite Sang Trọng",
                         TypeCode = "SUT",
-                        Description = "Suite sang trọng với phòng khách riêng biệt, view panorama, phù hợp cho gia đình 4-6 người",
+                        Description = "Suite 70m² cực kỳ sang trọng với phòng khách riêng biệt, 3 giường King & Queen, view biển panorama 180 độ, phù hợp cho gia đình 4-6 người. Bao gồm minibar, máy pha cà phê cao cấp và dịch vụ butler.",
                         BasePriceNight = 4000000m,
                         MaxOccupancy = 6,
                         RoomSize = 70m,
@@ -162,6 +183,216 @@ namespace AppBackend.ApiCore.Extension
                 };
 
                 await context.Set<RoomType>().AddRangeAsync(roomTypes);
+                await context.SaveChangesAsync();
+
+                // Add Media (Images) for each RoomType
+                var roomTypeMedia = new List<Medium>();
+                
+                // Standard Room Images
+                var standardRoomType = roomTypes[0];
+                roomTypeMedia.AddRange(new[]
+                {
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=1200&q=80",
+                        Description = "Phòng Tiêu Chuẩn - View tổng quan",
+                        DisplayOrder = 1,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = standardRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1590490360182-c33d57733427?w=1200&q=80",
+                        Description = "Phòng Tiêu Chuẩn - Giường ngủ",
+                        DisplayOrder = 2,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = standardRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=1200&q=80",
+                        Description = "Phòng Tiêu Chuẩn - Phòng tắm",
+                        DisplayOrder = 3,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = standardRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                });
+
+                // Deluxe Room Images
+                var deluxeRoomType = roomTypes[1];
+                roomTypeMedia.AddRange(new[]
+                {
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1618773928121-c32242e63f39?w=1200&q=80",
+                        Description = "Phòng Cao Cấp - View tổng quan",
+                        DisplayOrder = 1,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = deluxeRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200&q=80",
+                        Description = "Phòng Cao Cấp - Khu vực giường",
+                        DisplayOrder = 2,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = deluxeRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=1200&q=80",
+                        Description = "Phòng Cao Cấp - View thành phố",
+                        DisplayOrder = 3,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = deluxeRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=1200&q=80",
+                        Description = "Phòng Cao Cấp - Phòng tắm sang trọng",
+                        DisplayOrder = 4,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = deluxeRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                });
+
+                // VIP Room Images
+                var vipRoomType = roomTypes[2];
+                roomTypeMedia.AddRange(new[]
+                {
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1591088398332-8a7791972843?w=1200&q=80",
+                        Description = "Phòng VIP - View biển tuyệt đẹp",
+                        DisplayOrder = 1,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = vipRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=1200&q=80",
+                        Description = "Phòng VIP - Giường King size cao cấp",
+                        DisplayOrder = 2,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = vipRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=1200&q=80",
+                        Description = "Phòng VIP - Ban công riêng view biển",
+                        DisplayOrder = 3,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = vipRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=1200&q=80",
+                        Description = "Phòng VIP - Bồn tắm nằm sang trọng",
+                        DisplayOrder = 4,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = vipRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=1200&q=80",
+                        Description = "Phòng VIP - Khu vực phòng khách",
+                        DisplayOrder = 5,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = vipRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                });
+
+                // Suite Room Images
+                var suiteRoomType = roomTypes[3];
+                roomTypeMedia.AddRange(new[]
+                {
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200&q=80",
+                        Description = "Suite - Phòng khách sang trọng",
+                        DisplayOrder = 1,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1595576508898-0ad5c879a061?w=1200&q=80",
+                        Description = "Suite - View biển panorama",
+                        DisplayOrder = 2,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=1200&q=80",
+                        Description = "Suite - Phòng ngủ chính",
+                        DisplayOrder = 3,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1616594039964-ae9021a400a0?w=1200&q=80",
+                        Description = "Suite - Phòng tắm cao cấp",
+                        DisplayOrder = 4,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=1200&q=80",
+                        Description = "Suite - Ban công view biển rộng",
+                        DisplayOrder = 5,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new Medium
+                    {
+                        FilePath = "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=1200&q=80",
+                        Description = "Suite - Phòng khách sang trọng",
+                        DisplayOrder = 6,
+                        ReferenceTable = "RoomType",
+                        ReferenceKey = suiteRoomType.RoomTypeId.ToString(),
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    }
+                });
+
+                await context.Media.AddRangeAsync(roomTypeMedia);
                 await context.SaveChangesAsync();
             }
 

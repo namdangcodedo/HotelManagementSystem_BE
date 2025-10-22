@@ -37,31 +37,31 @@ namespace AppBackend.Services.Services.BookingServices
         public async Task<ResultModel> CheckRoomAvailabilityAsync(CheckRoomAvailabilityRequest request)
         {
             var availabilityResults = new List<RoomTypeAvailabilityDto>();
+            var totalNights = (request.CheckOutDate - request.CheckInDate).Days;
 
-            foreach (var roomTypeQty in request.RoomTypeQuantities)
+            foreach (var roomTypeRequest in request.RoomTypes)
             {
-                int roomTypeId = roomTypeQty.Key;
-                int requestedQuantity = roomTypeQty.Value;
+                int roomTypeId = roomTypeRequest.RoomTypeId;
+                int requestedQuantity = roomTypeRequest.Quantity;
 
                 // Lấy thông tin RoomType
                 var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
                 if (roomType == null)
                 {
-                    return new ResultModel
+                    availabilityResults.Add(new RoomTypeAvailabilityDto
                     {
-                        IsSuccess = false,
-                        Message = $"Loại phòng ID {roomTypeId} không tồn tại",
-                        StatusCode = StatusCodes.Status404NotFound
-                    };
+                        RoomTypeId = roomTypeId,
+                        RoomTypeName = "Unknown",
+                        RequestedQuantity = requestedQuantity,
+                        AvailableCount = 0,
+                        IsAvailable = false,
+                        Message = $"Loại phòng ID {roomTypeId} không tồn tại trong hệ thống"
+                    });
+                    continue;
                 }
 
                 // Lấy tất cả phòng thuộc loại này
                 var allRoomsOfType = await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == roomTypeId);
-                
-                // Lấy status "Available" để filter
-                var availableStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "RoomStatus" && c.CodeName == "Available")).FirstOrDefault();
-
                 var availableRooms = new List<Room>();
 
                 foreach (var room in allRoomsOfType)
@@ -87,38 +87,78 @@ namespace AppBackend.Services.Services.BookingServices
                     }
                 }
 
+                // Lấy hình ảnh của room type
+                var media = await _unitOfWork.Mediums.FindAsync(m => 
+                    m.ReferenceTable == "RoomType" && 
+                    m.ReferenceKey == roomTypeId.ToString() &&
+                    m.IsActive);
+                var images = media.OrderBy(m => m.DisplayOrder).Select(m => m.FilePath).ToList();
+
+                // Tạo message phù hợp
+                string message;
+                if (availableRooms.Count >= requestedQuantity)
+                {
+                    message = $"✓ Còn {availableRooms.Count} phòng trống, đủ để đáp ứng yêu cầu {requestedQuantity} phòng";
+                }
+                else if (availableRooms.Count > 0)
+                {
+                    message = $"⚠ Chỉ còn {availableRooms.Count} phòng trống, không đủ yêu cầu {requestedQuantity} phòng";
+                }
+                else
+                {
+                    message = $"✗ Không còn phòng trống trong khoảng thời gian này";
+                }
+
                 availabilityResults.Add(new RoomTypeAvailabilityDto
                 {
                     RoomTypeId = roomTypeId,
                     RoomTypeName = roomType.TypeName,
                     RoomTypeCode = roomType.TypeCode,
+                    Description = roomType.Description ?? "",
                     BasePriceNight = roomType.BasePriceNight,
                     MaxOccupancy = roomType.MaxOccupancy,
+                    RoomSize = roomType.RoomSize ?? 0,
+                    NumberOfBeds = roomType.NumberOfBeds ?? 0,
+                    BedType = roomType.BedType ?? "",
                     AvailableCount = availableRooms.Count,
                     RequestedQuantity = requestedQuantity,
-                    IsAvailable = availableRooms.Count >= requestedQuantity
+                    IsAvailable = availableRooms.Count >= requestedQuantity,
+                    Message = message,
+                    Images = images
                 });
             }
 
             // Kiểm tra xem tất cả loại phòng đều đủ số lượng không
             var unavailableTypes = availabilityResults.Where(r => !r.IsAvailable).ToList();
-            if (unavailableTypes.Any())
+            bool isAllAvailable = !unavailableTypes.Any();
+            
+            string overallMessage;
+            if (isAllAvailable)
             {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Một số loại phòng không đủ số lượng trong khoảng thời gian này",
-                    Data = availabilityResults,
-                    StatusCode = StatusCodes.Status409Conflict
-                };
+                overallMessage = "✓ Tất cả loại phòng đều có đủ số lượng cho khoảng thời gian này";
             }
+            else
+            {
+                var unavailableNames = string.Join(", ", unavailableTypes.Select(t => t.RoomTypeName));
+                overallMessage = $"⚠ Một số loại phòng không đủ số lượng: {unavailableNames}";
+            }
+
+            var response = new CheckAvailabilityResponse
+            {
+                IsAllAvailable = isAllAvailable,
+                Message = overallMessage,
+                RoomTypes = availabilityResults,
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalNights = totalNights
+            };
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Tất cả loại phòng đều có đủ số lượng",
-                Data = availabilityResults,
-                StatusCode = StatusCodes.Status200OK
+                Message = overallMessage,
+                Data = response,
+                StatusCode = isAllAvailable ? StatusCodes.Status200OK : StatusCodes.Status409Conflict
             };
         }
 
@@ -209,8 +249,8 @@ namespace AppBackend.Services.Services.BookingServices
                 };
             }
 
-            // 2. Validate RoomTypeQuantities
-            if (request.RoomTypeQuantities == null || !request.RoomTypeQuantities.Any())
+            // 2. Validate RoomTypes
+            if (request.RoomTypes == null || !request.RoomTypes.Any())
             {
                 return new ResultModel
                 {
@@ -223,26 +263,22 @@ namespace AppBackend.Services.Services.BookingServices
             // 3. Generate unique lock ID
             var lockId = Guid.NewGuid().ToString();
 
-            // 4. Tìm phòng available cho từng loại phòng và lock chúng
+            // 4. Tìm phòng available cho từng loại phòng và lock chúng với cache handling
             var selectedRooms = new List<Room>();
             var lockedRoomIds = new List<int>();
             var roomTypeDetails = new List<RoomTypeQuantityDto>();
 
-            foreach (var roomTypeQty in request.RoomTypeQuantities)
+            foreach (var roomTypeRequest in request.RoomTypes)
             {
-                int roomTypeId = roomTypeQty.Key;
-                int quantity = roomTypeQty.Value;
+                int roomTypeId = roomTypeRequest.RoomTypeId;
+                int quantity = roomTypeRequest.Quantity;
 
                 // Lấy thông tin RoomType
                 var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
                 if (roomType == null)
                 {
                     // Release all locked rooms
-                    foreach (var lockedRoomId in lockedRoomIds)
-                    {
-                        var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                        _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                    }
+                    _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
 
                     return new ResultModel
                     {
@@ -258,11 +294,7 @@ namespace AppBackend.Services.Services.BookingServices
                 if (availableRooms.Count < quantity)
                 {
                     // Release all locked rooms
-                    foreach (var lockedRoomId in lockedRoomIds)
-                    {
-                        var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                        _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                    }
+                    _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
 
                     return new ResultModel
                     {
@@ -272,7 +304,7 @@ namespace AppBackend.Services.Services.BookingServices
                     };
                 }
 
-                // Lock các phòng đã chọn
+                // Lock các phòng đã chọn với cache handling để tránh tranh chấp
                 foreach (var room in availableRooms.Take(quantity))
                 {
                     var lockKey = $"{room.RoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
@@ -281,11 +313,7 @@ namespace AppBackend.Services.Services.BookingServices
                     if (!locked)
                     {
                         // Release all previously locked rooms
-                        foreach (var lockedRoomId in lockedRoomIds)
-                        {
-                            var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                            _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                        }
+                        _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
 
                         return new ResultModel
                         {
@@ -303,6 +331,7 @@ namespace AppBackend.Services.Services.BookingServices
                 {
                     RoomTypeId = roomTypeId,
                     RoomTypeName = roomType.TypeName,
+                    RoomTypeCode = roomType.TypeCode,
                     Quantity = quantity,
                     PricePerNight = roomType.BasePriceNight
                 });
@@ -358,8 +387,11 @@ namespace AppBackend.Services.Services.BookingServices
                 c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
             var unpaidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "DepositStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
+            
+            // BookingType luôn là "Online" cho web booking - tìm với ignore case
             var bookingTypeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "BookingType" && c.CodeName == request.BookingType)).FirstOrDefault();
+                c.CodeType == "BookingType" && 
+                c.CodeName.ToLower() == "online")).FirstOrDefault();
 
             if (unpaidStatus != null) booking.PaymentStatusId = unpaidStatus.CodeId;
             if (unpaidDepositStatus != null) booking.DepositStatusId = unpaidDepositStatus.CodeId;
@@ -478,7 +510,6 @@ namespace AppBackend.Services.Services.BookingServices
                     CheckInDate = request.CheckInDate,
                     CheckOutDate = request.CheckOutDate,
                     TotalAmount = totalAmount,
-                    BookingType = request.BookingType,
                     LockId = lockId
                 }
             };
@@ -571,8 +602,8 @@ namespace AppBackend.Services.Services.BookingServices
                 };
             }
 
-            // Validate RoomTypeQuantities
-            if (!request.RoomTypeQuantities.Any())
+            // Validate RoomTypes
+            if (!request.RoomTypes.Any())
             {
                 return new ResultModel
                 {
@@ -644,10 +675,10 @@ namespace AppBackend.Services.Services.BookingServices
             var lockedRoomIds = new List<int>();
             var roomTypeDetails = new List<RoomTypeQuantityDto>();
 
-            foreach (var roomTypeQty in request.RoomTypeQuantities)
+            foreach (var roomTypeRequest in request.RoomTypes)
             {
-                int roomTypeId = roomTypeQty.Key;
-                int quantity = roomTypeQty.Value;
+                int roomTypeId = roomTypeRequest.RoomTypeId;
+                int quantity = roomTypeRequest.Quantity;
 
                 // Lấy thông tin RoomType
                 var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
@@ -688,7 +719,7 @@ namespace AppBackend.Services.Services.BookingServices
                     };
                 }
 
-                // Lock các phòng đã chọn
+                // Lock các phòng đã chọn với cache handling để tránh tranh chấp
                 foreach (var room in availableRooms.Take(quantity))
                 {
                     var lockKey = $"{room.RoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
@@ -719,6 +750,7 @@ namespace AppBackend.Services.Services.BookingServices
                 {
                     RoomTypeId = roomTypeId,
                     RoomTypeName = roomType.TypeName,
+                    RoomTypeCode = roomType.TypeCode,
                     Quantity = quantity,
                     PricePerNight = roomType.BasePriceNight
                 });
@@ -774,8 +806,11 @@ namespace AppBackend.Services.Services.BookingServices
                 c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
             var unpaidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "DepositStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
+            
+            // BookingType luôn là "Online" cho web booking - tìm với ignore case
             var bookingTypeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "BookingType" && c.CodeName == request.BookingType)).FirstOrDefault();
+                c.CodeType == "BookingType" && 
+                c.CodeName.ToLower() == "online")).FirstOrDefault();
 
             if (unpaidStatus != null) booking.PaymentStatusId = unpaidStatus.CodeId;
             if (unpaidDepositStatus != null) booking.DepositStatusId = unpaidDepositStatus.CodeId;
@@ -896,7 +931,6 @@ namespace AppBackend.Services.Services.BookingServices
                     CheckInDate = request.CheckInDate,
                     CheckOutDate = request.CheckOutDate,
                     TotalAmount = totalAmount,
-                    BookingType = request.BookingType,
                     LockId = lockId
                 }
             };

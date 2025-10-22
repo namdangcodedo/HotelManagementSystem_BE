@@ -1,6 +1,22 @@
 namespace AppBackend.Services.ApiModels.BookingModel
 {
     /// <summary>
+    /// Model để chỉ định loại phòng và số lượng cần đặt
+    /// </summary>
+    public class RoomTypeQuantityRequest
+    {
+        /// <summary>
+        /// ID loại phòng (1=Standard, 2=Deluxe, 3=VIP, 4=Suite)
+        /// </summary>
+        public int RoomTypeId { get; set; }
+        
+        /// <summary>
+        /// Số lượng phòng cần đặt
+        /// </summary>
+        public int Quantity { get; set; }
+    }
+
+    /// <summary>
     /// Request để đặt phòng - chọn theo loại phòng, hệ thống sẽ tự động chọn phòng available
     /// </summary>
     public class CreateBookingRequest
@@ -9,15 +25,13 @@ namespace AppBackend.Services.ApiModels.BookingModel
         
         /// <summary>
         /// Danh sách loại phòng và số lượng cần đặt
-        /// Key: RoomTypeId, Value: Số lượng phòng
-        /// Ví dụ: { {1, 2}, {3, 1} } = 2 phòng Standard + 1 phòng VIP
+        /// Ví dụ: [{ "roomTypeId": 1, "quantity": 2 }, { "roomTypeId": 3, "quantity": 1 }]
         /// </summary>
-        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        public List<RoomTypeQuantityRequest> RoomTypes { get; set; } = new List<RoomTypeQuantityRequest>();
         
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string? SpecialRequests { get; set; }
-        public string BookingType { get; set; } = "Online"; // Online, Walkin
     }
 
     /// <summary>
@@ -35,14 +49,13 @@ namespace AppBackend.Services.ApiModels.BookingModel
         // Booking Information
         /// <summary>
         /// Danh sách loại phòng và số lượng cần đặt
-        /// Key: RoomTypeId, Value: Số lượng phòng
+        /// Ví dụ: [{ "roomTypeId": 1, "quantity": 2 }, { "roomTypeId": 3, "quantity": 1 }]
         /// </summary>
-        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        public List<RoomTypeQuantityRequest> RoomTypes { get; set; } = new List<RoomTypeQuantityRequest>();
         
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string? SpecialRequests { get; set; }
-        public string BookingType { get; set; } = "Online"; // Online, Walkin
     }
 
     /// <summary>
@@ -52,9 +65,9 @@ namespace AppBackend.Services.ApiModels.BookingModel
     {
         /// <summary>
         /// Danh sách loại phòng và số lượng cần kiểm tra
-        /// Key: RoomTypeId, Value: Số lượng phòng
+        /// Ví dụ: [{ "roomTypeId": 1, "quantity": 2 }, { "roomTypeId": 3, "quantity": 1 }]
         /// </summary>
-        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        public List<RoomTypeQuantityRequest> RoomTypes { get; set; } = new List<RoomTypeQuantityRequest>();
         
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
@@ -84,8 +97,10 @@ namespace AppBackend.Services.ApiModels.BookingModel
     {
         public int RoomTypeId { get; set; }
         public string RoomTypeName { get; set; } = string.Empty;
+        public string RoomTypeCode { get; set; } = string.Empty;
         public int Quantity { get; set; }
         public decimal PricePerNight { get; set; }
+        public decimal SubTotal { get; set; }
     }
 
     public class ConfirmPaymentRequest
@@ -106,17 +121,56 @@ namespace AppBackend.Services.ApiModels.BookingModel
     }
 
     /// <summary>
-    /// Thông tin phòng available theo loại
+    /// Thông tin phòng available theo loại - Response chi tiết
     /// </summary>
     public class RoomTypeAvailabilityDto
     {
         public int RoomTypeId { get; set; }
         public string RoomTypeName { get; set; } = string.Empty;
         public string RoomTypeCode { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public decimal BasePriceNight { get; set; }
         public int MaxOccupancy { get; set; }
+        public decimal RoomSize { get; set; }
+        public int NumberOfBeds { get; set; }
+        public string BedType { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Số lượng phòng trống hiện có
+        /// </summary>
         public int AvailableCount { get; set; }
+        
+        /// <summary>
+        /// Số lượng phòng khách yêu cầu
+        /// </summary>
         public int RequestedQuantity { get; set; }
+        
+        /// <summary>
+        /// Có đủ phòng để đáp ứng yêu cầu không
+        /// </summary>
         public bool IsAvailable { get; set; }
+        
+        /// <summary>
+        /// Thông báo cho khách hàng
+        /// </summary>
+        public string Message { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Danh sách hình ảnh phòng
+        /// </summary>
+        public List<string> Images { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// Response tổng hợp cho check availability
+    /// </summary>
+    public class CheckAvailabilityResponse
+    {
+        public bool IsAllAvailable { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public List<RoomTypeAvailabilityDto> RoomTypes { get; set; } = new List<RoomTypeAvailabilityDto>();
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public int TotalNights { get; set; }
     }
 }
