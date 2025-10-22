@@ -84,8 +84,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ExpiredDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -110,6 +109,31 @@ namespace AppBackend.BusinessObjects.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Role", x => x.RoleId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoomType",
+                columns: table => new
+                {
+                    RoomTypeId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TypeName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    TypeCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    BasePriceNight = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    MaxOccupancy = table.Column<int>(type: "int", nullable: false),
+                    RoomSize = table.Column<decimal>(type: "decimal(10,2)", nullable: true),
+                    NumberOfBeds = table.Column<int>(type: "int", nullable: true),
+                    BedType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoomType", x => x.RoomTypeId);
                 });
 
             migrationBuilder.CreateTable(
@@ -223,40 +247,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Room",
-                columns: table => new
-                {
-                    RoomId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RoomNumber = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    RoomTypeId = table.Column<int>(type: "int", nullable: false),
-                    BasePriceNight = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    BasePriceHour = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    StatusId = table.Column<int>(type: "int", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Room", x => x.RoomId);
-                    table.ForeignKey(
-                        name: "FK_Room_CommonCode_RoomTypeId",
-                        column: x => x.RoomTypeId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Room_CommonCode_StatusId",
-                        column: x => x.StatusId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "AccountRole",
                 columns: table => new
                 {
@@ -278,6 +268,44 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Role",
                         principalColumn: "RoleId",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Room",
+                columns: table => new
+                {
+                    RoomId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoomName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    RoomTypeId = table.Column<int>(type: "int", nullable: false),
+                    StatusId = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    RoomTypeId1 = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Room", x => x.RoomId);
+                    table.ForeignKey(
+                        name: "FK_Room_CommonCode_StatusId",
+                        column: x => x.StatusId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Room_RoomType_RoomTypeId",
+                        column: x => x.RoomTypeId,
+                        principalTable: "RoomType",
+                        principalColumn: "RoomTypeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Room_RoomType_RoomTypeId1",
+                        column: x => x.RoomTypeId1,
+                        principalTable: "RoomType",
+                        principalColumn: "RoomTypeId");
                 });
 
             migrationBuilder.CreateTable(
@@ -358,7 +386,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.StatusId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Salary_Employee_EmployeeId",
                         column: x => x.EmployeeId,
@@ -379,8 +407,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     PriceAdjustment = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ExpiredDate = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -469,11 +496,17 @@ namespace AppBackend.BusinessObjects.Migrations
                     ReferenceKey = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     RoomId = table.Column<int>(type: "int", nullable: true),
+                    RoomTypeId = table.Column<int>(type: "int", nullable: true),
                     ServiceId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Medium", x => x.MediaId);
+                    table.ForeignKey(
+                        name: "FK_Medium_RoomType_RoomTypeId",
+                        column: x => x.RoomTypeId,
+                        principalTable: "RoomType",
+                        principalColumn: "RoomTypeId");
                     table.ForeignKey(
                         name: "FK_Medium_Room_RoomId",
                         column: x => x.RoomId,
@@ -952,6 +985,11 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "RoomId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Medium_RoomTypeId",
+                table: "Medium",
+                column: "RoomTypeId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Medium_ServiceId",
                 table: "Medium",
                 column: "ServiceId");
@@ -970,6 +1008,11 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_Room_RoomTypeId",
                 table: "Room",
                 column: "RoomTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Room_RoomTypeId1",
+                table: "Room",
+                column: "RoomTypeId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Room_StatusId",
@@ -1100,6 +1143,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "CommonCode");
+
+            migrationBuilder.DropTable(
+                name: "RoomType");
         }
     }
 }

@@ -24,6 +24,13 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
                 .FirstOrDefaultAsync(a => a.Email == email);
         }
 
+        public async Task<Account?> GetByUsernameOrEmailAsync(string usernameOrEmail)
+        {
+            return await _context.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Email == usernameOrEmail || a.Username == usernameOrEmail);
+        }
+
         public async Task<List<string>> GetRoleNamesByAccountIdAsync(int accountId)
         {
             return await _context.Accounts

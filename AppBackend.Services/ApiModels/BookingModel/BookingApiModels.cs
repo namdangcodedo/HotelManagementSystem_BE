@@ -1,9 +1,19 @@
 namespace AppBackend.Services.ApiModels.BookingModel
 {
+    /// <summary>
+    /// Request để đặt phòng - chọn theo loại phòng, hệ thống sẽ tự động chọn phòng available
+    /// </summary>
     public class CreateBookingRequest
     {
         public int CustomerId { get; set; }
-        public List<int> RoomIds { get; set; } = new List<int>();
+        
+        /// <summary>
+        /// Danh sách loại phòng và số lượng cần đặt
+        /// Key: RoomTypeId, Value: Số lượng phòng
+        /// Ví dụ: { {1, 2}, {3, 1} } = 2 phòng Standard + 1 phòng VIP
+        /// </summary>
+        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string? SpecialRequests { get; set; }
@@ -23,16 +33,29 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string? Address { get; set; }
 
         // Booking Information
-        public List<int> RoomIds { get; set; } = new List<int>();
+        /// <summary>
+        /// Danh sách loại phòng và số lượng cần đặt
+        /// Key: RoomTypeId, Value: Số lượng phòng
+        /// </summary>
+        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string? SpecialRequests { get; set; }
         public string BookingType { get; set; } = "Online"; // Online, Walkin
     }
 
+    /// <summary>
+    /// Request kiểm tra phòng available theo loại phòng
+    /// </summary>
     public class CheckRoomAvailabilityRequest
     {
-        public List<int> RoomIds { get; set; } = new List<int>();
+        /// <summary>
+        /// Danh sách loại phòng và số lượng cần kiểm tra
+        /// Key: RoomTypeId, Value: Số lượng phòng
+        /// </summary>
+        public Dictionary<int, int> RoomTypeQuantities { get; set; } = new Dictionary<int, int>();
+        
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
     }
@@ -43,7 +66,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public int CustomerId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public List<int> RoomIds { get; set; } = new List<int>();
-        public List<string> RoomNumbers { get; set; } = new List<string>();
+        public List<string> RoomNames { get; set; } = new List<string>();
+        public List<RoomTypeQuantityDto> RoomTypeDetails { get; set; } = new List<RoomTypeQuantityDto>();
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public decimal TotalAmount { get; set; }
@@ -53,7 +77,15 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string BookingType { get; set; } = string.Empty;
         public string? SpecialRequests { get; set; }
         public DateTime CreatedAt { get; set; }
-        public string? PaymentUrl { get; set; } // PayOS payment URL
+        public string? PaymentUrl { get; set; } 
+    }
+
+    public class RoomTypeQuantityDto
+    {
+        public int RoomTypeId { get; set; }
+        public string RoomTypeName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal PricePerNight { get; set; }
     }
 
     public class ConfirmPaymentRequest
@@ -66,10 +98,25 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class RoomLockInfo
     {
         public int RoomId { get; set; }
-        public string RoomNumber { get; set; } = string.Empty;
+        public string RoomName { get; set; } = string.Empty;
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string LockedBy { get; set; } = string.Empty;
         public DateTime LockExpiry { get; set; }
+    }
+
+    /// <summary>
+    /// Thông tin phòng available theo loại
+    /// </summary>
+    public class RoomTypeAvailabilityDto
+    {
+        public int RoomTypeId { get; set; }
+        public string RoomTypeName { get; set; } = string.Empty;
+        public string RoomTypeCode { get; set; } = string.Empty;
+        public decimal BasePriceNight { get; set; }
+        public int MaxOccupancy { get; set; }
+        public int AvailableCount { get; set; }
+        public int RequestedQuantity { get; set; }
+        public bool IsAvailable { get; set; }
     }
 }

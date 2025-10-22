@@ -119,10 +119,7 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> GetMyBookings()
         {
             var accountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
-            // Get customer by accountId (need to implement this logic)
-            // For now, using accountId as customerId (you may need to adjust this)
-            var result = await _bookingService.GetMyBookingsAsync(accountId);
+            var result = await _bookingService.GetMyBookingsByAccountIdAsync(accountId);
             return StatusCode(result.StatusCode, result);
         }
     }

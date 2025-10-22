@@ -2,12 +2,15 @@ using AppBackend.Services.ApiModels.RoomModel;
 using AppBackend.Services.Services.RoomServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace AppBackend.ApiCore.Controllers
 {
+    /// <summary>
+    /// API quản lý quan hệ giữa Room và Amenity - Chỉ CRUD đơn giản cho Admin
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "Admin,Manager")]
     public class RoomAmenityController : BaseApiController
     {
         private readonly IRoomAmenityService _roomAmenityService;
@@ -17,78 +20,61 @@ namespace AppBackend.ApiCore.Controllers
             _roomAmenityService = roomAmenityService;
         }
 
-        #region GET - Public endpoints (No authentication required)
-
         /// <summary>
-        /// Lấy danh sách tiện ích của một phòng
+        /// [ADMIN] Lấy danh sách tiện ích của một phòng cụ thể
         /// </summary>
         /// <param name="roomId">ID của phòng</param>
-        /// <param name="includeSelection">True: trả về tất cả amenities kèm trạng thái đã chọn/chưa chọn (dùng cho UI form)</param>
+        /// <returns>Danh sách tiện ích</returns>
         [HttpGet("room/{roomId}")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetRoomAmenities(int roomId, [FromQuery] bool includeSelection = false)
+        public async Task<IActionResult> GetRoomAmenities(int roomId)
         {
-            var result = includeSelection
-                ? await _roomAmenityService.GetRoomAmenitiesWithSelectionAsync(roomId)
-                : await _roomAmenityService.GetRoomAmenitiesAsync(roomId);
-            
-            return StatusCode(result.StatusCode, result);
+            var result = await _roomAmenityService.GetRoomAmenitiesAsync(roomId);
+            return HandleResult(result);
         }
 
         /// <summary>
-        /// Lấy danh sách phòng có tiện ích cụ thể
-        /// </summary>
-        [HttpGet("amenity/{amenityId}/rooms")]
-        [AllowAnonymous]
-        public async Task<IActionResult> GetRoomsByAmenity(int amenityId)
-        {
-            var result = await _roomAmenityService.GetRoomsByAmenityAsync(amenityId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        #endregion
-
-        #region POST/PUT/DELETE - Require Admin or Manager role
-
-        /// <summary>
-        /// Cập nhật danh sách tiện ích cho phòng (sync/replace toàn bộ)
-        /// </summary>
-        /// <param name="roomId">ID của phòng</param>
-        /// <param name="request">Danh sách AmenityIds</param>
-        [HttpPut("room/{roomId}")]
-        [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> UpdateRoomAmenities(int roomId, [FromBody] SyncRoomAmenitiesRequest request)
-        {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            request.RoomId = roomId;
-            var result = await _roomAmenityService.SyncRoomAmenitiesAsync(request, userId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Thêm/xóa/toggle một tiện ích cho phòng
+        /// [ADMIN] Thêm một tiện ích vào phòng
         /// </summary>
         /// <param name="request">RoomId và AmenityId</param>
-        /// <param name="action">add: thêm, remove: xóa, toggle: tự động thêm/xóa (mặc định)</param>
+        /// <returns>Kết quả thực hiện</returns>
         [HttpPost]
-        [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> ManageRoomAmenity(
-            [FromBody] AddRoomAmenityRequest request, 
-            [FromQuery] string action = "toggle")
+        public async Task<IActionResult> AddRoomAmenity([FromBody] AddRoomAmenityRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            
-            var result = action.ToLower() switch
-            {
-                "add" => await _roomAmenityService.AddRoomAmenityAsync(request, userId),
-                "remove" => await _roomAmenityService.RemoveRoomAmenityAsync(
-                    new RemoveRoomAmenityRequest { RoomId = request.RoomId, AmenityId = request.AmenityId }, userId),
-                _ => await _roomAmenityService.ToggleRoomAmenityAsync(request, userId)
-            };
-            
-            return StatusCode(result.StatusCode, result);
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
+            var result = await _roomAmenityService.AddRoomAmenityAsync(request, CurrentUserId);
+            return HandleResult(result);
         }
 
-        #endregion
+        /// <summary>
+        /// [ADMIN] Xóa một tiện ích khỏi phòng
+        /// </summary>
+        /// <param name="roomId">ID của phòng</param>
+        /// <param name="amenityId">ID của tiện ích</param>
+        /// <returns>Kết quả thực hiện</returns>
+        [HttpDelete("room/{roomId}/amenity/{amenityId}")]
+        public async Task<IActionResult> DeleteRoomAmenity(int roomId, int amenityId)
+        {
+            var result = await _roomAmenityService.DeleteRoomAmenityAsync(roomId, amenityId);
+            return HandleResult(result);
+        }
+
+        /// <summary>
+        /// [ADMIN] Cập nhật toàn bộ danh sách tiện ích cho một phòng (batch update)
+        /// </summary>
+        /// <param name="roomId">ID của phòng</param>
+        /// <param name="request">Danh sách AmenityIds mới (sẽ thay thế toàn bộ)</param>
+        /// <returns>Kết quả thực hiện</returns>
+        [HttpPut("room/{roomId}")]
+        public async Task<IActionResult> UpdateRoomAmenities(int roomId, [FromBody] UpdateRoomAmenitiesRequest request)
+        {
+            if (!ModelState.IsValid)
+                return ValidationError("Dữ liệu không hợp lệ");
+
+            request.RoomId = roomId;
+            var result = await _roomAmenityService.UpdateRoomAmenitiesAsync(request, CurrentUserId);
+            return HandleResult(result);
+        }
     }
 }

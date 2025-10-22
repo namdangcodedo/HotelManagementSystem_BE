@@ -1,19 +1,28 @@
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomModel;
-using System.Threading.Tasks;
 
 namespace AppBackend.Services.Services.RoomServices
 {
     public interface IRoomAmenityService
     {
+        /// <summary>
+        /// Lấy danh sách amenities của một phòng
+        /// </summary>
         Task<ResultModel> GetRoomAmenitiesAsync(int roomId);
-        Task<ResultModel> GetRoomAmenitiesWithSelectionAsync(int roomId);
-        Task<ResultModel> GetRoomsByAmenityAsync(int amenityId);
+        
+        /// <summary>
+        /// Thêm một amenity vào phòng
+        /// </summary>
         Task<ResultModel> AddRoomAmenityAsync(AddRoomAmenityRequest request, int userId);
-        Task<ResultModel> AddMultipleRoomAmenitiesAsync(AddMultipleRoomAmenitiesRequest request, int userId);
-        Task<ResultModel> SyncRoomAmenitiesAsync(SyncRoomAmenitiesRequest request, int userId);
-        Task<ResultModel> ToggleRoomAmenityAsync(AddRoomAmenityRequest request, int userId);
-        Task<ResultModel> RemoveRoomAmenityAsync(RemoveRoomAmenityRequest request, int userId);
-        Task<ResultModel> RemoveAllRoomAmenitiesAsync(int roomId, int userId);
+        
+        /// <summary>
+        /// Xóa một amenity khỏi phòng
+        /// </summary>
+        Task<ResultModel> DeleteRoomAmenityAsync(int roomId, int amenityId);
+        
+        /// <summary>
+        /// Cập nhật toàn bộ amenities cho một phòng (batch update)
+        /// </summary>
+        Task<ResultModel> UpdateRoomAmenitiesAsync(UpdateRoomAmenitiesRequest request, int userId);
     }
 }

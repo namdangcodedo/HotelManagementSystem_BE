@@ -12,5 +12,6 @@ namespace AppBackend.Services.Services.BookingServices
         Task<ResultModel> ConfirmPaymentAsync(ConfirmPaymentRequest request);
         Task<ResultModel> CancelBookingAsync(int bookingId, int userId);
         Task<ResultModel> GetMyBookingsAsync(int customerId);
+        Task<ResultModel> GetMyBookingsByAccountIdAsync(int accountId);
     }
 }

@@ -8,6 +8,7 @@ namespace AppBackend.Repositories.Repositories.AccountRepo
     public interface IAccountRepository : IGenericRepository<Account>
     {
         Task<Account?> GetByEmailAsync(string email);
+        Task<Account?> GetByUsernameOrEmailAsync(string usernameOrEmail);
         Task<List<string>> GetRoleNamesByAccountIdAsync(int accountId);
         Task<List<Role>> GetRolesByAccountIdAsync(int accountId);
         Task AddAccountRoleAsync(AccountRole accountRole);

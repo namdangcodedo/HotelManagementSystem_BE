@@ -3,6 +3,7 @@ using AppBackend.Repositories.Repositories.AccountRepo;
 using AppBackend.Repositories.Repositories.RoleRepo;
 using AppBackend.Repositories.Repositories.CommonCodeRepo;
 using AppBackend.Repositories.Repositories.RoomRepo;
+using AppBackend.Repositories.Repositories.RoomTypeRepo;
 using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using AppBackend.Repositories.Repositories.AmenityRepo;
@@ -22,6 +23,7 @@ namespace AppBackend.Repositories.UnitOfWork
         private IRoleRepository? _roleRepository;
         private ICommonCodeRepository? _commonCodeRepository;
         private IRoomRepository? _roomRepository;
+        private IRoomTypeRepository? _roomTypeRepository;
         private ICustomerRepository? _customerRepository;
         private IMediumRepository? _mediumRepository;
         private IAmenityRepository? _amenityRepository;
@@ -41,6 +43,7 @@ namespace AppBackend.Repositories.UnitOfWork
         public IRoleRepository Roles => _roleRepository ??= new RoleRepository(_context);
         public ICommonCodeRepository CommonCodes => _commonCodeRepository ??= new CommonCodeRepository(_context);
         public IRoomRepository Rooms => _roomRepository ??= new RoomRepository(_context);
+        public IRoomTypeRepository RoomTypes => _roomTypeRepository ??= new RoomTypeRepository(_context);
         public ICustomerRepository Customers => _customerRepository ??= new CustomerRepository(_context);
         public IMediumRepository Mediums => _mediumRepository ??= new MediumRepository(_context);
         public IAmenityRepository Amenities => _amenityRepository ??= new AmenityRepository(_context);

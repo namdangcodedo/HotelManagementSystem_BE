@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251019105112_Initial")]
+    [Migration("20251022152907_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -635,9 +635,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("ExpiredDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -663,9 +660,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("HolidayPricingId"));
 
                     b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpiredDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("HolidayId")
@@ -802,6 +796,9 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int?>("RoomId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("RoomTypeId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("ServiceId")
                         .HasColumnType("int");
 
@@ -814,6 +811,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasKey("MediaId");
 
                     b.HasIndex("RoomId");
+
+                    b.HasIndex("RoomTypeId");
 
                     b.HasIndex("ServiceId");
 
@@ -911,12 +910,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RoomId"));
 
-                    b.Property<decimal>("BasePriceHour")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("BasePriceNight")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -926,15 +919,18 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
-                    b.Property<string>("RoomNumber")
+                    b.Property<string>("RoomName")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("RoomTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RoomTypeId1")
                         .HasColumnType("int");
 
                     b.Property<int>("StatusId")
@@ -949,6 +945,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasKey("RoomId");
 
                     b.HasIndex("RoomTypeId");
+
+                    b.HasIndex("RoomTypeId1");
 
                     b.HasIndex("StatusId");
 
@@ -978,6 +976,66 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("AmenityId");
 
                     b.ToTable("RoomAmenity");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.RoomType", b =>
+                {
+                    b.Property<int>("RoomTypeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("RoomTypeId"));
+
+                    b.Property<decimal>("BasePriceNight")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BedType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxOccupancy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("NumberOfBeds")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("RoomSize")
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("TypeCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TypeName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("RoomTypeId");
+
+                    b.ToTable("RoomType");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Salary", b =>
@@ -1469,6 +1527,10 @@ namespace AppBackend.BusinessObjects.Migrations
                         .WithMany("Media")
                         .HasForeignKey("RoomId");
 
+                    b.HasOne("AppBackend.BusinessObjects.Models.RoomType", null)
+                        .WithMany("Media")
+                        .HasForeignKey("RoomTypeId");
+
                     b.HasOne("AppBackend.BusinessObjects.Models.Service", null)
                         .WithMany("Media")
                         .HasForeignKey("ServiceId");
@@ -1495,11 +1557,15 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Room", b =>
                 {
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "RoomType")
+                    b.HasOne("AppBackend.BusinessObjects.Models.RoomType", "RoomType")
                         .WithMany()
                         .HasForeignKey("RoomTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.RoomType", null)
+                        .WithMany("Rooms")
+                        .HasForeignKey("RoomTypeId1");
 
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
                         .WithMany()
@@ -1542,7 +1608,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
                         .WithMany()
                         .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Employee");
@@ -1663,6 +1729,13 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Media");
 
                     b.Navigation("RoomAmenities");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.RoomType", b =>
+                {
+                    b.Navigation("Media");
+
+                    b.Navigation("Rooms");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Service", b =>

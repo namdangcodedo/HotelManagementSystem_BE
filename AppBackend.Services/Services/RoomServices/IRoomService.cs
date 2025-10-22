@@ -5,19 +5,29 @@ namespace AppBackend.Services.Services.RoomServices
 {
     public interface IRoomService
     {
-        // Room operations
-        Task<ResultModel> GetRoomListAsync(GetRoomListRequest request);
-        Task<ResultModel> GetRoomDetailAsync(int roomId);
-        Task<ResultModel> AddRoomAsync(AddRoomRequest request, int userId);
-        Task<ResultModel> UpdateRoomAsync(UpdateRoomRequest request, int userId);
-        Task<ResultModel> DeleteRoomAsync(int roomId, int userId);
+        // ============= ROOM TYPE SEARCH (FOR CUSTOMER) =============
+        /// <summary>
+        /// Tìm kiếm loại phòng cho customer với các filter (giá, số người, tiện ích...)
+        /// </summary>
+        Task<ResultModel> SearchRoomTypesAsync(SearchRoomTypeRequest request);
         
-        // Room Type operations
+        /// <summary>
+        /// Lấy chi tiết loại phòng cho customer (public)
+        /// </summary>
+        Task<ResultModel> GetRoomTypeDetailForCustomerAsync(int roomTypeId, DateTime? checkInDate = null, DateTime? checkOutDate = null);
+        
+        // ============= ROOM TYPE CRUD (FOR ADMIN) =============
         Task<ResultModel> GetRoomTypeListAsync(GetRoomTypeListRequest request);
         Task<ResultModel> GetRoomTypeDetailAsync(int roomTypeId);
         Task<ResultModel> AddRoomTypeAsync(AddRoomTypeRequest request, int userId);
         Task<ResultModel> UpdateRoomTypeAsync(UpdateRoomTypeRequest request, int userId);
         Task<ResultModel> DeleteRoomTypeAsync(int roomTypeId, int userId);
+        
+        // ============= ROOM CRUD (FOR ADMIN ONLY) =============
+        Task<ResultModel> GetRoomListAsync(GetRoomListRequest request);
+        Task<ResultModel> GetRoomDetailAsync(int roomId);
+        Task<ResultModel> AddRoomAsync(AddRoomRequest request, int userId);
+        Task<ResultModel> UpdateRoomAsync(UpdateRoomRequest request, int userId);
+        Task<ResultModel> DeleteRoomAsync(int roomId, int userId);
     }
 }
-

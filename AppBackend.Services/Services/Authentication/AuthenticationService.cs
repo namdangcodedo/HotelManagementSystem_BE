@@ -101,13 +101,17 @@ namespace AppBackend.Services.Authentication
 
         public async Task<ResultModel> LoginAsync(LoginRequest request)
         {
-            var account = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
+            // Tìm account bằng username hoặc email
+            var account = await _unitOfWork.Accounts.GetByUsernameOrEmailAsync(request.Email);
+            
             if (account == null || !_accountHelper.VerifyPassword(request.Password, account.PasswordHash))
                 return new ResultModel { IsSuccess = false, Message = "Sai tài khoản hoặc mật khẩu" };
+            
             if (account.IsLocked)
             {
                 return new ResultModel { IsSuccess = false, Message = "Tài khoản đã bị khoá" };
             }
+            
             // Update lastLoginAt on successful login
             account.LastLoginAt = DateTime.UtcNow;
             await _unitOfWork.Accounts.UpdateAsync(account);
@@ -116,8 +120,10 @@ namespace AppBackend.Services.Authentication
             var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
             var token = _accountHelper.CreateToken(account, roleNames);
             var refreshToken = _accountHelper.GenerateRefreshToken();
+            
             // Lưu refresh token vào cache
             _cacheHelper.Set(CachePrefix.RefreshToken, account.AccountId.ToString(), refreshToken);
+            
             return new ResultModel {
                 IsSuccess = true,
                 Message = "Đăng nhập thành công",

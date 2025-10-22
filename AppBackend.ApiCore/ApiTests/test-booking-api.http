@@ -1,17 +1,24 @@
-### Test Booking API with Holiday Pricing
-### Author: Hotel Management Team
-### Date: 2025-01-19
-### Compatible with: IntelliJ HTTP Client & VS Code REST Client
+### Booking API Tests
+### Variables
+@baseUrl = http://localhost:8080
+@apiUrl = {{baseUrl}}/api
+@access_token = YOUR_JWT_TOKEN_HERE
 
-# Variables
-@baseUrl = http://localhost:8080/api
-@testCustomerId = 1
-@testBookingId = 1
+###############################################
+### 0. LOGIN TO GET TOKEN (Do this first!)
+###############################################
 
-### ===== AUTHENTICATION =====
+### Login as admin
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
 
-### 1. Đăng nhập Admin để lấy token
-POST {{baseUrl}}/Authentication/login
+{
+  "email": "admin",
+  "password": "Admin@123"
+}
+
+### Login with admin email (also works)
+POST {{apiUrl}}/Authentication/login
 Content-Type: application/json
 
 {
@@ -19,421 +26,503 @@ Content-Type: application/json
   "password": "Admin@123"
 }
 
-> {%
-    client.global.set("auth_token", response.body.data.token);
-    client.global.set("admin_token", response.body.data.token);
-%}
-
-### 2. Đăng nhập Manager để lấy token  
-POST {{baseUrl}}/Authentication/login
+### Login as manager
+POST {{apiUrl}}/Authentication/login
 Content-Type: application/json
 
 {
-  "email": "manager@hotel.com",
+  "email": "manager",
   "password": "Manager@123"
 }
 
-> {%
-    client.global.set("manager_token", response.body.data.token);
-%}
-
-### 3. Đăng ký/Đăng nhập Customer để lấy token
-POST {{baseUrl}}/Authentication/register
+### Login as receptionist (staff account)
+POST {{apiUrl}}/Authentication/login
 Content-Type: application/json
 
 {
-  "username": "customer_booking",
-  "email": "customer_booking@example.com",
+  "email": "receptionist",
+  "password": "Staff@123"
+}
+
+### Register a new customer account (then use this to login)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "customer1",
+  "email": "customer1@gmail.com",
   "password": "Customer@123",
-  "fullName": "Nguyễn Văn Khách Hàng",
+  "fullName": "Nguyen Van Khach",
   "phoneNumber": "0912345678",
   "identityCard": "001234567890",
-  "address": "123 Lê Lợi, Q1, TP.HCM"
+  "address": "123 Nguyen Hue, Q1, HCM"
 }
 
-> {%
-    client.global.set("customer_token", response.body.data.token);
-    client.global.set("customer_id", response.body.data.customerId || 1);
-%}
+# 👉 After registering, copy the "token" from response and paste it to @access_token variable above
+# 👉 OR login with the registered account using email/username and password
 
-### ===== PREREQUISITE: GET COMMON CODES =====
+###############################################
+### 1. CHECK ROOM AVAILABILITY
+###############################################
 
-### 4. Lấy danh sách RoomStatus codes
-GET {{baseUrl}}/CommonCode/type/RoomStatus
-
-### 5. Lấy danh sách PaymentStatus codes
-GET {{baseUrl}}/CommonCode/type/PaymentStatus
-
-### 6. Lấy danh sách BookingType codes
-GET {{baseUrl}}/CommonCode/type/BookingType
-
-### ===== ROOM INFORMATION =====
-
-### 7. Xem thông tin Room 101 (Standard - 800k/đêm)
-GET {{baseUrl}}/Room/1
-
-### 8. Xem thông tin Room 102 (Standard - 800k/đêm)
-GET {{baseUrl}}/Room/2
-
-### 9. Xem thông tin Room 201 (Deluxe - 1,500k/đêm)
-GET {{baseUrl}}/Room/3
-
-### ===== PUBLIC: CHECK AVAILABILITY =====
-
-### 10. Kiểm tra phòng available trong ngày thường (Public - không cần token)
-POST {{baseUrl}}/Booking/check-availability
+### Check availability for specific room types and dates
+POST {{apiUrl}}/Booking/check-availability
 Content-Type: application/json
 
 {
-  "roomIds": [1, 2],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00"
+  "roomTypeQuantities": {
+    "1": 2,
+    "2": 1
+  },
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z"
 }
 
-### ===== TEST CASE 1: BOOKING NGÀY THƯỜNG (KHÔNG CÓ HOLIDAY PRICING) =====
+###############################################
+### 2. CREATE BOOKING (Authenticated User)
+###############################################
 
-### 11. Tạo booking ngày thường (2 đêm)
-# Expected Result:
-# - Room 101: 800,000 × 2 = 1,600,000 VNĐ
-# - Room 102: 800,000 × 2 = 1,600,000 VNĐ
-# - Total: 3,200,000 VNĐ
-# - Deposit (30%): 960,000 VNĐ
-POST {{baseUrl}}/Booking
+### ⚠️ Important: You need to register a customer account first (see section 0)
+### Then get the CustomerId from the registration response
+
+### Create booking for authenticated customer
+POST {{apiUrl}}/Booking
 Content-Type: application/json
-Authorization: Bearer {{customer_token}}
+Authorization: Bearer {{access_token}}
 
 {
   "customerId": 1,
-  "roomIds": [1, 2],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00",
-  "bookingType": "Online",
-  "specialRequests": "Test booking - ngày thường"
-}
-
-> {%
-    client.global.set("booking_normal_id", response.body.data.bookingId);
-%}
-
-### ===== TEST CASE 2: BOOKING DỊP TẾT NGUYÊN ĐÁN (28/01 - 03/02/2025) =====
-
-### 12. Xem thông tin Holiday Tết Nguyên Đán
-GET {{baseUrl}}/Holiday/1
-
-### 13. Kiểm tra phòng available trong dịp Tết
-POST {{baseUrl}}/Booking/check-availability
-Content-Type: application/json
-
-{
-  "roomIds": [1, 3],
-  "checkInDate": "2025-01-28T14:00:00",
-  "checkOutDate": "2025-01-30T12:00:00"
-}
-
-### 14. Tạo booking trong dịp Tết (2 đêm)
-# Expected Result with Holiday Pricing:
-# - Room 101: (800,000 + 300,000) × 2 = 2,200,000 VNĐ
-# - Room 201: (1,500,000 + 500,000) × 2 = 4,000,000 VNĐ
-# - Total: 6,200,000 VNĐ
-# - Deposit (30%): 1,860,000 VNĐ
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
-
-{
-  "customerId": 1,
-  "roomIds": [1, 3],
-  "checkInDate": "2025-01-28T14:00:00",
-  "checkOutDate": "2025-01-30T12:00:00",
-  "bookingType": "Online",
-  "specialRequests": "Test booking - dịp Tết Nguyên Đán"
-}
-
-> {%
-    client.global.set("booking_tet_id", response.body.data.bookingId);
-%}
-
-### ===== TEST CASE 3: BOOKING LỄ 30/4 - 1/5 (30/04 - 03/05/2025) =====
-
-### 15. Kiểm tra phòng available trong dịp lễ 30/4
-POST {{baseUrl}}/Booking/check-availability
-Content-Type: application/json
-
-{
-  "roomIds": [1, 2],
-  "checkInDate": "2025-04-30T14:00:00",
-  "checkOutDate": "2025-05-02T12:00:00"
-}
-
-### 16. Tạo booking trong dịp lễ 30/4 (2 đêm)
-# Expected Result with Holiday Pricing:
-# - Room 101: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
-# - Room 102: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
-# - Total: 4,000,000 VNĐ
-# - Deposit (30%): 1,200,000 VNĐ
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
-
-{
-  "customerId": 1,
-  "roomIds": [1, 2],
-  "checkInDate": "2025-04-30T14:00:00",
-  "checkOutDate": "2025-05-02T12:00:00",
-  "bookingType": "Online",
-  "specialRequests": "Test booking - dịp lễ 30/4 - 1/5"
-}
-
-> {%
-    client.global.set("booking_labor_id", response.body.data.bookingId);
-%}
-
-### ===== TEST CASE 4: BOOKING QUỐC KHÁNH 2/9 (01/09 - 03/09/2025) =====
-
-### 17. Tạo booking trong dịp Quốc Khánh (2 đêm)
-# Expected Result with Holiday Pricing:
-# - Room 102: (800,000 + 200,000) × 2 = 2,000,000 VNĐ
-# - Room 201: (1,500,000 + 300,000) × 2 = 3,600,000 VNĐ
-# - Total: 5,600,000 VNĐ
-# - Deposit (30%): 1,680,000 VNĐ
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
-
-{
-  "customerId": 1,
-  "roomIds": [2, 3],
-  "checkInDate": "2025-09-01T14:00:00",
-  "checkOutDate": "2025-09-03T12:00:00",
-  "bookingType": "Online",
-  "specialRequests": "Test booking - dịp Quốc Khánh 2/9"
-}
-
-> {%
-    client.global.set("booking_national_id", response.body.data.bookingId);
-%}
-
-### ===== TEST CASE 5: BOOKING SPAN ACROSS HOLIDAY =====
-
-### 18. Tạo booking từ trước Tết đến trong Tết (3 đêm)
-# Expected Result:
-# - Đêm 1 (27/01): 800,000 VNĐ (giá thường)
-# - Đêm 2 (28/01): 1,100,000 VNĐ (giá Tết)
-# - Đêm 3 (29/01): 1,100,000 VNĐ (giá Tết)
-# - Total: 3,000,000 VNĐ
-# - Deposit (30%): 900,000 VNĐ
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
-
-{
-  "customerId": 1,
-  "roomIds": [1],
-  "checkInDate": "2025-01-27T14:00:00",
-  "checkOutDate": "2025-01-30T12:00:00",
-  "bookingType": "Online",
-  "specialRequests": "Test booking - span across Tết holiday"
-}
-
-> {%
-    client.global.set("booking_span_id", response.body.data.bookingId);
-%}
-
-### ===== VIEW BOOKING DETAILS =====
-
-### 19. Xem chi tiết booking của mình (Customer)
-GET {{baseUrl}}/Booking/{{booking_normal_id}}
-Authorization: Bearer {{customer_token}}
-
-### 20. Admin xem chi tiết booking
-GET {{baseUrl}}/Booking/{{booking_tet_id}}
-Authorization: Bearer {{admin_token}}
-
-### 21. Manager xem chi tiết booking
-GET {{baseUrl}}/Booking/{{booking_labor_id}}
-Authorization: Bearer {{manager_token}}
-
-### 22. Customer xem danh sách booking của mình
-GET {{baseUrl}}/Booking/my-bookings
-Authorization: Bearer {{customer_token}}
-
-### ===== PAYMENT FLOW =====
-
-### 23. Xác nhận thanh toán booking (sau khi thanh toán qua PayOS)
-POST {{baseUrl}}/Booking/confirm-payment
-Content-Type: application/json
-
-{
-  "bookingId": {{booking_normal_id}},
-  "orderCode": "251019143000"
-}
-
-### 24. Kiểm tra transaction của booking
-GET {{baseUrl}}/Transaction/booking/{{booking_normal_id}}
-Authorization: Bearer {{customer_token}}
-
-### ===== CANCEL BOOKING =====
-
-### 25. Customer hủy booking của mình
-DELETE {{baseUrl}}/Booking/{{booking_span_id}}
-Authorization: Bearer {{customer_token}}
-
-### 26. Admin hủy booking (admin power)
-DELETE {{baseUrl}}/Booking/{{booking_labor_id}}
-Authorization: Bearer {{admin_token}}
-
-### ===== ERROR CASES: FORBIDDEN (403) =====
-
-### 27. Customer cố xem booking của người khác (sẽ lỗi 403)
-GET {{baseUrl}}/Booking/1
-Authorization: Bearer {{customer_token}}
-
-### 28. Customer cố hủy booking của người khác (sẽ lỗi 403)
-DELETE {{baseUrl}}/Booking/1
-Authorization: Bearer {{customer_token}}
-
-### ===== ERROR CASES: NOT FOUND (404) =====
-
-### 29. Xem booking không tồn tại
-GET {{baseUrl}}/Booking/99999
-Authorization: Bearer {{customer_token}}
-
-### 30. Hủy booking không tồn tại
-DELETE {{baseUrl}}/Booking/99999
-Authorization: Bearer {{admin_token}}
-
-### ===== ERROR CASES: CONFLICT (409) =====
-
-### 31. Tạo booking với phòng đã bị đặt (conflict)
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
-
-{
-  "customerId": 1,
-  "roomIds": [1],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00",
+  "roomTypeQuantities": {
+    "1": 2,
+    "3": 1
+  },
+  "checkInDate": "2025-10-25T14:00:00Z",
+  "checkOutDate": "2025-10-27T12:00:00Z",
+  "specialRequests": "Early check-in if possible, non-smoking rooms",
   "bookingType": "Online"
 }
 
-### 32. Check availability cho phòng đã booked
-POST {{baseUrl}}/Booking/check-availability
+###############################################
+### 3. CREATE GUEST BOOKING (No Authentication)
+###############################################
+
+### ✅ Recommended: Use this for testing without account registration
+### Create booking for guest (no login required)
+POST {{apiUrl}}/Booking/guest
 Content-Type: application/json
 
 {
-  "roomIds": [1, 2],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00"
+  "fullName": "Nguyen Van A",
+  "email": "nguyenvana@gmail.com",
+  "phoneNumber": "0901234567",
+  "identityCard": "001234567890",
+  "address": "123 Nguyen Hue, Q1, HCM",
+  "roomTypeQuantities": {
+    "1": 1,
+    "2": 1
+  },
+  "checkInDate": "2025-10-26T14:00:00Z",
+  "checkOutDate": "2025-10-28T12:00:00Z",
+  "specialRequests": "Late check-out if available",
+  "bookingType": "Online"
 }
 
-### ===== ERROR CASES: BAD REQUEST (400) =====
+###############################################
+### 4. GET BOOKING BY ID
+###############################################
 
-### 33. Tạo booking với checkOut trước checkIn (invalid dates)
-POST {{baseUrl}}/Booking
+### Get booking details
+GET {{apiUrl}}/Booking/1
+Authorization: Bearer {{access_token}}
+
+###############################################
+### 5. CONFIRM PAYMENT (PayOS Callback)
+###############################################
+
+### Confirm payment after PayOS transaction
+POST {{apiUrl}}/Booking/confirm-payment
 Content-Type: application/json
-Authorization: Bearer {{customer_token}}
+
+{
+  "bookingId": 1,
+  "orderCode": "251022143055"
+}
+
+###############################################
+### 6. GET MY BOOKINGS
+###############################################
+
+### Get all bookings for current authenticated user
+GET {{apiUrl}}/Booking/my-bookings
+Authorization: Bearer {{access_token}}
+
+###############################################
+### 7. CANCEL BOOKING
+###############################################
+
+### Cancel a booking
+DELETE {{apiUrl}}/Booking/1
+Authorization: Bearer {{access_token}}
+
+###############################################
+### TEST SCENARIOS
+###############################################
+
+### SCENARIO 1: Complete Booking Flow (Guest)
+### Step 1: Check availability
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypeQuantities": {
+    "1": 2
+  },
+  "checkInDate": "2025-11-01T14:00:00Z",
+  "checkOutDate": "2025-11-03T12:00:00Z"
+}
+
+### Step 2: Create guest booking
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Tran Thi B",
+  "email": "tranthib@gmail.com",
+  "phoneNumber": "0912345678",
+  "roomTypeQuantities": {
+    "1": 2
+  },
+  "checkInDate": "2025-11-01T14:00:00Z",
+  "checkOutDate": "2025-11-03T12:00:00Z",
+  "specialRequests": "Request connecting rooms",
+  "bookingType": "Online"
+}
+
+### Step 3: Simulate payment confirmation
+### (Use BookingId and OrderCode from Step 2 response)
+POST {{apiUrl}}/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": 2,
+  "orderCode": "251022143500"
+}
+
+###############################################
+
+### SCENARIO 2: Test Holiday Pricing
+### Check availability during holiday period (Christmas)
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-12-24T14:00:00Z",
+  "checkOutDate": "2025-12-26T12:00:00Z"
+}
+
+### Create booking during holiday
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Le Van C",
+  "email": "levanc@gmail.com",
+  "phoneNumber": "0923456789",
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-12-24T14:00:00Z",
+  "checkOutDate": "2025-12-26T12:00:00Z",
+  "specialRequests": "Holiday booking",
+  "bookingType": "Online"
+}
+
+###############################################
+
+### SCENARIO 3: Test Concurrent Booking (Race Condition)
+### 👉 Run these two requests quickly one after another
+
+### User 1: Try to book same room
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "User One",
+  "email": "user1@gmail.com",
+  "phoneNumber": "0934567890",
+  "roomTypeQuantities": {
+    "1": 3
+  },
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "bookingType": "Online"
+}
+
+### User 2: Try to book same room (should fail if rooms locked by User 1)
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "User Two",
+  "email": "user2@gmail.com",
+  "phoneNumber": "0945678901",
+  "roomTypeQuantities": {
+    "1": 3
+  },
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "bookingType": "Online"
+}
+
+###############################################
+
+### SCENARIO 4: Test Multiple Room Types
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Pham Van D",
+  "email": "phamvand@gmail.com",
+  "phoneNumber": "0956789012",
+  "roomTypeQuantities": {
+    "1": 2,
+    "2": 1,
+    "3": 1
+  },
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-15T12:00:00Z",
+  "specialRequests": "Booking multiple room types for group",
+  "bookingType": "Online"
+}
+
+###############################################
+
+### SCENARIO 5: Test Booking Cancellation Flow
+### Step 1: Create booking
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
 
 {
   "customerId": 1,
-  "roomIds": [1],
-  "checkInDate": "2025-03-17T14:00:00",
-  "checkOutDate": "2025-03-15T12:00:00",
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
   "bookingType": "Online"
 }
 
-### 34. Tạo booking với customerId không tồn tại
-POST {{baseUrl}}/Booking
-Content-Type: application/json
-Authorization: Bearer {{customer_token}}
+### Step 2: Cancel the booking (use BookingId from Step 1 response)
+DELETE {{apiUrl}}/Booking/5
+Authorization: Bearer {{access_token}}
 
-{
-  "customerId": 99999,
-  "roomIds": [1],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00",
-  "bookingType": "Online"
-}
+###############################################
 
-### ===== ERROR CASES: UNAUTHORIZED (401) =====
-
-### 35. Tạo booking không có token (sẽ lỗi 401)
-POST {{baseUrl}}/Booking
+### SCENARIO 6: Test Invalid Dates
+### Test 6.1: Check-in date in the past (should fail)
+POST {{apiUrl}}/Booking/guest
 Content-Type: application/json
 
 {
-  "customerId": 1,
-  "roomIds": [1],
-  "checkInDate": "2025-03-15T14:00:00",
-  "checkOutDate": "2025-03-17T12:00:00",
+  "fullName": "Invalid Date Test",
+  "email": "invalid@gmail.com",
+  "phoneNumber": "0967890123",
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-10-01T14:00:00Z",
+  "checkOutDate": "2025-10-03T12:00:00Z",
   "bookingType": "Online"
 }
 
-### 36. Xem booking không có token (sẽ lỗi 401)
-GET {{baseUrl}}/Booking/1
-
-### ===== DETAILED RESPONSE EXAMPLES =====
-
-### 37. Booking với full details (có holiday pricing)
-POST {{baseUrl}}/Booking
+### Test 6.2: Check-out before check-in (should fail)
+POST {{apiUrl}}/Booking/guest
 Content-Type: application/json
-Authorization: Bearer {{customer_token}}
 
 {
-  "customerId": 1,
-  "roomIds": [1, 3],
-  "checkInDate": "2025-01-28T14:00:00",
-  "checkOutDate": "2025-01-30T12:00:00",
+  "fullName": "Invalid Date Test 2",
+  "email": "invalid2@gmail.com",
+  "phoneNumber": "0978901234",
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-03T12:00:00Z",
   "bookingType": "Online"
 }
 
-> {%
-    client.global.set("booking_detail_id", response.body.data.bookingId);
-%}
+###############################################
 
-### 38. Get booking details với BookingRooms
-GET {{baseUrl}}/Booking/{{booking_detail_id}}
-Authorization: Bearer {{customer_token}}
-
-### ===== PERFORMANCE TEST: MULTIPLE BOOKINGS =====
-
-### 39. Tạo nhiều booking liên tiếp (stress test)
-POST {{baseUrl}}/Booking
+### SCENARIO 7: Test Room Type Not Found (should fail)
+POST {{apiUrl}}/Booking/guest
 Content-Type: application/json
-Authorization: Bearer {{customer_token}}
 
 {
-  "customerId": 1,
-  "roomIds": [4],
-  "checkInDate": "2025-03-20T14:00:00",
-  "checkOutDate": "2025-03-22T12:00:00",
+  "fullName": "Room Not Found Test",
+  "email": "notfound@gmail.com",
+  "phoneNumber": "0989012345",
+  "roomTypeQuantities": {
+    "999": 1
+  },
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
   "bookingType": "Online"
 }
 
-### 40. Kiểm tra tổng số booking của customer
-GET {{baseUrl}}/Booking/my-bookings
-Authorization: Bearer {{customer_token}}
+###############################################
 
-### ===== NOTES & CHECKLIST =====
+### SCENARIO 8: Test Insufficient Rooms (should fail)
+### Try to book more rooms than available
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
 
-# 📌 LƯU Ý QUAN TRỌNG:
-# ✅ Tất cả Status và Type đều lấy từ CommonCode
-# ✅ Sử dụng CodeName để query (vd: "Online", "Unpaid", "Available")
-# ✅ Holiday Pricing tự động áp dụng dựa trên StartDate và EndDate
-# ✅ Giá tính theo: BasePriceNight + PriceAdjustment (nếu có holiday)
-# ✅ Deposit mặc định là 30% TotalAmount
-# ✅ Booking tự động hủy sau 15 phút nếu không thanh toán
+{
+  "fullName": "Too Many Rooms Test",
+  "email": "toomany@gmail.com",
+  "phoneNumber": "0990123456",
+  "roomTypeQuantities": {
+    "1": 100
+  },
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "bookingType": "Online"
+}
 
-# 💰 Holiday Pricing Summary:
-# Tết Nguyên Đán (28/01-03/02/2025):
-#   - Room 101/102: +300k/đêm (800k → 1,100k)
-#   - Room 201: +500k/đêm (1,500k → 2,000k)
-#
-# Lễ 30/4-1/5 (30/04-03/05/2025):
-#   - Room 101/102: +200k/đêm (800k → 1,000k)
-#   - Room 201: +300k/đêm (1,500k → 1,800k)
-#
-# Quốc Khánh 2/9 (01/09-03/09/2025):
-#   - Room 101/102: +200k/đêm (800k → 1,000k)
-#   - Room 201: +300k/đêm (1,500k → 1,800k)
+###############################################
 
+### SCENARIO 9: Test Same Guest Multiple Bookings
+### Guest books again with same phone number (should update customer info)
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyen Van A",
+  "email": "nguyenvana@gmail.com",
+  "phoneNumber": "0901234567",
+  "identityCard": "001234567890",
+  "address": "456 Le Loi, Q1, HCM",
+  "roomTypeQuantities": {
+    "2": 1
+  },
+  "checkInDate": "2025-11-15T14:00:00Z",
+  "checkOutDate": "2025-11-17T12:00:00Z",
+  "specialRequests": "Second booking for same guest",
+  "bookingType": "Online"
+}
+
+###############################################
+
+### SCENARIO 10: Test Auto-Cancel After 15 Minutes
+### Step 1: Create booking
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Auto Cancel Test",
+  "email": "autocancel@gmail.com",
+  "phoneNumber": "0991234567",
+  "roomTypeQuantities": {
+    "1": 1
+  },
+  "checkInDate": "2025-10-30T14:00:00Z",
+  "checkOutDate": "2025-10-31T12:00:00Z",
+  "specialRequests": "Testing auto-cancel",
+  "bookingType": "Online"
+}
+
+### Step 2: Wait 15 minutes and check booking status
+### (Booking should be automatically cancelled if not paid)
+GET {{apiUrl}}/Booking/1
+Authorization: Bearer {{access_token}}
+
+###############################################
+### NOTES & DOCUMENTATION
+###############################################
+
+# 📋 BOOKING FLOW OVERVIEW:
+# ========================
+# 1. Check availability ✓
+# 2. Create booking (locks rooms for 15 minutes) ✓
+# 3. Get payment URL from response (PayOS)
+# 4. Complete payment via PayOS link
+# 5. PayOS webhook calls confirm-payment endpoint
+# 6. Rooms are permanently reserved
+# 7. If no payment in 15 minutes → auto-cancel + release locks
+
+# 🔐 AUTHENTICATION:
+# ==================
+# - Login first and copy access_token to access_token variable
+# - Guest booking endpoints don't require authentication
+# - Other endpoints require: Authorization: Bearer {{access_token}}
+
+# 💰 PRICING:
+# ===========
+# - Base price per room type per night
+# - Holiday pricing automatically applied if booking overlaps with holiday dates
+# - Total = Sum of (RoomPrice * Nights) for all rooms
+# - Deposit = 30% of TotalAmount
+
+# 🔒 ROOM LOCKING:
+# ================
+# - Rooms are locked in Redis cache when booking is created
+# - Lock key format: {RoomId}_{CheckInDate}_{CheckOutDate}
+# - Lock expires after 15 minutes if payment not completed
+# - Prevents double-booking and race conditions
+
+# 📝 GUEST BOOKING:
+# =================
+# - No account required
+# - System finds/creates Customer by PhoneNumber
+# - Auto-updates customer info if booking again
+# - Full booking history tracked by phone/email
+
+# 🏨 ROOM TYPE QUANTITIES:
+# ========================
+# Format: Dictionary<int, int> = { RoomTypeId: Quantity }
+# Example: { "1": 2, "3": 1 } = 2 Standard rooms + 1 VIP room
+
+# ⚠️ IMPORTANT DATES:
+# ===================
+# Current date: October 22, 2025
+# - Check-in must be in the future
+# - Check-out must be after check-in
+# - Holiday pricing applies: Dec 24-26, Tet holidays, etc.
+
+# 🧪 TEST SCENARIOS SUMMARY:
+# ==========================
+# ✓ Scenario 1: Complete guest booking flow
+# ✓ Scenario 2: Holiday pricing calculation
+# ✓ Scenario 3: Concurrent booking prevention
+# ✓ Scenario 4: Multiple room types booking
+# ✓ Scenario 5: Booking cancellation
+# ✓ Scenario 6: Invalid date validations
+# ✓ Scenario 7: Room type not found error
+# ✓ Scenario 8: Insufficient rooms error
+# ✓ Scenario 9: Repeat guest booking
+# ✓ Scenario 10: Auto-cancel after timeout
+
+# 🚀 QUICK START:
+# ===============
+# 1. Run login request (Section 0)
+# 2. Copy access_token to @access_token variable
+# 3. Test check-availability (Section 1)
+# 4. Test guest booking (Section 3)
+# 5. Copy BookingId and PaymentUrl from response
+# 6. Test confirm-payment with BookingId
+
+# 📊 EXPECTED RESPONSES:
+# ======================
+# Success (200/201): { isSuccess: true, data: {...}, message: "..." }
+# Error (400/404/409): { isSuccess: false, message: "Error message", statusCode: xxx }
+
+# 💡 TIPS:
+# ========
+# - Use check-availability before booking to avoid errors
+# - BookingId and OrderCode are returned in booking response
+# - Payment URL is for PayOS integration
+# - My-bookings shows all bookings for logged-in user
+# - Cancel booking before payment to release rooms immediately

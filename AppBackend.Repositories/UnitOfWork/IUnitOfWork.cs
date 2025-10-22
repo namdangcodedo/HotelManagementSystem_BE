@@ -3,6 +3,7 @@ using AppBackend.Repositories.Repositories.AccountRepo;
 using AppBackend.Repositories.Repositories.RoleRepo;
 using AppBackend.Repositories.Repositories.CommonCodeRepo;
 using AppBackend.Repositories.Repositories.RoomRepo;
+using AppBackend.Repositories.Repositories.RoomTypeRepo;
 using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using System.Threading.Tasks;
@@ -22,6 +23,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IRoleRepository Roles { get; }
         ICommonCodeRepository CommonCodes { get; }
         IRoomRepository Rooms { get; }
+        IRoomTypeRepository RoomTypes { get; }
         ICustomerRepository Customers { get; }
         IMediumRepository Mediums { get; }
         IAmenityRepository Amenities { get; }

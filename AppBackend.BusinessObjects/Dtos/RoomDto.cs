@@ -6,7 +6,7 @@ namespace AppBackend.BusinessObjects.Dtos
     public class RoomDto
     {
         public int RoomId { get; set; }
-        public string RoomNumber { get; set; } = string.Empty;
+        public string RoomName { get; set; } = string.Empty;
         public int RoomTypeId { get; set; }
         public decimal BasePriceNight { get; set; }
         public decimal BasePriceHour { get; set; }
@@ -18,4 +18,3 @@ namespace AppBackend.BusinessObjects.Dtos
         public int? UpdatedBy { get; set; }
     }
 }
-
