@@ -92,7 +92,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Skip(request.PageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -320,7 +320,7 @@ namespace AppBackend.Services.Services.RoomServices
             var totalRecords = roomTypes.Count();
 
             var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Skip(request.PageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -669,7 +669,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRooms = rooms
-                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Skip(request.PageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 

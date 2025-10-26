@@ -63,7 +63,7 @@ namespace AppBackend.Services.Services.CommonCodeServices
 
             // Phân trang
             var pagedCommonCodes = commonCodes
-                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Skip(request.PageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 

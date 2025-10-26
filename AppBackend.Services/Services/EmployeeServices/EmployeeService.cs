@@ -103,7 +103,7 @@ namespace AppBackend.Services.Services.EmployeeServices
 
             // Phân trang
             var pagedEmployees = employees
-                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Skip(request.PageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
