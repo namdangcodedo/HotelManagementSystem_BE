@@ -109,19 +109,21 @@ namespace AppBackend.Services.Services.EmployeeServices
 
             var employeeDtos = _mapper.Map<List<EmployeeDto>>(pagedEmployees);
 
+            var pagedResponse = new PagedResponseDto<EmployeeDto>
+            {
+                Items = employeeDtos,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = new
-                {
-                    Items = employeeDtos,
-                    TotalRecords = totalRecords,
-                    PageIndex = request.PageIndex,
-                    PageSize = request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-                },
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }

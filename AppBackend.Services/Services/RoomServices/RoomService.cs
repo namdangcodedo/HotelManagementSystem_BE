@@ -157,19 +157,21 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypeResults.Add(dto);
             }
 
+            var pagedResponse = new PagedResponseDto<RoomTypeSearchResultDto>
+            {
+                Items = roomTypeResults,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = new
-                {
-                    Items = roomTypeResults,
-                    TotalRecords = totalRecords,
-                    request.PageIndex,
-                    request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-                },
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -354,19 +356,21 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypeDtos.Add(dto);
             }
 
+            var pagedResponse = new PagedResponseDto<RoomTypeWithImagesDto>
+            {
+                Items = roomTypeDtos,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = new
-                {
-                    Items = roomTypeDtos,
-                    TotalRecords = totalRecords,
-                    request.PageIndex,
-                    request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-                },
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -712,19 +716,21 @@ namespace AppBackend.Services.Services.RoomServices
                 roomDtos.Add(roomDto);
             }
 
+            var pagedResponse = new PagedResponseDto<RoomWithImagesDto>
+            {
+                Items = roomDtos,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = new
-                {
-                    Items = roomDtos,
-                    TotalRecords = totalRecords,
-                    request.PageIndex,
-                    request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-                },
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }

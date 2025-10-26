@@ -151,18 +151,21 @@ namespace AppBackend.Services.Services.AmenityServices
                 amenityDto.Images = imageLinks;
                 amenityWithMediumList.Add(amenityDto);
             }
+
+            var pagedResponse = new PagedResponseDto<AmenityWithMediumDto>
+            {
+                Items = amenityWithMediumList,
+                TotalCount = totalCount,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalCount / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 Message = "Lấy danh sách tiện ích thành công.",
-                Data = new
-                {
-                    Items = amenityWithMediumList,
-                    TotalCount = totalCount,
-                    PageIndex = request.PageIndex,
-                    PageSize = request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalCount / request.PageSize)
-                }
+                Data = pagedResponse
             };
         }
         

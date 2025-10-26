@@ -69,19 +69,21 @@ namespace AppBackend.Services.Services.CommonCodeServices
 
             var commonCodeDtos = _mapper.Map<List<CommonCodeDto>>(pagedCommonCodes);
 
+            var pagedResponse = new PagedResponseDto<CommonCodeDto>
+            {
+                Items = commonCodeDtos,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = new
-                {
-                    Items = commonCodeDtos,
-                    TotalRecords = totalRecords,
-                    request.PageIndex,
-                    request.PageSize,
-                    TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-                },
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -289,4 +291,3 @@ namespace AppBackend.Services.Services.CommonCodeServices
         }
     }
 }
-
