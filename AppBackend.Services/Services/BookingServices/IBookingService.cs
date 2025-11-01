@@ -13,5 +13,6 @@ namespace AppBackend.Services.Services.BookingServices
         Task<ResultModel> CancelBookingAsync(int bookingId, int userId);
         Task<ResultModel> GetMyBookingsAsync(int customerId);
         Task<ResultModel> GetMyBookingsByAccountIdAsync(int accountId);
+        Task<ResultModel> HandlePayOSWebhookAsync(PayOSWebhookRequest request);
     }
 }

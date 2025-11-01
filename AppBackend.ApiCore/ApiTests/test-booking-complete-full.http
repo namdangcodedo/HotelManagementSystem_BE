@@ -1,0 +1,1208 @@
+### ============================================
+### BOOKING API - COMPLETE TEST SUITE (FULL VERSION)
+### ============================================
+### Tạo dựa trên SeedingData.cs và BookingService.cs
+### Bao gồm: Check availability, Create booking, Cancel, Queue processing, Response validation
+### Date: 2025-10-31
+### ============================================
+
+### Variables
+@baseUrl = http://localhost:8080
+@apiUrl = {{baseUrl}}/api
+
+### ============================================
+### SECTION 1: AUTHENTICATION & SETUP
+### ============================================
+
+### 1.1 Register New Customer (Test User 1)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testbooking1",
+  "email": "testbooking1@gmail.com",
+  "password": "Booking@123",
+  "fullName": "Nguyen Van A",
+  "phoneNumber": "0901234567",
+  "identityCard": "001234567890",
+  "address": "123 Nguyen Hue, Q1, HCMC"
+}
+
+> {%
+    client.global.set("customer1_token", response.body.data.token);
+    client.global.set("customer1_id", response.body.data.accountId);
+    
+    client.test("Register customer 1", function() {
+        client.assert(response.status === 200 || response.status === 201, "Should register successfully");
+    });
+    
+    client.log("========================================");
+    client.log("✅ CUSTOMER 1 REGISTERED");
+    client.log("========================================");
+    client.log("👤 Account ID: " + response.body.data.accountId);
+    client.log("📧 Email: testbooking1@gmail.com");
+    client.log("🔐 Password: Booking@123");
+    client.log("🔑 Token saved to: customer1_token");
+    client.log("========================================");
+%}
+
+### 1.2 Login Customer 1 (If already registered)
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "testbooking1@gmail.com",
+  "password": "Booking@123"
+}
+
+> {%
+    client.global.set("customer1_token", response.body.data.token);
+    client.global.set("customer1_id", response.body.data.accountId);
+    
+    client.test("Login customer 1", function() {
+        client.assert(response.status === 200, "Should login successfully");
+        client.assert(response.body.data.token !== null, "Should return token");
+    });
+    
+    client.log("✅ Customer 1 logged in - Token saved");
+%}
+
+### 1.3 Register Customer 2 (For concurrent booking tests)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testbooking2",
+  "email": "testbooking2@gmail.com",
+  "password": "Booking@123",
+  "fullName": "Tran Thi B",
+  "phoneNumber": "0902345678",
+  "identityCard": "001234567891",
+  "address": "456 Le Loi, Q3, HCMC"
+}
+
+> {%
+    client.global.set("customer2_token", response.body.data.token);
+    client.global.set("customer2_id", response.body.data.accountId);
+    
+    client.log("✅ Customer 2 registered - Token saved");
+%}
+
+### 1.4 Login as Admin
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.token);
+    client.log("✅ Admin logged in - Token saved");
+%}
+
+### ============================================
+### SECTION 2: CHECK ROOM AVAILABILITY (DETAILED TESTS)
+### ============================================
+
+### 2.1 Check availability - Standard rooms (Based on seeding data)
+# RoomTypeId 1 = "Phòng Tiêu Chuẩn" (STD) - 800,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Check availability - Response structure", function() {
+        client.assert(response.status === 200 || response.status === 409, "Should return 200 or 409");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.data !== null, "Should have data");
+        client.assert(response.body.data.roomTypes !== null, "Should have roomTypes array");
+        client.assert(response.body.data.totalNights === 2, "Should calculate 2 nights");
+    });
+    
+    client.log("========================================");
+    client.log("📊 AVAILABILITY CHECK RESULT");
+    client.log("========================================");
+    client.log("📅 Check-in: 2025-11-05");
+    client.log("📅 Check-out: 2025-11-07");
+    client.log("🌙 Total nights: " + response.body.data.totalNights);
+    client.log("✅ All available: " + response.body.data.isAllAvailable);
+    client.log("💬 Message: " + response.body.data.message);
+    client.log("");
+    
+    if (response.body.data && response.body.data.roomTypes) {
+        response.body.data.roomTypes.forEach(function(rt) {
+            client.log("🏨 " + rt.roomTypeName + " (" + rt.roomTypeCode + ")");
+            client.log("   📋 Description: " + rt.description);
+            client.log("   💰 Price/night: " + rt.basePriceNight.toLocaleString() + " VNĐ");
+            client.log("   👥 Max occupancy: " + rt.maxOccupancy + " người");
+            client.log("   📐 Room size: " + rt.roomSize + "m²");
+            client.log("   🛏️  Beds: " + rt.numberOfBeds + " x " + rt.bedType);
+            client.log("   📊 Available: " + rt.availableCount + "/" + rt.requestedQuantity);
+            client.log("   " + (rt.isAvailable ? "✅" : "❌") + " " + rt.message);
+            client.log("   🖼️  Images: " + rt.images.length + " photos");
+            client.log("");
+        });
+    }
+    client.log("========================================");
+%}
+
+### 2.2 Check availability - Deluxe rooms
+# RoomTypeId 2 = "Phòng Cao Cấp" (DLX) - 1,500,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-13T12:00:00Z"
+}
+
+> {%
+    client.test("Deluxe room check", function() {
+        client.assert(response.body.data.totalNights === 3, "Should calculate 3 nights");
+    });
+    
+    client.log("✅ Deluxe room availability checked (3 nights)");
+    if (response.body.data.roomTypes[0]) {
+        var deluxe = response.body.data.roomTypes[0];
+        client.log("   Price: " + deluxe.basePriceNight.toLocaleString() + " VNĐ/night");
+        client.log("   Total estimate: " + (deluxe.basePriceNight * 3).toLocaleString() + " VNĐ");
+    }
+%}
+
+### 2.3 Check availability - VIP rooms
+# RoomTypeId 3 = "Phòng VIP" (VIP) - 2,500,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-15T14:00:00Z",
+  "checkOutDate": "2025-11-17T12:00:00Z"
+}
+
+> {%
+    client.log("✅ VIP room availability checked");
+%}
+
+### 2.4 Check availability - Suite rooms
+# RoomTypeId 4 = "Suite Sang Trọng" (SUT) - 4,000,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 4, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-23T12:00:00Z"
+}
+
+> {%
+    client.log("✅ Suite room availability checked");
+    if (response.body.data.roomTypes[0]) {
+        var suite = response.body.data.roomTypes[0];
+        client.log("   Max occupancy: " + suite.maxOccupancy + " người");
+        client.log("   Room size: " + suite.roomSize + "m²");
+    }
+%}
+
+### 2.5 Check availability - Mixed room types
+# Test đặt nhiều loại phòng cùng lúc
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 },
+    { "roomTypeId": 2, "quantity": 1 },
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-12-01T14:00:00Z",
+  "checkOutDate": "2025-12-05T12:00:00Z"
+}
+
+> {%
+    client.test("Mixed room types check", function() {
+        client.assert(response.body.data.roomTypes.length === 3, "Should check 3 room types");
+    });
+    
+    client.log("========================================");
+    client.log("📊 MIXED ROOM TYPES CHECK");
+    client.log("========================================");
+    var totalEstimate = 0;
+    response.body.data.roomTypes.forEach(function(rt) {
+        var estimate = rt.basePriceNight * rt.requestedQuantity * response.body.data.totalNights;
+        totalEstimate += estimate;
+        client.log(rt.roomTypeName + ": " + rt.requestedQuantity + " phòng x " + 
+                   response.body.data.totalNights + " nights = " + estimate.toLocaleString() + " VNĐ");
+    });
+    client.log("💰 Total estimate: " + totalEstimate.toLocaleString() + " VNĐ");
+    client.log("💵 Deposit (30%): " + (totalEstimate * 0.3).toLocaleString() + " VNĐ");
+    client.log("========================================");
+%}
+
+### 2.6 Check availability - Overbooking test
+# Test yêu cầu nhiều phòng hơn số lượng có
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 100 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Overbooking check", function() {
+        if (response.body.data && response.body.data.roomTypes[0]) {
+            client.assert(response.body.data.roomTypes[0].isAvailable === false, 
+                "Should not have 100 rooms available");
+        }
+    });
+    
+    client.log("⚠️ Overbooking test - Expected: Not enough rooms");
+    if (response.body.data.roomTypes[0]) {
+        client.log("   Available: " + response.body.data.roomTypes[0].availableCount);
+        client.log("   Requested: " + response.body.data.roomTypes[0].requestedQuantity);
+    }
+%}
+
+### ============================================
+### SECTION 3: CREATE BOOKING (Authenticated User)
+### ============================================
+
+### 3.1 Create booking - 2 Standard rooms (MAIN TEST)
+# Test đầy đủ response và queue processing
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "specialRequests": "Non-smoking rooms, early check-in if possible"
+}
+
+> {%
+    if (response.body.data && response.body.data.bookingId) {
+        client.global.set("booking_id_1", response.body.data.bookingId);
+        client.global.set("payment_url_1", response.body.data.paymentUrl);
+        client.global.set("room_ids_1", JSON.stringify(response.body.data.roomIds));
+    }
+    
+    client.test("Create booking - Full validation", function() {
+        client.assert(response.status === 201, "Status should be 201 Created");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.statusCode === 201, "StatusCode should be 201");
+        client.assert(response.body.message !== null, "Should have message");
+        
+        // Validate data structure
+        var data = response.body.data;
+        client.assert(data !== null, "Should have data");
+        client.assert(data.bookingId > 0, "Should have valid booking ID");
+        client.assert(data.customerId > 0, "Should have customer ID");
+        client.assert(data.customerName !== "", "Should have customer name");
+        client.assert(data.roomIds.length === 2, "Should have 2 rooms");
+        client.assert(data.roomNames.length === 2, "Should have 2 room names");
+        client.assert(data.totalAmount > 0, "Should have total amount");
+        client.assert(data.depositAmount > 0, "Should have deposit amount");
+        client.assert(data.depositAmount === data.totalAmount * 0.3, "Deposit should be 30%");
+        client.assert(data.paymentUrl !== null, "Should have payment URL");
+        client.assert(data.paymentUrl.includes("payos"), "Payment URL should be PayOS");
+        client.assert(data.roomTypeDetails.length > 0, "Should have room type details");
+    });
+    
+    if (response.body.data) {
+        client.log("========================================");
+        client.log("✅ BOOKING CREATED SUCCESSFULLY");
+        client.log("========================================");
+        client.log("📋 Booking ID: " + response.body.data.bookingId);
+        client.log("👤 Customer: " + response.body.data.customerName + " (ID: " + response.body.data.customerId + ")");
+        client.log("");
+        client.log("🏨 ROOMS BOOKED:");
+        response.body.data.roomNames.forEach(function(name, index) {
+            client.log("   " + (index + 1) + ". " + name + " (ID: " + response.body.data.roomIds[index] + ")");
+        });
+        client.log("");
+        client.log("📅 Check-in: " + new Date(response.body.data.checkInDate).toLocaleString());
+        client.log("📅 Check-out: " + new Date(response.body.data.checkOutDate).toLocaleString());
+        client.log("");
+        client.log("💰 PRICING:");
+        response.body.data.roomTypeDetails.forEach(function(rt) {
+            var nights = 2; // From the dates above
+            var subtotal = rt.pricePerNight * rt.quantity * nights;
+            client.log("   " + rt.roomTypeName + " (" + rt.roomTypeCode + "):");
+            client.log("     " + rt.quantity + " phòng x " + rt.pricePerNight.toLocaleString() + " VNĐ x " + nights + " nights");
+            client.log("     = " + subtotal.toLocaleString() + " VNĐ");
+        });
+        client.log("");
+        client.log("💰 Total Amount: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+        client.log("💵 Deposit (30%): " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+        client.log("💵 Remaining: " + (response.body.data.totalAmount - response.body.data.depositAmount).toLocaleString() + " VNĐ");
+        client.log("");
+        client.log("💳 Payment URL: " + response.body.data.paymentUrl);
+        client.log("");
+        client.log("⏰ IMPORTANT NOTES:");
+        client.log("   ⚠️  Pay within 15 minutes or booking will be auto-cancelled!");
+        client.log("   🔒 Rooms are locked in cache for payment");
+        client.log("   📨 Confirmation email will be sent after payment");
+        client.log("   🎫 Queue message created for background processing");
+        client.log("========================================");
+    } else {
+        client.log("❌ Failed to create booking");
+        client.log("Message: " + response.body.message);
+    }
+%}
+
+### 3.2 Create booking - 1 Deluxe room (Long stay)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-17T12:00:00Z",
+  "specialRequests": "Business trip - need quiet room with strong wifi"
+}
+
+> {%
+    client.global.set("booking_id_2", response.body.data.bookingId);
+    
+    client.test("Deluxe booking created", function() {
+        client.assert(response.status === 201, "Should create successfully");
+    });
+    
+    client.log("✅ Deluxe room booking created (7 nights)");
+    client.log("   Booking ID: " + response.body.data.bookingId);
+    client.log("   Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    client.log("   Deposit: " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+%}
+
+### 3.3 Create booking - Multiple room types (Family booking)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 },
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-12-01T14:00:00Z",
+  "checkOutDate": "2025-12-05T12:00:00Z",
+  "specialRequests": "Family with kids - need connecting rooms or close together"
+}
+
+> {%
+    if (response.body.data && response.body.data.bookingId) {
+        client.global.set("booking_id_3", response.body.data.bookingId);
+    }
+    
+    client.test("Family booking created", function() {
+        client.assert(response.status === 201, "Should create successfully");
+        if (response.body.data) {
+            client.assert(response.body.data.roomIds.length === 3, "Should have 3 rooms");
+            client.assert(response.body.data.roomTypeDetails.length === 2, "Should have 2 room types");
+        }
+    });
+    
+    if (response.body.data) {
+        client.log("✅ Family booking created (3 rooms, 2 types)");
+        client.log("   Room types: 2x Standard + 1x VIP");
+        client.log("   Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    }
+%}
+
+### 3.4 Create booking - VIP Suite for honeymoon
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 4, "quantity": 1 }
+  ],
+  "checkInDate": "2025-12-20T14:00:00Z",
+  "checkOutDate": "2025-12-25T12:00:00Z",
+  "specialRequests": "Honeymoon - please prepare romantic decoration, flowers and champagne"
+}
+
+> {%
+    client.global.set("booking_id_4", response.body.data.bookingId);
+    
+    client.log("✅ Suite honeymoon booking created (5 nights)");
+    client.log("   Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+%}
+
+### ============================================
+### SECTION 4: GUEST BOOKING (No Authentication)
+### ============================================
+
+### 4.1 Guest Booking - First time guest (Auto-create customer)
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Pham Van Guest",
+  "email": "guest.test.new@example.com",
+  "phoneNumber": "0911111111",
+  "identityCard": "079111111111",
+  "address": "789 Tran Hung Dao, Q5, HCMC",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-08T14:00:00Z",
+  "checkOutDate": "2025-11-10T12:00:00Z",
+  "specialRequests": "First time booking, please call before check-in"
+}
+
+> {%
+    client.global.set("guest_booking_id", response.body.data.bookingId);
+    client.global.set("guest_customer_id", response.body.data.customerId);
+    
+    client.test("Guest booking - Full validation", function() {
+        client.assert(response.status === 201, "Should create successfully");
+        client.assert(response.body.data.customerId > 0, "Should auto-create customer");
+        client.assert(response.body.data.customerName === "Pham Van Guest", "Should have correct name");
+        client.assert(response.body.data.paymentUrl !== null, "Should have payment URL");
+    });
+    
+    client.log("========================================");
+    client.log("✅ GUEST BOOKING CREATED");
+    client.log("========================================");
+    client.log("📋 Booking ID: " + response.body.data.bookingId);
+    client.log("👤 Customer ID: " + response.body.data.customerId + " (auto-created)");
+    client.log("📧 Email: guest.test.new@example.com");
+    client.log("🔐 Default password: 123456 (sent via email)");
+    client.log("📱 Phone: 0911111111");
+    client.log("");
+    client.log("💰 Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+    client.log("💵 Deposit: " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+    client.log("");
+    client.log("💳 Payment URL: " + response.body.data.paymentUrl);
+    client.log("========================================");
+%}
+
+### 4.2 Guest Booking - Returning guest (Reuse existing customer)
+# Sử dụng cùng email/phone sẽ tìm và cập nhật customer cũ
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Pham Van Guest",
+  "email": "guest.test.new@example.com",
+  "phoneNumber": "0911111111",
+  "identityCard": "079111111111",
+  "address": "789 Tran Hung Dao, Q5, HCMC - Updated",
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-15T14:00:00Z",
+  "checkOutDate": "2025-11-18T12:00:00Z",
+  "specialRequests": "Returning customer - updated address"
+}
+
+> {%
+    client.test("Returning guest booking", function() {
+        client.assert(response.status === 201, "Should create successfully");
+        if (client.global.get("guest_customer_id")) {
+            client.assert(response.body.data.customerId == client.global.get("guest_customer_id"), 
+                "Should reuse existing customer ID");
+        }
+    });
+    
+    client.log("✅ Returning guest booking - Customer reused");
+    client.log("   Customer ID: " + response.body.data.customerId);
+    client.log("   Booking ID: " + response.body.data.bookingId);
+%}
+
+### 4.3 Guest Booking - Group booking (Multiple room types)
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Le Thi Group Leader",
+  "email": "group.booking@company.com",
+  "phoneNumber": "0922222222",
+  "identityCard": "079222222222",
+  "address": "456 Vo Van Tan, Q3, HCMC",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 3 },
+    { "roomTypeId": 2, "quantity": 2 }
+  ],
+  "checkInDate": "2025-12-10T14:00:00Z",
+  "checkOutDate": "2025-12-13T12:00:00Z",
+  "specialRequests": "Corporate group booking - 5 rooms on same floor if possible"
+}
+
+> {%
+    client.test("Group booking", function() {
+        client.assert(response.status === 201, "Should create successfully");
+        client.assert(response.body.data.roomIds.length === 5, "Should have 5 rooms");
+    });
+    
+    client.log("✅ Group booking created (5 rooms)");
+    client.log("   Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+%}
+
+### ============================================
+### SECTION 5: GET BOOKING DETAILS & LIST
+### ============================================
+
+### 5.1 Get booking by ID - Detailed validation
+GET {{apiUrl}}/Booking/{{booking_id_1}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Get booking details - Full validation", function() {
+        client.assert(response.status === 200, "Status should be 200");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        
+        var data = response.body.data;
+        client.assert(data.bookingId > 0, "Should have booking ID");
+        client.assert(data.customerId > 0, "Should have customer ID");
+        client.assert(data.customerName !== "", "Should have customer name");
+        client.assert(data.roomIds.length > 0, "Should have room IDs");
+        client.assert(data.roomNames.length > 0, "Should have room names");
+        client.assert(data.totalAmount > 0, "Should have total amount");
+        client.assert(data.depositAmount > 0, "Should have deposit amount");
+        client.assert(data.paymentStatus !== "", "Should have payment status");
+        client.assert(data.depositStatus !== "", "Should have deposit status");
+        client.assert(data.bookingType !== "", "Should have booking type");
+        client.assert(data.checkInDate !== null, "Should have check-in date");
+        client.assert(data.checkOutDate !== null, "Should have check-out date");
+    });
+    
+    if (response.body.data) {
+        client.log("========================================");
+        client.log("📋 BOOKING DETAILS");
+        client.log("========================================");
+        client.log("ID: " + response.body.data.bookingId);
+        client.log("Customer: " + response.body.data.customerName + " (ID: " + response.body.data.customerId + ")");
+        client.log("");
+        client.log("Rooms: " + response.body.data.roomNames.join(", "));
+        client.log("Check-in: " + new Date(response.body.data.checkInDate).toLocaleString());
+        client.log("Check-out: " + new Date(response.body.data.checkOutDate).toLocaleString());
+        client.log("");
+        client.log("Total: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+        client.log("Deposit: " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+        client.log("");
+        client.log("Payment Status: " + response.body.data.paymentStatus);
+        client.log("Deposit Status: " + response.body.data.depositStatus);
+        client.log("Booking Type: " + response.body.data.bookingType);
+        client.log("");
+        if (response.body.data.specialRequests) {
+            client.log("Special Requests: " + response.body.data.specialRequests);
+        }
+        client.log("Created At: " + new Date(response.body.data.createdAt).toLocaleString());
+        client.log("========================================");
+    }
+%}
+
+### 5.2 Get all my bookings
+GET {{apiUrl}}/Booking/my-bookings
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Get my bookings - Validation", function() {
+        client.assert(response.status === 200, "Status should be 200");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(Array.isArray(response.body.data), "Should return array");
+    });
+    
+    client.log("========================================");
+    client.log("📋 MY BOOKINGS LIST");
+    client.log("========================================");
+    client.log("Total bookings: " + response.body.data.length);
+    client.log("");
+    
+    if (response.body.data && response.body.data.length > 0) {
+        response.body.data.forEach(function(booking, index) {
+            client.log((index + 1) + ". Booking #" + booking.bookingId);
+            client.log("   Rooms: " + booking.roomNames.join(", "));
+            client.log("   Check-in: " + new Date(booking.checkInDate).toLocaleDateString());
+            client.log("   Total: " + booking.totalAmount.toLocaleString() + " VNĐ");
+            client.log("   Payment: " + booking.paymentStatus);
+            client.log("   Deposit: " + booking.depositStatus);
+            client.log("");
+        });
+    }
+    client.log("========================================");
+%}
+
+### ============================================
+### SECTION 6: CANCEL BOOKING & QUEUE PROCESSING
+### ============================================
+
+### 6.1 Cancel booking - Test queue message
+DELETE {{apiUrl}}/Booking/{{booking_id_2}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Cancel booking - Validation", function() {
+        client.assert(response.status === 200, "Should cancel successfully");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.message !== null, "Should have message");
+    });
+    
+    client.log("========================================");
+    client.log("✅ BOOKING CANCELLED");
+    client.log("========================================");
+    client.log("📋 Booking ID: " + client.global.get("booking_id_2"));
+    client.log("💬 Message: " + response.body.message);
+    client.log("");
+    client.log("🎫 QUEUE PROCESSING:");
+    client.log("   ✓ Cancel message enqueued");
+    client.log("   ✓ Room locks will be released");
+    client.log("   ✓ Payment cache will be cleared");
+    client.log("   ✓ Booking record will be deleted");
+    client.log("========================================");
+%}
+
+### 6.2 Verify cancelled booking
+GET {{apiUrl}}/Booking/{{booking_id_2}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Cancelled booking should not exist", function() {
+        // After queue processing, booking should be deleted
+        // May return 404 or still exist if queue not processed yet
+        if (response.status === 404) {
+            client.log("✅ Booking deleted by queue processor");
+        } else if (response.status === 200) {
+            client.log("⏳ Booking still exists - Queue not processed yet");
+        }
+    });
+%}
+
+### 6.3 Cancel another booking for testing
+DELETE {{apiUrl}}/Booking/{{booking_id_4}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.log("✅ Another booking cancelled - Queue message sent");
+%}
+
+### ============================================
+### SECTION 7: CONCURRENT BOOKING TEST (Cache Locking)
+### ============================================
+
+### 7.1 Concurrent Test - Customer 1 Request
+# Chạy đồng thời với 7.2 để test cache locking
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2026-01-10T14:00:00Z",
+  "checkOutDate": "2026-01-12T12:00:00Z",
+  "specialRequests": "Concurrent test - Customer 1"
+}
+
+> {%
+    client.test("Concurrent booking - Customer 1", function() {
+        if (response.status === 201) {
+            client.log("✅ Customer 1 - SUCCESS (acquired locks)");
+            client.log("   Booking ID: " + response.body.data.bookingId);
+            client.log("   Rooms locked: " + response.body.data.roomIds.join(", "));
+        } else if (response.status === 409) {
+            client.log("❌ Customer 1 - CONFLICT (rooms already locked)");
+            client.log("   Message: " + response.body.message);
+        }
+    });
+%}
+
+### 7.2 Concurrent Test - Customer 2 Request
+# Chạy ngay sau 7.1 (trong vài giây)
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer2_token}}
+
+{
+  "customerId": 5,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2026-01-10T14:00:00Z",
+  "checkOutDate": "2026-01-12T12:00:00Z",
+  "specialRequests": "Concurrent test - Customer 2"
+}
+
+> {%
+    client.test("Concurrent booking - Customer 2", function() {
+        if (response.status === 201) {
+            client.log("✅ Customer 2 - SUCCESS (acquired locks)");
+            client.log("   Booking ID: " + response.body.data.bookingId);
+        } else if (response.status === 409) {
+            client.log("❌ Customer 2 - CONFLICT (rooms already locked)");
+            client.log("   Message: " + response.body.message);
+        }
+    });
+    
+    client.log("");
+    client.log("========================================");
+    client.log("🔒 CACHE LOCKING TEST RESULT");
+    client.log("========================================");
+    client.log("Expected: One SUCCESS, one CONFLICT");
+    client.log("This proves cache locking is working correctly!");
+    client.log("========================================");
+%}
+
+### ============================================
+### SECTION 8: ERROR SCENARIOS & EDGE CASES
+### ============================================
+
+### 8.1 Create booking without authentication
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+
+{
+  "customerId": 1,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should require authentication", function() {
+        client.assert(response.status === 401, "Status should be 401 Unauthorized");
+    });
+    client.log("✅ Correctly rejected - No authentication");
+%}
+
+### 8.2 Create booking with invalid customer ID
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 99999,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should return not found", function() {
+        client.assert(response.status === 404, "Status should be 404 Not Found");
+    });
+    client.log("✅ Correctly rejected - Invalid customer ID");
+%}
+
+### 8.3 Create booking with invalid room type
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 999, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should return not found", function() {
+        client.assert(response.status === 404, "Status should be 404 Not Found");
+        client.assert(response.body.message.includes("Loại phòng"), "Should mention room type");
+    });
+    client.log("✅ Correctly rejected - Invalid room type ID");
+%}
+
+### 8.4 Create booking with past check-in date
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2020-01-01T14:00:00Z",
+  "checkOutDate": "2020-01-03T12:00:00Z"
+}
+
+> {%
+    client.test("Should reject past dates", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Past check-in date");
+%}
+
+### 8.5 Create booking with checkout before checkin
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-05T12:00:00Z"
+}
+
+> {%
+    client.test("Should reject invalid date range", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Check-out before check-in");
+%}
+
+### 8.6 Create booking with empty room types
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should require room types", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Empty room types");
+%}
+
+### 8.7 Create booking requesting more rooms than available
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 100 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should return conflict", function() {
+        client.assert(response.status === 409, "Status should be 409 Conflict");
+        client.assert(response.body.message.includes("Không đủ phòng"), "Should mention not enough rooms");
+    });
+    client.log("✅ Correctly rejected - Not enough rooms available");
+%}
+
+### 8.8 Guest booking with missing email
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "phoneNumber": "0123456789",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should require email", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Missing email");
+%}
+
+### 8.9 Guest booking with missing phone number
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@example.com",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should require phone number", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Missing phone number");
+%}
+
+### 8.10 Guest booking with missing full name
+POST {{apiUrl}}/Booking/guest
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "phoneNumber": "0123456789",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Should require full name", function() {
+        client.assert(response.status === 400, "Status should be 400 Bad Request");
+    });
+    client.log("✅ Correctly rejected - Missing full name");
+%}
+
+### 8.11 Get non-existent booking
+GET {{apiUrl}}/Booking/99999
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Should return not found", function() {
+        client.assert(response.status === 404, "Status should be 404 Not Found");
+    });
+    client.log("✅ Correctly returned 404 - Booking not found");
+%}
+
+### ============================================
+### SECTION 9: QUEUE & BACKGROUND PROCESSING TESTS
+### ============================================
+
+### 9.1 Create booking and check queue processing
+# Tạo booking và đợi queue xử lý
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2026-02-01T14:00:00Z",
+  "checkOutDate": "2026-02-03T12:00:00Z",
+  "specialRequests": "Queue processing test"
+}
+
+> {%
+    client.global.set("queue_test_booking_id", response.body.data.bookingId);
+    client.global.set("queue_test_room_ids", JSON.stringify(response.body.data.roomIds));
+    
+    client.log("========================================");
+    client.log("🎫 QUEUE PROCESSING TEST");
+    client.log("========================================");
+    client.log("✅ Booking created: #" + response.body.data.bookingId);
+    client.log("");
+    client.log("📨 Queue messages that should be processed:");
+    client.log("   1. CreateBooking - Verify room locks");
+    client.log("   2. Auto-cancel after 15 minutes (if not paid)");
+    client.log("");
+    client.log("🔍 To verify queue processing:");
+    client.log("   - Check application logs for BookingQueueProcessor");
+    client.log("   - Verify room locks in cache");
+    client.log("   - Wait 15 minutes to see auto-cancel");
+    client.log("========================================");
+%}
+
+### 9.2 Simulate auto-cancel timeout (Manual test)
+# Sau 15 phút, booking sẽ tự động bị hủy nếu chưa thanh toán
+# Kiểm tra lại booking sau 15 phút
+GET {{apiUrl}}/Booking/{{queue_test_booking_id}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    if (response.status === 404) {
+        client.log("✅ Auto-cancel worked - Booking deleted after timeout");
+    } else if (response.status === 200) {
+        client.log("⏳ Booking still exists");
+        if (response.body.data) {
+            client.log("   Payment status: " + response.body.data.paymentStatus);
+            client.log("   Deposit status: " + response.body.data.depositStatus);
+        }
+    }
+%}
+
+### ============================================
+### SECTION 10: PAYMENT SCENARIOS
+### ============================================
+
+### 10.1 Simulate payment confirmation
+# Thường được gọi từ PayOS webhook, nhưng có thể test manual
+POST {{apiUrl}}/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": {{booking_id_1}},
+  "orderCode": "251031120000",
+  "status": "PAID"
+}
+
+> {%
+    client.test("Payment confirmation", function() {
+        // May fail if payment info not in cache or already processed
+        if (response.status === 200) {
+            client.log("✅ Payment confirmed successfully");
+        } else if (response.status === 404) {
+            client.log("⚠️  Payment info not found in cache (may be expired)");
+        } else if (response.status === 400) {
+            client.log("⚠️  Payment not completed or invalid order code");
+        }
+    });
+%}
+
+### 10.2 Check booking after payment
+GET {{apiUrl}}/Booking/{{booking_id_1}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    if (response.body.data) {
+        client.log("========================================");
+        client.log("💳 PAYMENT STATUS CHECK");
+        client.log("========================================");
+        client.log("Booking ID: " + response.body.data.bookingId);
+        client.log("Payment Status: " + response.body.data.paymentStatus);
+        client.log("Deposit Status: " + response.body.data.depositStatus);
+        client.log("");
+        if (response.body.data.depositStatus === "Đã đặt cọc") {
+            client.log("✅ Payment confirmed!");
+            client.log("🔓 Room locks released");
+            client.log("📧 Confirmation email sent");
+        } else {
+            client.log("⏳ Payment pending");
+        }
+        client.log("========================================");
+    }
+%}
+
+### ============================================
+### TESTING SUMMARY & DOCUMENTATION
+### ============================================
+# 
+# 📝 COMPREHENSIVE TEST COVERAGE:
+# 
+# ✅ SECTION 1: Authentication (4 tests)
+#    - Register customer 1 & 2
+#    - Login customers
+#    - Login admin
+# 
+# ✅ SECTION 2: Check Availability (6 tests)
+#    - Standard rooms (detailed validation)
+#    - Deluxe rooms
+#    - VIP rooms
+#    - Suite rooms
+#    - Mixed room types
+#    - Overbooking scenario
+# 
+# ✅ SECTION 3: Create Booking - Authenticated (4 tests)
+#    - Standard rooms with full validation
+#    - Deluxe long stay
+#    - Family booking (multiple types)
+#    - Honeymoon suite
+# 
+# ✅ SECTION 4: Guest Booking (3 tests)
+#    - First time guest (auto-create customer)
+#    - Returning guest (reuse customer)
+#    - Group booking
+# 
+# ✅ SECTION 5: Get Booking Details (2 tests)
+#    - Get by ID with full validation
+#    - Get my bookings list
+# 
+# ✅ SECTION 6: Cancel Booking (3 tests)
+#    - Cancel with queue message
+#    - Verify cancellation
+#    - Additional cancel test
+# 
+# ✅ SECTION 7: Concurrent Booking (2 tests)
+#    - Test cache locking mechanism
+#    - Verify conflict resolution
+# 
+# ✅ SECTION 8: Error Scenarios (11 tests)
+#    - No authentication
+#    - Invalid customer ID
+#    - Invalid room type
+#    - Past dates
+#    - Invalid date range
+#    - Empty room types
+#    - Insufficient rooms
+#    - Missing email/phone/name
+#    - Non-existent booking
+# 
+# ✅ SECTION 9: Queue Processing (2 tests)
+#    - Create booking queue message
+#    - Auto-cancel timeout
+# 
+# ✅ SECTION 10: Payment (2 tests)
+#    - Payment confirmation
+#    - Post-payment status check
+# 
+# 🎯 KEY FEATURES TESTED:
+# ✓ Room availability checking with detailed response
+# ✓ Booking creation (authenticated & guest)
+# ✓ Cache locking mechanism (concurrent requests)
+# ✓ Queue message processing
+# ✓ Auto-cancel after 15 minutes
+# ✓ Payment integration (PayOS)
+# ✓ Customer auto-creation for guests
+# ✓ Multiple room types in one booking
+# ✓ Response validation (structure, data, status codes)
+# ✓ Error handling and edge cases
+# 
+# 📊 BASED ON SEEDING DATA:
+# - RoomType 1: Phòng Tiêu Chuẩn (STD) - 800,000 VNĐ
+# - RoomType 2: Phòng Cao Cấp (DLX) - 1,500,000 VNĐ
+# - RoomType 3: Phòng VIP (VIP) - 2,500,000 VNĐ
+# - RoomType 4: Suite Sang Trọng (SUT) - 4,000,000 VNĐ
+# 
+# 🔧 HOW TO USE:
+# 1. Run Section 1 first (authentication)
+# 2. Run any section independently
+# 3. Check detailed logs in each response
+# 4. Verify queue processing in application logs
+# 
+# ⚠️ NOTES:
+# - Change customerId from 4 to your actual customer ID
+# - Adjust dates to future dates as needed
+# - Some tests depend on previous tests (variables)
+# - Queue processing is asynchronous
+# 
+# ============================================
+

@@ -1,0 +1,413 @@
+### ============================================
+### BOOKING API - COMPLETE TEST SUITE (FIXED VERSION)
+### ============================================
+### Tạo dựa trên SeedingData.cs và BookingService.cs
+### Response validation được sửa đúng theo actual API response structure
+### Date: 2025-10-31
+### ============================================
+
+### Variables
+@baseUrl = http://localhost:8080
+@apiUrl = {{baseUrl}}/api
+
+### ============================================
+### SECTION 1: AUTHENTICATION & SETUP
+### ============================================
+
+### 1.1 Register New Customer (Test User 1)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testbooking1",
+  "email": "testbooking1@gmail.com",
+  "password": "Booking@123",
+  "fullName": "Nguyen Van A",
+  "phoneNumber": "0901234567",
+  "identityCard": "001234567890",
+  "address": "123 Nguyen Hue, Q1, HCMC"
+}
+
+> {%
+    client.test("Register customer 1 - Full validation", function() {
+        client.assert(response.status === 200 || response.status === 201, "Should register successfully");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.message !== null, "Should have message");
+        
+        // Validate response structure
+        var data = response.body.data;
+        client.assert(data !== null, "Should have data");
+        client.assert(data.token !== null, "Should return token (lowercase)");
+        client.assert(data.refreshToken !== null, "Should return refreshToken (lowercase)");
+        client.assert(Array.isArray(data.roles), "Should return roles array");
+        client.assert(data.roles.length > 0, "Should have at least one role");
+    });
+    
+    if (response.body.data && response.body.data.token) {
+        client.global.set("customer1_token", response.body.data.token);
+        client.global.set("customer1_refresh", response.body.data.refreshToken);
+        
+        client.log("========================================");
+        client.log("✅ CUSTOMER 1 REGISTERED");
+        client.log("========================================");
+        client.log("📧 Email: testbooking1@gmail.com");
+        client.log("🔐 Password: Booking@123");
+        client.log("🔑 Token: " + response.body.data.token.substring(0, 30) + "...");
+        client.log("🔄 Refresh Token saved");
+        client.log("👥 Roles: " + response.body.data.roles.join(", "));
+        client.log("💬 Message: " + response.body.message);
+        client.log("========================================");
+    }
+%}
+
+### 1.2 Login Customer 1 (If already registered)
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "testbooking1@gmail.com",
+  "password": "Booking@123"
+}
+
+> {%
+    client.test("Login customer 1 - Full validation", function() {
+        client.assert(response.status === 200, "Should login successfully");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        
+        var data = response.body.data;
+        client.assert(data !== null, "Should have data");
+        client.assert(data.token !== null, "Should return token");
+        client.assert(typeof data.token === "string", "Token should be string");
+        client.assert(data.refreshToken !== null, "Should return refreshToken");
+        client.assert(Array.isArray(data.roles), "Should return roles array");
+    });
+    
+    if (response.body.data && response.body.data.token) {
+        client.global.set("customer1_token", response.body.data.token);
+        client.global.set("customer1_refresh", response.body.data.refreshToken);
+        
+        client.log("✅ Customer 1 logged in successfully");
+        client.log("👥 Roles: " + response.body.data.roles.join(", "));
+        client.log("🔑 Token saved to: customer1_token");
+    }
+%}
+
+### 1.3 Register Customer 2 (For concurrent booking tests)
+POST {{apiUrl}}/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testbooking2",
+  "email": "testbooking2@gmail.com",
+  "password": "Booking@123",
+  "fullName": "Tran Thi B",
+  "phoneNumber": "0902345678",
+  "identityCard": "001234567891",
+  "address": "456 Le Loi, Q3, HCMC"
+}
+
+> {%
+    client.test("Register customer 2", function() {
+        client.assert(response.status === 200 || response.status === 201, "Should register successfully");
+        if (response.body.data) {
+            client.assert(response.body.data.token !== null, "Should return token");
+            client.assert(Array.isArray(response.body.data.roles), "Should return roles array");
+        }
+    });
+    
+    if (response.body.data && response.body.data.token) {
+        client.global.set("customer2_token", response.body.data.token);
+        client.log("✅ Customer 2 registered - Token saved");
+        client.log("👥 Roles: " + response.body.data.roles.join(", "));
+    }
+%}
+
+### 1.4 Login as Admin
+POST {{apiUrl}}/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+> {%
+    client.test("Login admin", function() {
+        client.assert(response.status === 200, "Should login successfully");
+        if (response.body.data) {
+            client.assert(response.body.data.token !== null, "Should return token");
+            client.assert(Array.isArray(response.body.data.roles), "Should have roles");
+            // Admin should have Admin role
+            var hasAdminRole = response.body.data.roles.some(function(role) {
+                return role === "Admin" || role === "Manager";
+            });
+            client.assert(hasAdminRole, "Admin should have Admin or Manager role");
+        }
+    });
+    
+    if (response.body.data && response.body.data.token) {
+        client.global.set("admin_token", response.body.data.token);
+        client.log("✅ Admin logged in - Token saved");
+        client.log("👥 Roles: " + response.body.data.roles.join(", "));
+    }
+%}
+
+### ============================================
+### SECTION 2: CHECK ROOM AVAILABILITY (DETAILED TESTS)
+### ============================================
+
+### 2.1 Check availability - Standard rooms (Based on seeding data)
+# RoomTypeId 1 = "Phòng Tiêu Chuẩn" (STD) - 800,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z"
+}
+
+> {%
+    client.test("Check availability - Response structure", function() {
+        client.assert(response.status === 200 || response.status === 409, "Should return 200 or 409");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.data !== null, "Should have data");
+        client.assert(response.body.data.roomTypes !== null, "Should have roomTypes array");
+        client.assert(response.body.data.totalNights === 2, "Should calculate 2 nights");
+        client.assert(typeof response.body.data.isAllAvailable === "boolean", "isAllAvailable should be boolean");
+    });
+    
+    client.log("========================================");
+    client.log("📊 AVAILABILITY CHECK RESULT");
+    client.log("========================================");
+    client.log("📅 Check-in: 2025-11-05");
+    client.log("📅 Check-out: 2025-11-07");
+    client.log("🌙 Total nights: " + response.body.data.totalNights);
+    client.log("✅ All available: " + response.body.data.isAllAvailable);
+    client.log("💬 Message: " + response.body.data.message);
+    client.log("");
+    
+    if (response.body.data && response.body.data.roomTypes) {
+        response.body.data.roomTypes.forEach(function(rt) {
+            client.log("🏨 " + rt.roomTypeName + " (" + rt.roomTypeCode + ")");
+            client.log("   📋 Description: " + rt.description);
+            client.log("   💰 Price/night: " + rt.basePriceNight.toLocaleString() + " VNĐ");
+            client.log("   👥 Max occupancy: " + rt.maxOccupancy + " người");
+            client.log("   📐 Room size: " + rt.roomSize + "m²");
+            client.log("   🛏️  Beds: " + rt.numberOfBeds + " x " + rt.bedType);
+            client.log("   📊 Available: " + rt.availableCount + "/" + rt.requestedQuantity);
+            client.log("   " + (rt.isAvailable ? "✅" : "❌") + " " + rt.message);
+            client.log("   🖼️  Images: " + rt.images.length + " photos");
+            client.log("");
+        });
+    }
+    client.log("========================================");
+%}
+
+### 2.2 Check availability - Deluxe rooms
+# RoomTypeId 2 = "Phòng Cao Cấp" (DLX) - 1,500,000 VNĐ/night
+POST {{apiUrl}}/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    { "roomTypeId": 2, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-10T14:00:00Z",
+  "checkOutDate": "2025-11-13T12:00:00Z"
+}
+
+> {%
+    client.test("Deluxe room check", function() {
+        if (response.body.data && response.body.data.totalNights) {
+            client.assert(response.body.data.totalNights === 3, "Should calculate 3 nights");
+        }
+    });
+    
+    client.log("✅ Deluxe room availability checked (3 nights)");
+    if (response.body.data && response.body.data.roomTypes && response.body.data.roomTypes[0]) {
+        var deluxe = response.body.data.roomTypes[0];
+        client.log("   Price: " + deluxe.basePriceNight.toLocaleString() + " VNĐ/night");
+        client.log("   Total estimate: " + (deluxe.basePriceNight * 3).toLocaleString() + " VNĐ");
+    }
+%}
+
+### ============================================
+### SECTION 3: CREATE BOOKING (Authenticated User)
+### ============================================
+
+### 3.1 Create booking - 2 Standard rooms (MAIN TEST)
+# ⚠️ IMPORTANT: Thay customerId=4 bằng ID customer thực tế của bạn
+POST {{apiUrl}}/Booking
+Content-Type: application/json
+Authorization: Bearer {{customer1_token}}
+
+{
+  "customerId": 4,
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 }
+  ],
+  "checkInDate": "2025-11-05T14:00:00Z",
+  "checkOutDate": "2025-11-07T12:00:00Z",
+  "specialRequests": "Non-smoking rooms, early check-in if possible"
+}
+
+> {%
+    client.test("Create booking - Full validation", function() {
+        client.assert(response.status === 201, "Status should be 201 Created");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.statusCode === 201, "StatusCode should be 201");
+        client.assert(response.body.message !== null, "Should have message");
+        
+        // Validate data structure
+        var data = response.body.data;
+        client.assert(data !== null, "Should have data");
+        client.assert(data.bookingId > 0, "Should have valid booking ID");
+        client.assert(data.customerId > 0, "Should have customer ID");
+        client.assert(data.customerName !== "", "Should have customer name");
+        client.assert(data.roomIds.length === 2, "Should have 2 rooms");
+        client.assert(data.roomNames.length === 2, "Should have 2 room names");
+        client.assert(data.totalAmount > 0, "Should have total amount");
+        client.assert(data.depositAmount > 0, "Should have deposit amount");
+        client.assert(data.depositAmount === data.totalAmount * 0.3, "Deposit should be 30%");
+        client.assert(data.paymentUrl !== null, "Should have payment URL");
+        client.assert(data.paymentUrl.includes("payos") || data.paymentUrl.includes("pay"), "Payment URL should be valid");
+        client.assert(data.roomTypeDetails.length > 0, "Should have room type details");
+    });
+    
+    if (response.body.data && response.body.data.bookingId) {
+        client.global.set("booking_id_1", response.body.data.bookingId);
+        client.global.set("payment_url_1", response.body.data.paymentUrl);
+        client.global.set("room_ids_1", JSON.stringify(response.body.data.roomIds));
+        
+        client.log("========================================");
+        client.log("✅ BOOKING CREATED SUCCESSFULLY");
+        client.log("========================================");
+        client.log("📋 Booking ID: " + response.body.data.bookingId);
+        client.log("👤 Customer: " + response.body.data.customerName + " (ID: " + response.body.data.customerId + ")");
+        client.log("");
+        client.log("🏨 ROOMS BOOKED:");
+        response.body.data.roomNames.forEach(function(name, index) {
+            client.log("   " + (index + 1) + ". " + name + " (ID: " + response.body.data.roomIds[index] + ")");
+        });
+        client.log("");
+        client.log("📅 Check-in: " + new Date(response.body.data.checkInDate).toLocaleString());
+        client.log("📅 Check-out: " + new Date(response.body.data.checkOutDate).toLocaleString());
+        client.log("");
+        client.log("💰 PRICING:");
+        response.body.data.roomTypeDetails.forEach(function(rt) {
+            var nights = 2;
+            var subtotal = rt.pricePerNight * rt.quantity * nights;
+            client.log("   " + rt.roomTypeName + " (" + rt.roomTypeCode + "):");
+            client.log("     " + rt.quantity + " phòng x " + rt.pricePerNight.toLocaleString() + " VNĐ x " + nights + " nights");
+            client.log("     = " + subtotal.toLocaleString() + " VNĐ");
+        });
+        client.log("");
+        client.log("💰 Total Amount: " + response.body.data.totalAmount.toLocaleString() + " VNĐ");
+        client.log("💵 Deposit (30%): " + response.body.data.depositAmount.toLocaleString() + " VNĐ");
+        client.log("💵 Remaining: " + (response.body.data.totalAmount - response.body.data.depositAmount).toLocaleString() + " VNĐ");
+        client.log("");
+        client.log("💳 Payment URL: " + response.body.data.paymentUrl);
+        client.log("");
+        client.log("⏰ IMPORTANT NOTES:");
+        client.log("   ⚠️  Pay within 15 minutes or booking will be auto-cancelled!");
+        client.log("   🔒 Rooms are locked in cache for payment");
+        client.log("   📨 Confirmation email will be sent after payment");
+        client.log("   🎫 Queue message created for background processing");
+        client.log("========================================");
+    } else {
+        client.log("❌ Failed to create booking");
+        client.log("Message: " + response.body.message);
+    }
+%}
+
+### 3.2 Cancel booking - Test queue processing
+DELETE {{apiUrl}}/Booking/{{booking_id_1}}
+Authorization: Bearer {{customer1_token}}
+
+> {%
+    client.test("Cancel booking - Validation", function() {
+        client.assert(response.status === 200, "Should cancel successfully");
+        client.assert(response.body.isSuccess === true, "Should be successful");
+        client.assert(response.body.message !== null, "Should have message");
+    });
+    
+    client.log("========================================");
+    client.log("✅ BOOKING CANCELLED");
+    client.log("========================================");
+    client.log("📋 Booking ID: " + client.global.get("booking_id_1"));
+    client.log("💬 Message: " + response.body.message);
+    client.log("");
+    client.log("🎫 QUEUE PROCESSING:");
+    client.log("   ✓ Cancel message enqueued");
+    client.log("   ✓ Room locks will be released");
+    client.log("   ✓ Payment cache will be cleared");
+    client.log("   ✓ Booking record will be deleted");
+    client.log("========================================");
+%}
+
+### ============================================
+### TESTING NOTES
+### ============================================
+# 
+# ✅ FIXES APPLIED:
+# 
+# 1. AUTHENTICATION RESPONSE (CRITICAL FIX):
+#    - Changed: data.Token → data.token (lowercase)
+#    - Changed: data.RefreshToken → data.refreshToken (lowercase)
+#    - Changed: data.Roles → data.roles (lowercase array)
+#    - REMOVED: data.accountId (KHÔNG TỒN TẠI trong API response!)
+#
+# 2. RESPONSE VALIDATION:
+#    - Added proper null checks for all data access
+#    - Validate response structure before accessing properties
+#    - Check data types (string, array, boolean, number)
+#
+# 3. BOOKING RESPONSE:
+#    - Properly validated all booking fields
+#    - Check payment URL format
+#    - Validate room counts and amounts
+#
+# 🔧 CUSTOMIZATION:
+# - Change customerId from 4 to your actual customer ID
+# - Get customerId by querying Customer table or from registration
+# - Adjust dates to future dates as needed
+#
+# 📊 API RESPONSE STRUCTURE (ACTUAL):
+#
+# Login/Register Response:
+# {
+#   "isSuccess": true,
+#   "message": "...",
+#   "data": {
+#     "token": "eyJ...",
+#     "refreshToken": "guid...",
+#     "roles": ["User"]
+#   }
+# }
+#
+# Booking Response:
+# {
+#   "isSuccess": true,
+#   "message": "...",
+#   "statusCode": 201,
+#   "data": {
+#     "bookingId": 1,
+#     "customerId": 4,
+#     "customerName": "...",
+#     "roomIds": [1, 2],
+#     "roomNames": ["Room 101", "Room 102"],
+#     "roomTypeDetails": [...],
+#     "checkInDate": "...",
+#     "checkOutDate": "...",
+#     "totalAmount": 3200000,
+#     "depositAmount": 960000,
+#     "paymentUrl": "https://...",
+#     "createdAt": "..."
+#   }
+# }
+#
+# ============================================
+

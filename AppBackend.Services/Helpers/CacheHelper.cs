@@ -169,6 +169,31 @@ namespace AppBackend.Services.Helpers
             }
         }
 
+        /// <summary>
+        /// Set cache với custom key (không dùng prefix enum)
+        /// </summary>
+        public void SetCustom<T>(string fullKey, T value, TimeSpan? ttl = null)
+        {
+            var absoluteExpiration = DateTimeOffset.UtcNow + (ttl ?? TimeSpan.FromHours(1));
+            _cache.Set(fullKey, value, absoluteExpiration);
+        }
+
+        /// <summary>
+        /// Get cache với custom key (không dùng prefix enum)
+        /// </summary>
+        public T? GetCustom<T>(string fullKey)
+        {
+            return _cache.TryGetValue(fullKey, out T value) ? value : default;
+        }
+
+        /// <summary>
+        /// Remove cache với custom key (không dùng prefix enum)
+        /// </summary>
+        public void RemoveCustom(string fullKey)
+        {
+            _cache.Remove(fullKey);
+        }
+
         private TimeSpan GetDefaultTTL(CachePrefix prefix)
         {
             return prefix switch

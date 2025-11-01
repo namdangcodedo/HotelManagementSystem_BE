@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Net.payOS;
 using Net.payOS.Types;
 using BusinessTransaction = AppBackend.BusinessObjects.Models.Transaction;
+using AppBackend.Services.Services.Email;
+using AppBackend.BusinessObjects.Enums;
 
 namespace AppBackend.Services.Services.BookingServices
 {
@@ -19,19 +21,25 @@ namespace AppBackend.Services.Services.BookingServices
         private readonly IBookingQueueService _queueService;
         private readonly PayOS _payOS;
         private readonly IConfiguration _configuration;
+        private readonly IEmailService _emailService;
+        private readonly AccountHelper _accountHelper;
 
         public BookingService(
             IUnitOfWork unitOfWork,
             CacheHelper cacheHelper,
             IBookingQueueService queueService,
             PayOS payOS,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IEmailService emailService,
+            AccountHelper accountHelper)
         {
             _unitOfWork = unitOfWork;
             _cacheHelper = cacheHelper;
             _queueService = queueService;
             _payOS = payOS;
             _configuration = configuration;
+            _emailService = emailService;
+            _accountHelper = accountHelper;
         }
 
         public async Task<ResultModel> CheckRoomAvailabilityAsync(CheckRoomAvailabilityRequest request)
@@ -235,6 +243,17 @@ namespace AppBackend.Services.Services.BookingServices
             return totalPrice;
         }
 
+        /// <summary>
+        /// Tìm BookingId từ OrderCode
+        /// </summary>
+        private async Task<int> FindBookingIdByOrderCodeAsync(long orderCode)
+        {
+            var transaction = (await _unitOfWork.Transactions.FindAsync(t => 
+                t.OrderCode == orderCode.ToString())).FirstOrDefault();
+            
+            return transaction?.BookingId ?? 0;
+        }
+
         public async Task<ResultModel> CreateBookingAsync(CreateBookingRequest request, int userId)
         {
             // 1. Validate customer
@@ -418,11 +437,18 @@ namespace AppBackend.Services.Services.BookingServices
                 var cancelUrl = _configuration["PayOS:CancelUrl"] ?? "http://localhost:5173/payment/cancel";
 
                 var roomNames = string.Join(", ", selectedRooms.Select(r => r.RoomName));
+                
+                // PayOS giới hạn description tối đa 25 ký tự
+                var description = $"Dat phong #{booking.BookingId}";
+                if (description.Length > 25)
+                {
+                    description = description.Substring(0, 25);
+                }
 
                 var paymentData = new PaymentData(
                     orderCode: orderCode,
                     amount: (int)booking.DepositAmount,
-                    description: $"Dat coc phong {roomNames}",
+                    description: description,
                     items: new List<ItemData>
                     {
                         new ItemData($"Booking #{booking.BookingId}", 1, (int)booking.DepositAmount)
@@ -613,18 +639,92 @@ namespace AppBackend.Services.Services.BookingServices
                 };
             }
 
-            // 3. Tìm hoặc tạo Customer (dựa trên PhoneNumber)
-            var existingCustomers = await _unitOfWork.Customers.FindAsync(c => 
-                c.PhoneNumber == request.PhoneNumber);
-
-            var customer = existingCustomers.FirstOrDefault();
-
-            if (customer == null)
+            // 3. Tạo Account và Customer mới cho Guest
+            Customer? customer = null;
+            string? newAccountPassword = null;
+            
+            // Kiểm tra xem email đã tồn tại trong hệ thống chưa
+            var existingAccount = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
+            
+            if (existingAccount != null)
             {
-                // Tạo customer mới (guest không có AccountId)
+                // Nếu account đã tồn tại, lấy customer liên kết
+                var existingCustomers = await _unitOfWork.Customers.FindAsync(c => c.AccountId == existingAccount.AccountId);
+                customer = existingCustomers.FirstOrDefault();
+                
+                if (customer != null)
+                {
+                    // Cập nhật thông tin customer nếu cần
+                    bool needUpdate = false;
+                    
+                    if (!string.IsNullOrEmpty(request.FullName) && customer.FullName != request.FullName)
+                    {
+                        customer.FullName = request.FullName;
+                        needUpdate = true;
+                    }
+                    
+                    if (!string.IsNullOrEmpty(request.PhoneNumber) && customer.PhoneNumber != request.PhoneNumber)
+                    {
+                        customer.PhoneNumber = request.PhoneNumber;
+                        needUpdate = true;
+                    }
+
+                    if (!string.IsNullOrEmpty(request.IdentityCard) && customer.IdentityCard != request.IdentityCard)
+                    {
+                        customer.IdentityCard = request.IdentityCard;
+                        needUpdate = true;
+                    }
+
+                    if (!string.IsNullOrEmpty(request.Address) && customer.Address != request.Address)
+                    {
+                        customer.Address = request.Address;
+                        needUpdate = true;
+                    }
+
+                    if (needUpdate)
+                    {
+                        customer.UpdatedAt = DateTime.UtcNow;
+                        await _unitOfWork.Customers.UpdateAsync(customer);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                }
+            }
+            else
+            {
+                // Tạo Account mới với mật khẩu mặc định "123456"
+                newAccountPassword = "123456";
+                var hashedPassword = _accountHelper.HashPassword(newAccountPassword);
+                
+                var newAccount = new Account
+                {
+                    Username = request.Email, // Sử dụng email làm username
+                    Email = request.Email,
+                    PasswordHash = hashedPassword,
+                    IsLocked = false,
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = null
+                };
+                
+                await _unitOfWork.Accounts.AddAsync(newAccount);
+                await _unitOfWork.SaveChangesAsync();
+                
+                // Gán role User cho account mới
+                var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
+                if (userRole != null)
+                {
+                    var accountRole = new AccountRole
+                    {
+                        AccountId = newAccount.AccountId,
+                        RoleId = userRole.RoleId
+                    };
+                    await _unitOfWork.Accounts.AddAccountRoleAsync(accountRole);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                
+                // Tạo Customer mới và liên kết với Account
                 customer = new Customer
                 {
-                    AccountId = null,
+                    AccountId = newAccount.AccountId,
                     FullName = request.FullName,
                     PhoneNumber = request.PhoneNumber,
                     IdentityCard = request.IdentityCard,
@@ -632,39 +732,19 @@ namespace AppBackend.Services.Services.BookingServices
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = null
                 };
-
+                
                 await _unitOfWork.Customers.AddAsync(customer);
                 await _unitOfWork.SaveChangesAsync();
             }
-            else
+            
+            if (customer == null)
             {
-                // Cập nhật thông tin customer nếu có thay đổi
-                bool needUpdate = false;
-
-                if (!string.IsNullOrEmpty(request.FullName) && customer.FullName != request.FullName)
+                return new ResultModel
                 {
-                    customer.FullName = request.FullName;
-                    needUpdate = true;
-                }
-
-                if (!string.IsNullOrEmpty(request.IdentityCard) && customer.IdentityCard != request.IdentityCard)
-                {
-                    customer.IdentityCard = request.IdentityCard;
-                    needUpdate = true;
-                }
-
-                if (!string.IsNullOrEmpty(request.Address) && customer.Address != request.Address)
-                {
-                    customer.Address = request.Address;
-                    needUpdate = true;
-                }
-
-                if (needUpdate)
-                {
-                    customer.UpdatedAt = DateTime.UtcNow;
-                    await _unitOfWork.Customers.UpdateAsync(customer);
-                    await _unitOfWork.SaveChangesAsync();
-                }
+                    IsSuccess = false,
+                    Message = "Không thể tạo thông tin khách hàng",
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
             }
 
             // 4. Generate unique lock ID
@@ -837,11 +917,18 @@ namespace AppBackend.Services.Services.BookingServices
                 var cancelUrl = _configuration["PayOS:CancelUrl"] ?? "http://localhost:5173/payment/cancel";
 
                 var roomNames = string.Join(", ", selectedRooms.Select(r => r.RoomName));
+                
+                // PayOS giới hạn description tối đa 25 ký tự
+                var description = $"Dat phong #{booking.BookingId}";
+                if (description.Length > 25)
+                {
+                    description = description.Substring(0, 25);
+                }
 
                 var paymentData = new PaymentData(
                     orderCode: orderCode,
                     amount: (int)booking.DepositAmount,
-                    description: $"Dat coc phong {roomNames} - {request.FullName}",
+                    description: description,
                     items: new List<ItemData>
                     {
                         new ItemData($"Booking #{booking.BookingId}", 1, (int)booking.DepositAmount)
@@ -853,7 +940,7 @@ namespace AppBackend.Services.Services.BookingServices
                 var createPayment = await _payOS.createPaymentLink(paymentData);
                 paymentUrl = createPayment.checkoutUrl;
 
-                // Save payment info to cache
+                // Save payment info to cache (bao gồm mật khẩu mới nếu có)
                 _cacheHelper.Set(CachePrefix.BookingPayment, booking.BookingId.ToString(), new
                 {
                     booking.BookingId,
@@ -864,7 +951,8 @@ namespace AppBackend.Services.Services.BookingServices
                     request.CheckInDate,
                     request.CheckOutDate,
                     CustomerEmail = request.Email,
-                    CustomerPhone = request.PhoneNumber
+                    CustomerPhone = request.PhoneNumber,
+                    NewAccountPassword = newAccountPassword // Lưu mật khẩu để gửi trong email
                 });
             }
             catch (Exception ex)
@@ -1223,6 +1311,171 @@ namespace AppBackend.Services.Services.BookingServices
             
             // Use existing GetMyBookingsAsync method
             return await GetMyBookingsAsync(customer.CustomerId);
+        }
+
+        /// <summary>
+        /// Webhook handler - Xác nhận thanh toán và gửi email
+        /// </summary>
+        public async Task<ResultModel> HandlePayOSWebhookAsync(PayOSWebhookRequest request)
+        {
+            try
+            {
+                // 1. Verify webhook từ PayOS SDK - sử dụng WebhookType
+                WebhookType webhookBody = new WebhookType(
+                    code: request.Code,
+                    desc: request.Desc,
+                    data: new WebhookData(
+                        orderCode: request.Data.OrderCode,
+                        amount: request.Data.Amount,
+                        description: request.Data.Description ?? "",
+                        accountNumber: request.Data.AccountNumber ?? "",
+                        reference: request.Data.Reference ?? "",
+                        transactionDateTime: request.Data.TransactionDateTime ?? "",
+                        currency: request.Data.Currency ?? "VND",
+                        paymentLinkId: request.Data.PaymentLinkId ?? "",
+                        code: request.Data.Code ?? "00",
+                        desc: request.Data.Desc ?? "",
+                        counterAccountBankId: request.Data.CounterAccountBankId,
+                        counterAccountBankName: request.Data.CounterAccountBankName,
+                        counterAccountName: request.Data.CounterAccountName,
+                        counterAccountNumber: request.Data.CounterAccountNumber,
+                        virtualAccountName: request.Data.VirtualAccountName,
+                        virtualAccountNumber: request.Data.VirtualAccountNumber
+                    ),
+                    signature: request.Signature,
+                    success: request.Success
+                );
+
+                var webhookData = _payOS.verifyPaymentWebhookData(webhookBody);
+                
+                if (webhookData == null || webhookData.code != "00")
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Thanh toán không thành công hoặc webhook không hợp lệ",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                // 2. Tìm BookingId từ OrderCode
+                long orderCode = webhookData.orderCode;
+                var bookingId = await FindBookingIdByOrderCodeAsync(orderCode);
+
+                if (bookingId == 0)
+                {
+                    // Fallback: Tìm trong cache
+                    bookingId = _cacheHelper.GetCustom<int>($"order_{orderCode}");
+                }
+
+                if (bookingId == 0)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Không tìm thấy booking từ orderCode",
+                        StatusCode = StatusCodes.Status404NotFound
+                    };
+                }
+
+                // 3. Lấy booking
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+                if (booking == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Booking không tồn tại",
+                        StatusCode = StatusCodes.Status404NotFound
+                    };
+                }
+
+                // 4. Cập nhật payment status
+                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
+                var paidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "DepositStatus" && c.CodeName == "Paid")).FirstOrDefault();
+
+                if (paidDepositStatus != null)
+                {
+                    booking.DepositStatusId = paidDepositStatus.CodeId;
+                    booking.UpdatedAt = DateTime.UtcNow;
+                    await _unitOfWork.Bookings.UpdateAsync(booking);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                // 5. Cập nhật transaction
+                var transaction = (await _unitOfWork.Transactions.FindAsync(t => 
+                    t.BookingId == bookingId && t.OrderCode == orderCode.ToString())).FirstOrDefault();
+
+                if (transaction != null && paidStatus != null)
+                {
+                    transaction.PaidAmount = webhookData.amount;
+                    transaction.PaymentStatusId = paidStatus.CodeId;
+                    transaction.TransactionRef = webhookData.reference;
+                    transaction.UpdatedAt = DateTime.UtcNow;
+                    await _unitOfWork.Transactions.UpdateAsync(transaction);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                // 6. Lấy password từ cache (nếu có)
+                var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
+                string? newAccountPassword = paymentInfo?.NewAccountPassword;
+
+                // 7. Gửi email xác nhận (EmailService tự truy vấn tất cả thông tin từ bookingId)
+                try
+                {
+                    await _emailService.SendBookingConfirmationEmailAsync(bookingId, newAccountPassword);
+                }
+                catch (Exception emailEx)
+                {
+                    // Log email error but don't fail the webhook
+                    Console.WriteLine($"Failed to send confirmation email: {emailEx.Message}");
+                }
+
+                // 8. Release room locks
+                if (paymentInfo != null)
+                {
+                    // Enqueue message to release locks
+                    var message = new BookingQueueMessage
+                    {
+                        MessageType = BookingMessageType.ConfirmPayment,
+                        Data = new BookingMessage
+                        {
+                            BookingId = bookingId,
+                            LockId = paymentInfo.LockId,
+                            RoomIds = paymentInfo.RoomIds,
+                            CheckInDate = paymentInfo.CheckInDate,
+                            CheckOutDate = paymentInfo.CheckOutDate
+                        }
+                    };
+
+                    await _queueService.EnqueueAsync(message);
+
+                    // Remove payment info from cache
+                    _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
+                }
+
+                // Remove orderCode mapping
+                _cacheHelper.RemoveCustom($"order_{orderCode}");
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    Message = "Xác nhận thanh toán thành công",
+                    Data = new { BookingId = bookingId },
+                    StatusCode = StatusCodes.Status200OK
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = $"Lỗi xử lý webhook: {ex.Message}",
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
+            }
         }
     }
 }

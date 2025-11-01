@@ -288,5 +288,63 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _bookingService.GetMyBookingsByAccountIdAsync(accountId);
             return StatusCode(result.StatusCode, result);
         }
+
+        /// <summary>
+        /// PayOS Webhook - Nhận thông báo thanh toán từ PayOS
+        /// </summary>
+        /// <remarks>
+        /// === WEBHOOK PAYOS ===
+        /// Endpoint này nhận webhook từ PayOS khi có giao dịch thanh toán thành công hoặc thất bại.
+        /// 
+        /// === LUỒNG XỬ LÝ ===
+        /// 1. Nhận webhook request từ PayOS với format chuẩn
+        /// 2. Lấy orderCode từ webhook data
+        /// 3. Tìm booking tương ứng với orderCode
+        /// 4. Kiểm tra trạng thái thanh toán (success = true, code = "00")
+        /// 5. Update trạng thái booking theo CommonCode:
+        ///    - PaymentStatus: Tìm theo CodeType="PaymentStatus" và CodeName="Paid"
+        ///    - DepositStatus: Tìm theo CodeType="DepositStatus" và CodeName="Paid"
+        /// 6. Tạo transaction record với:
+        ///    - TransactionStatus: CodeType="TransactionStatus", CodeName="Completed"
+        ///    - PaymentMethod: CodeType="PaymentMethod", CodeName="PayOS"
+        /// 7. Release room locks và remove cache
+        /// 8. Trả về response cho PayOS
+        /// 
+        /// === REQUEST FORMAT (từ PayOS) ===
+        /// ```json
+        /// {
+        ///   "code": "00",
+        ///   "desc": "success",
+        ///   "success": true,
+        ///   "data": {
+        ///     "orderCode": 20251012113337,
+        ///     "amount": 10000,
+        ///     "description": "CSO75IZQ5K2 Order O001",
+        ///     "reference": "FT25286000022021",
+        ///     "transactionDateTime": "2025-10-12 18:35:00",
+        ///     "accountNumber": "0001447963672",
+        ///     "currency": "VND",
+        ///     "paymentLinkId": "486aec6cbada48bab51feda44eab5003",
+        ///     "code": "00",
+        ///     "desc": "success"
+        ///   },
+        ///   "signature": "3b3e29ae48c204160a42ddc4b648e68294f7b8b0a8e8c8a565b167b900e17aee"
+        /// }
+        /// ```
+        /// 
+        /// === RESPONSE ===
+        /// Trả về thông tin booking đã được cập nhật với các trạng thái mới
+        /// 
+        /// === SECURITY ===
+        /// - AllowAnonymous vì PayOS webhook gọi từ external
+        /// - Nên verify signature trong production để đảm bảo request từ PayOS
+        /// </remarks>
+        [HttpPost("webhook/payos")]
+        [AllowAnonymous]
+        public async Task<IActionResult> PayOSWebhook([FromBody] PayOSWebhookRequest request)
+        {
+            var result = await _bookingService.HandlePayOSWebhookAsync(request);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }
