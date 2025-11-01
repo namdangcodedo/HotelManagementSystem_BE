@@ -20,7 +20,7 @@ Content-Type: application/json
 
 {
   "username": "testbooking1",
-  "email": "testbooking1@gmail.com",
+  "email": "nam_testing@gmail.com",
   "password": "Booking@123",
   "fullName": "Nguyen Van A",
   "phoneNumber": "0901234567",
