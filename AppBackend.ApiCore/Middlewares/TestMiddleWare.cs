@@ -1,6 +1,6 @@
 namespace SWP391_BackEnd.Middlewares;
 
-public class t
+public class TestMiddleWare
 {
     
 }
