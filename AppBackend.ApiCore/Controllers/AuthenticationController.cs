@@ -199,39 +199,127 @@ namespace AppBackend.ApiCore.Controllers
         /// <returns>Refresh token hiện tại</returns>
         /// <response code="200">Lấy refresh token thành công</response>
         /// <response code="404">Refresh token không tồn tại hoặc đã hết hạn</response>
-        [HttpGet("refresh-token")]
+        [HttpGet("get-refresh-token/{accountId}")]
         [Authorize]
-        public IActionResult GetRefreshToken()
+        public IActionResult GetRefreshToken(int accountId)
         {
-            var userClaimId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var refreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, accountId.ToString());
+            if (string.IsNullOrEmpty(refreshToken))
+                return NotFound(new ResultModel { IsSuccess = false, Message = "Refresh token không tồn tại hoặc đã hết hạn" });
             
-            if (string.IsNullOrEmpty(userClaimId))
-                return Unauthorized(new ResultModel
-                {
-                    IsSuccess = false,
-                    ResponseCode = "UNAUTHORIZED",
-                    StatusCode = 401,
-                    Message = "Không tìm thấy thông tin người dùng"
-                });
+            return Ok(new ResultModel { IsSuccess = true, Data = new { RefreshToken = refreshToken } });
+        }
 
-            var refreshToken = _cacheHelper.Get<string>(CachePrefix.RefreshToken, userClaimId);
-            
-            if (refreshToken == null)
-                return NotFound(new ResultModel
-                {
-                    IsSuccess = false,
-                    ResponseCode = "NOT_FOUND",
-                    StatusCode = 404,
-                    Message = "Refresh token không tồn tại hoặc đã hết hạn"
-                });
+        /// <summary>
+        /// Kích hoạt tài khoản bằng token từ email (không cần đăng nhập)
+        /// </summary>
+        /// <param name="token">Token mã hóa từ email kích hoạt</param>
+        /// <returns>Kết quả kích hoạt tài khoản</returns>
+        /// <response code="200">Kích hoạt thành công</response>
+        /// <response code="400">Token không hợp lệ hoặc đã hết hạn (quá 5 phút)</response>
+        /// <response code="404">Tài khoản không tồn tại</response>
+        /// <remarks>
+        /// API này cho phép user kích hoạt tài khoản từ link trong email mà không cần đăng nhập.
+        /// Token được mã hóa 2 chiều từ accountId để bảo mật.
+        /// 
+        /// === USAGE ===
+        /// - User nhận email với link: http://localhost:3000/activate-account/{token}
+        /// - Frontend gọi API này với token từ URL
+        /// - API decode token để lấy accountId và kích hoạt tài khoản
+        /// - Token chỉ có hiệu lực trong 5 phút
+        /// 
+        /// === EXAMPLE ===
+        /// GET /api/Authentication/activate-account/abc123xyz456
+        /// 
+        /// Response Success:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "message": "Kích hoạt tài khoản thành công! Bạn có thể đăng nhập ngay bây giờ.",
+        ///   "data": {
+        ///     "email": "user@example.com",
+        ///     "username": "user123"
+        ///   }
+        /// }
+        /// ```
+        /// 
+        /// Response Error (Expired):
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "message": "Link kích hoạt đã hết hạn (quá 5 phút). Vui lòng đăng ký lại."
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpGet("activate-account/{token}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ActivateAccount(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return ValidationError("Token không hợp lệ");
 
-            return Ok(new ResultModel
-            {
-                IsSuccess = true,
-                StatusCode = 200,
-                Data = new { RefreshToken = refreshToken },
-                Message = "Lấy refresh token thành công"
-            });
+            var result = await _authService.ActivateAccountAsync(token);
+            return HandleResult(result);
+        }
+
+        /// <summary>
+        /// Gửi lại email kích hoạt tài khoản (không cần đăng nhập)
+        /// </summary>
+        /// <param name="request">Email cần gửi lại link kích hoạt</param>
+        /// <returns>Kết quả gửi email</returns>
+        /// <response code="200">Gửi email thành công</response>
+        /// <response code="400">Tài khoản đã được kích hoạt</response>
+        /// <response code="404">Email không tồn tại</response>
+        /// <remarks>
+        /// API này cho phép user yêu cầu gửi lại email kích hoạt nếu:
+        /// - Link cũ đã hết hạn (quá 5 phút)
+        /// - Không nhận được email lần đầu
+        /// - Email bị mất hoặc xóa nhầm
+        /// 
+        /// === USAGE ===
+        /// - User nhập email đã đăng ký
+        /// - Frontend gọi API này
+        /// - Hệ thống tạo token mới và gửi email kích hoạt
+        /// - Token mới có hiệu lực 5 phút
+        /// 
+        /// === EXAMPLE ===
+        /// POST /api/Authentication/resend-activation-email
+        /// Body:
+        /// ```json
+        /// {
+        ///   "email": "user@example.com"
+        /// }
+        /// ```
+        /// 
+        /// Response Success:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "message": "Email kích hoạt đã được gửi lại! Vui lòng kiểm tra email và kích hoạt trong vòng 5 phút.",
+        ///   "data": {
+        ///     "email": "user@example.com",
+        ///     "message": "Link kích hoạt mới có hiệu lực trong 5 phút"
+        ///   }
+        /// }
+        /// ```
+        /// 
+        /// Response Error (Already Activated):
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "message": "Tài khoản đã được kích hoạt trước đó. Bạn có thể đăng nhập ngay."
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("resend-activation-email")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendActivationEmail([FromBody] SendOtpRequest request)
+        {
+            if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.Email))
+                return ValidationError("Email không hợp lệ");
+
+            var result = await _authService.ResendActivationEmailAsync(request.Email);
+            return HandleResult(result);
         }
     }
 }

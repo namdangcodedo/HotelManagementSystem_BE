@@ -41,7 +41,7 @@ namespace AppBackend.Services.Authentication
                 Username = request.Username,
                 PasswordHash = hashedPassword,
                 Email = request.Email,
-                IsLocked = false,
+                IsLocked = true, // ✅ Đặt IsLocked = true khi đăng ký
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = null,
                 UpdatedAt = null,
@@ -60,7 +60,7 @@ namespace AppBackend.Services.Authentication
                 FullName = request.FullName,
                 IdentityCard = request.IdentityCard,
                 Address = request.Address,
-                PhoneNumber = request.PhoneNumber, // Truyền số điện thoại
+                PhoneNumber = request.PhoneNumber,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = null,
                 UpdatedAt = null,
@@ -81,20 +81,29 @@ namespace AppBackend.Services.Authentication
                 await _unitOfWork.SaveChangesAsync();
             }
 
-            var refreshToken = _accountHelper.GenerateRefreshToken();
-            // Lưu refresh token vào cache
-            _cacheHelper.Set(CachePrefix.RefreshToken, account.AccountId.ToString(), refreshToken);
-            var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
-            var token = _accountHelper.CreateToken(account, roleNames);
+            // ✅ Lưu activation token vào cache với thời gian hết hạn 5 phút
+            var activationToken = Guid.NewGuid().ToString();
+            _cacheHelper.Set(CachePrefix.AccountActivation, account.AccountId.ToString(), activationToken, TimeSpan.FromMinutes(5));
+
+            // ✅ Gửi email kích hoạt
+            try
+            {
+                await _emailService.SendAccountActivationEmailAsync(account.AccountId);
+            }
+            catch (Exception emailEx)
+            {
+                Console.WriteLine($"Failed to send activation email: {emailEx.Message}");
+            }
+
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Đăng ký thành công",
+                Message = "Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản trong vòng 5 phút.",
                 Data = new
                 {
-                    Token = token,
-                    RefreshToken = refreshToken,
-                    Roles = roleNames
+                    AccountId = account.AccountId,
+                    Email = account.Email,
+                    Message = "Email kích hoạt đã được gửi"
                 }
             };
         }
@@ -366,5 +375,162 @@ namespace AppBackend.Services.Authentication
             var accessToken = _accountHelper.CreateToken(account, roleNames);
             return new ResultModel { IsSuccess = true, Message = "Lấy access token thành công.", Data = new { AccessToken = accessToken } };
         }
+
+        public async Task<ResultModel> ActivateAccountAsync(string token)
+        {
+            try
+            {
+                // 1. Decode token để lấy accountId (sử dụng AccountTokenHelper)
+                var accountTokenHelper = new AccountTokenHelper(_configuration);
+                var accountId = accountTokenHelper.DecodeAccountToken(token);
+
+                // 2. Kiểm tra xem token có tồn tại trong cache không (đã hết hạn 5 phút chưa)
+                var cachedToken = _cacheHelper.Get<string>(CachePrefix.AccountActivation, accountId.ToString());
+                if (cachedToken == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Link kích hoạt đã hết hạn (quá 5 phút). Vui lòng gửi lại email kích hoạt.",
+                        StatusCode = 400
+                    };
+                }
+
+                // 3. Lấy account từ database
+                var account = await _unitOfWork.Accounts.GetByIdAsync(accountId);
+                if (account == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Tài khoản không tồn tại.",
+                        StatusCode = 404
+                    };
+                }
+
+                // 4. Kiểm tra xem account đã được kích hoạt chưa
+                if (!account.IsLocked)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Tài khoản đã được kích hoạt trước đó. Bạn có thể đăng nhập ngay.",
+                        StatusCode = 400
+                    };
+                }
+
+                // 5. Kích hoạt account (set IsLocked = false)
+                account.IsLocked = false;
+                account.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.Accounts.UpdateAsync(account);
+                await _unitOfWork.SaveChangesAsync();
+
+                // 6. Xóa token khỏi cache
+                _cacheHelper.Remove(CachePrefix.AccountActivation, accountId.ToString());
+
+                // 7. ✅ Tạo access token và refresh token như Login
+                var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
+                var accessToken = _accountHelper.CreateToken(account, roleNames);
+                var refreshToken = _accountHelper.GenerateRefreshToken();
+                
+                // 8. ✅ Lưu refresh token vào cache
+                _cacheHelper.Set(CachePrefix.RefreshToken, account.AccountId.ToString(), refreshToken);
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    Message = "Kích hoạt tài khoản thành công! Đang tự động đăng nhập...",
+                    Data = new
+                    {
+                        Email = account.Email,
+                        Username = account.Username,
+                        Token = accessToken,
+                        RefreshToken = refreshToken,
+                        Roles = roleNames
+                    },
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = $"Token không hợp lệ: {ex.Message}",
+                    StatusCode = 400
+                };
+            }
+        }
+
+        public async Task<ResultModel> ResendActivationEmailAsync(string email)
+        {
+            try
+            {
+                // 1. Tìm account theo email
+                var account = await _unitOfWork.Accounts.GetByEmailAsync(email);
+                if (account == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Email không tồn tại trong hệ thống.",
+                        StatusCode = 404
+                    };
+                }
+
+                // 2. Kiểm tra xem account đã được kích hoạt chưa
+                if (!account.IsLocked)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Tài khoản đã được kích hoạt trước đó. Bạn có thể đăng nhập ngay.",
+                        StatusCode = 400
+                    };
+                }
+
+                // 3. Tạo token mới và lưu vào cache với thời gian hết hạn 5 phút
+                var activationToken = Guid.NewGuid().ToString();
+                _cacheHelper.Set(CachePrefix.AccountActivation, account.AccountId.ToString(), activationToken, TimeSpan.FromMinutes(5));
+
+                // 4. Gửi email kích hoạt
+                try
+                {
+                    await _emailService.SendAccountActivationEmailAsync(account.AccountId);
+                }
+                catch (Exception emailEx)
+                {
+                    Console.WriteLine($"Failed to send activation email: {emailEx.Message}");
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        Message = "Không thể gửi email kích hoạt. Vui lòng thử lại sau.",
+                        StatusCode = 500
+                    };
+                }
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    Message = "Email kích hoạt đã được gửi lại! Vui lòng kiểm tra email và kích hoạt trong vòng 5 phút.",
+                    Data = new
+                    {
+                        Email = account.Email,
+                        Message = "Link kích hoạt mới có hiệu lực trong 5 phút"
+                    },
+                    StatusCode = 200
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = $"Lỗi hệ thống: {ex.Message}",
+                    StatusCode = 500
+                };
+            }
+        }
     }
 }
+

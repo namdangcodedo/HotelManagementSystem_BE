@@ -10,10 +10,11 @@ namespace AppBackend.Services.Helpers
         RefreshToken,
         AccessToken,
         UserSession,
-        OtpCode, // Added for OTP caching
-        RoomBookingLock, // Lock phòng khi đang được đặt
-        BookingPayment // Thông tin booking chờ thanh toán
-        , RoomTypeInventory // Cache tạm thời cho số lượng phòng theo loại đang trong quá trình thanh toán
+        OtpCode, 
+        RoomBookingLock, 
+        BookingPayment 
+        , RoomTypeInventory
+        , AccountActivation 
     }
 
     public static class CachePrefixExtensions
@@ -29,6 +30,7 @@ namespace AppBackend.Services.Helpers
                 CachePrefix.RoomBookingLock => "room_booking_lock:",
                 CachePrefix.BookingPayment => "booking_payment:",
                 CachePrefix.RoomTypeInventory => "room_type_inventory:",
+                CachePrefix.AccountActivation => "account_activation:", // ✅ Mapping prefix
                 _ => "cache:"
             };
         }

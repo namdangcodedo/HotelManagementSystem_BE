@@ -13,4 +13,6 @@ public interface IAuthenticationService
     Task<ResultModel> ChangePasswordWithOtpAsync(string email, string otp, string newPassword);
     Task<ResultModel> ResetPasswordAsync(string email, string newPassword);
     Task<ResultModel> GetTokenAsync(int accountId, string refreshToken);
+    Task<ResultModel> ActivateAccountAsync(string token);
+    Task<ResultModel> ResendActivationEmailAsync(string email);
 }

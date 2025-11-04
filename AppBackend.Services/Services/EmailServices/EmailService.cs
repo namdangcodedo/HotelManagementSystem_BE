@@ -18,12 +18,14 @@ namespace AppBackend.Services.Services.Email
         private readonly IConfiguration _configuration;
         private readonly IUnitOfWork _unitOfWork;
         private readonly BookingTokenHelper _bookingTokenHelper;
+        private readonly AccountTokenHelper _accountTokenHelper;
 
-        public EmailService(IConfiguration configuration, IUnitOfWork unitOfWork, BookingTokenHelper bookingTokenHelper)
+        public EmailService(IConfiguration configuration, IUnitOfWork unitOfWork, BookingTokenHelper bookingTokenHelper, AccountTokenHelper accountTokenHelper)
         {
             _configuration = configuration;
             _unitOfWork = unitOfWork;
             _bookingTokenHelper = bookingTokenHelper;
+            _accountTokenHelper = accountTokenHelper;
         }
         public async Task SendEmail(string email, string subject, string body)
         {
@@ -172,6 +174,48 @@ namespace AppBackend.Services.Services.Email
 
             // 11. Gửi email
             await SendEmail(customerEmail, $"Xác nhận đặt phòng - StayHub Hotel", body);
+        }
+
+        public async Task SendAccountActivationEmailAsync(int accountId)
+        {
+            // 1. Lấy thông tin account
+            var account = await _unitOfWork.Accounts.GetByIdAsync(accountId);
+            if (account == null)
+            {
+                throw new Exception($"Account {accountId} không tồn tại");
+            }
+
+            // 2. Lấy thông tin customer để lấy FullName
+            var customers = await _unitOfWork.Customers.FindAsync(c => c.AccountId == accountId);
+            var customer = customers.FirstOrDefault();
+            var customerName = customer?.FullName ?? account.Username;
+
+            // 3. Mã hóa accountId thành token
+            var activationToken = _accountTokenHelper.EncodeAccountId(accountId);
+
+            // 4. Lấy frontend base URL từ configuration
+            var frontendBaseUrl = _configuration["FrontendSettings:BaseUrl"] ?? "http://localhost:3000";
+            var activationUrl = $"{frontendBaseUrl}/activate-account/{activationToken}";
+
+            // 5. Đọc template
+            var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
+                "TemplateEmail", "AccountActivationTemplate.html");
+            
+            string template;
+            using (var reader = new StreamReader(templatePath))
+            {
+                template = await reader.ReadToEndAsync();
+            }
+
+            // 6. Replace placeholders
+            var body = template
+                .Replace("{{CustomerName}}", customerName)
+                .Replace("{{Email}}", account.Email)
+                .Replace("{{Username}}", account.Username)
+                .Replace("{{ActivationUrl}}", activationUrl);
+
+            // 7. Gửi email
+            await SendEmail(account.Email, "Kích hoạt tài khoản - StayHub Hotel", body);
         }
     }
 }

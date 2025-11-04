@@ -19,6 +19,9 @@
     <None Update="TemplateEmail\BookingConfirmationTemplate.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="TemplateEmail\AccountActivationTemplate.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

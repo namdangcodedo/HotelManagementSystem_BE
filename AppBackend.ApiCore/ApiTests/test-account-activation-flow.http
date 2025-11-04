@@ -1,0 +1,216 @@
+### ===================================
+### ACCOUNT ACTIVATION FLOW - API TESTS
+### ===================================
+### 
+### Luồng kích hoạt tài khoản:
+### 1. Đăng ký tài khoản → Nhận email kích hoạt
+### 2. Click link trong email → Kích hoạt tài khoản
+### 3. Tự động đăng nhập sau khi kích hoạt
+### 4. Nếu link hết hạn → Gửi lại email kích hoạt
+###
+### Base URL: http://localhost:8080
+### Frontend URL: http://localhost:3000
+### ===================================
+
+@baseUrl = http://localhost:8080
+@frontendUrl = http://localhost:3000
+
+### ===================================
+### BƯỚC 1: Đăng ký tài khoản mới
+### ===================================
+### Response sẽ chứa:
+### - accountId
+### - email
+### - message: "Email kích hoạt đã được gửi"
+###
+### ⚠️ Tài khoản sẽ ở trạng thái IsLocked = true
+### ⚠️ Email kích hoạt có hiệu lực 5 phút
+
+POST {{baseUrl}}/api/Authentication/register
+Content-Type: application/json
+
+{
+  "username": "testuser123",
+  "email": "testuser123@example.com",
+  "password": "Test@123456",
+  "fullName": "Nguyễn Văn Test",
+  "phoneNumber": "0987654321",
+  "identityCard": "123456789",
+  "address": "123 Test Street, Hanoi"
+}
+
+### ===================================
+### BƯỚC 2: Kiểm tra email và lấy token
+### ===================================
+### Email sẽ có link dạng:
+### {{frontendUrl}}/activate-account/{TOKEN}
+###
+### VD: http://localhost:3000/activate-account/abc123xyz
+###
+### 📧 Mở email và copy token từ link
+
+@activationToken = PASTE_TOKEN_FROM_EMAIL_HERE
+
+### ===================================
+### BƯỚC 3: Kích hoạt tài khoản bằng token
+### ===================================
+### Response sẽ trả về:
+### - email, username
+### - token (access token) ✅
+### - refreshToken ✅
+### - roles
+###
+### ✨ Frontend có thể lưu token và auto-login!
+
+GET {{baseUrl}}/api/Authentication/activate-account/{{activationToken}}
+
+### Response Example (Success):
+### {
+###   "isSuccess": true,
+###   "message": "Kích hoạt tài khoản thành công! Đang tự động đăng nhập...",
+###   "data": {
+###     "email": "testuser123@example.com",
+###     "username": "testuser123",
+###     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+###     "refreshToken": "abc123xyz...",
+###     "roles": ["User"]
+###   },
+###   "statusCode": 200
+### }
+
+### ===================================
+### BƯỚC 4A: Test khi link đã hết hạn (> 5 phút)
+### ===================================
+### Đợi 5 phút rồi gọi lại API activate-account
+
+GET {{baseUrl}}/api/Authentication/activate-account/{{activationToken}}
+
+### Response Example (Expired):
+### {
+###   "isSuccess": false,
+###   "message": "Link kích hoạt đã hết hạn (quá 5 phút). Vui lòng gửi lại email kích hoạt.",
+###   "statusCode": 400
+### }
+
+### ===================================
+### BƯỚC 4B: Gửi lại email kích hoạt
+### ===================================
+### Dùng khi:
+### - Link đã hết hạn
+### - Không nhận được email
+### - Email bị xóa nhầm
+
+POST {{baseUrl}}/api/Authentication/resend-activation-email
+Content-Type: application/json
+
+{
+  "email": "testuser123@example.com"
+}
+
+### Response Example (Success):
+### {
+###   "isSuccess": true,
+###   "message": "Email kích hoạt đã được gửi lại! Vui lòng kiểm tra email và kích hoạt trong vòng 5 phút.",
+###   "data": {
+###     "email": "testuser123@example.com",
+###     "message": "Link kích hoạt mới có hiệu lực trong 5 phút"
+###   }
+### }
+
+### Sau khi nhận email mới, quay lại BƯỚC 2 để lấy token mới
+
+### ===================================
+### BƯỚC 5: Test đăng nhập bình thường (sau khi kích hoạt)
+### ===================================
+
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "testuser123@example.com",
+  "password": "Test@123456"
+}
+
+### Response sẽ giống như response của activate-account:
+### {
+###   "isSuccess": true,
+###   "message": "Đăng nhập thành công",
+###   "data": {
+###     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+###     "refreshToken": "abc123xyz...",
+###     "roles": ["User"]
+###   }
+### }
+
+### ===================================
+### ERROR CASES - Test các trường hợp lỗi
+### ===================================
+
+### Test 1: Token không hợp lệ
+GET {{baseUrl}}/api/Authentication/activate-account/invalid-token-123
+
+### Test 2: Email không tồn tại khi resend
+POST {{baseUrl}}/api/Authentication/resend-activation-email
+Content-Type: application/json
+
+{
+  "email": "notexist@example.com"
+}
+
+### Test 3: Tài khoản đã kích hoạt rồi (gọi activate lần 2)
+GET {{baseUrl}}/api/Authentication/activate-account/{{activationToken}}
+
+### Test 4: Gửi lại email cho tài khoản đã active
+POST {{baseUrl}}/api/Authentication/resend-activation-email
+Content-Type: application/json
+
+{
+  "email": "testuser123@example.com"
+}
+
+### Test 5: Đăng nhập với tài khoản chưa kích hoạt
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "inactive@example.com",
+  "password": "Test@123456"
+}
+
+### Response: "Tài khoản đã bị khoá"
+
+### ===================================
+### PROTECTED API - Test với token sau khi kích hoạt
+### ===================================
+
+@accessToken = PASTE_ACCESS_TOKEN_HERE
+
+### Test access protected endpoint
+GET {{baseUrl}}/api/Booking/my-bookings
+Authorization: Bearer {{accessToken}}
+
+### ===================================
+### NOTES FOR FRONTEND
+### ===================================
+### 
+### 1. Sau khi user đăng ký:
+###    - Hiển thị: "Vui lòng check email để kích hoạt tài khoản"
+###    - Có nút "Gửi lại email" nếu chưa nhận được
+###
+### 2. Khi user click link trong email:
+###    - Parse token từ URL: /activate-account/{token}
+###    - Gọi: GET /api/Authentication/activate-account/{token}
+###    - Lưu token + refreshToken vào localStorage
+###    - Redirect về trang chủ (đã đăng nhập)
+###
+### 3. Xử lý lỗi:
+###    - Nếu "Link đã hết hạn" → Hiển thị form nhập email
+###    - Gọi: POST /api/Authentication/resend-activation-email
+###    - Thông báo: "Email mới đã được gửi"
+###
+### 4. Auto-login sau activation:
+###    - Response có token và refreshToken
+###    - Không cần gọi API login nữa
+###    - Lưu token và redirect về dashboard
+### ===================================
+
