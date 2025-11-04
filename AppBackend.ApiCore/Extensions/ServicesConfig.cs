@@ -59,6 +59,7 @@ public static class ServicesConfig
         #region Helpers
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
+        services.AddScoped<BookingTokenHelper>();
         #endregion
 
         return services;

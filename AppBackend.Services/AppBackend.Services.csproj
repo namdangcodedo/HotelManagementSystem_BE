@@ -15,4 +15,10 @@
     <PackageReference Include="payOS" Version="1.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TemplateEmail\BookingConfirmationTemplate.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

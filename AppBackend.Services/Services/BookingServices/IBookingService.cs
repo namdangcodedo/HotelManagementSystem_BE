@@ -9,6 +9,7 @@ namespace AppBackend.Services.Services.BookingServices
         Task<ResultModel> CreateBookingAsync(CreateBookingRequest request, int userId);
         Task<ResultModel> CreateGuestBookingAsync(CreateGuestBookingRequest request);
         Task<ResultModel> GetBookingByIdAsync(int bookingId);
+        Task<ResultModel> GetBookingByTokenAsync(string token);
         Task<ResultModel> ConfirmPaymentAsync(ConfirmPaymentRequest request);
         Task<ResultModel> CancelBookingAsync(int bookingId, int userId);
         Task<ResultModel> GetMyBookingsAsync(int customerId);

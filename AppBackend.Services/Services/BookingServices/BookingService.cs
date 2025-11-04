@@ -23,6 +23,7 @@ namespace AppBackend.Services.Services.BookingServices
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
         private readonly AccountHelper _accountHelper;
+        private readonly BookingTokenHelper _bookingTokenHelper;
 
         public BookingService(
             IUnitOfWork unitOfWork,
@@ -31,7 +32,8 @@ namespace AppBackend.Services.Services.BookingServices
             PayOS payOS,
             IConfiguration configuration,
             IEmailService emailService,
-            AccountHelper accountHelper)
+            AccountHelper accountHelper,
+            BookingTokenHelper bookingTokenHelper)
         {
             _unitOfWork = unitOfWork;
             _cacheHelper = cacheHelper;
@@ -40,6 +42,7 @@ namespace AppBackend.Services.Services.BookingServices
             _configuration = configuration;
             _emailService = emailService;
             _accountHelper = accountHelper;
+            _bookingTokenHelper = bookingTokenHelper;
         }
 
         public async Task<ResultModel> CheckRoomAvailabilityAsync(CheckRoomAvailabilityRequest request)
@@ -952,7 +955,7 @@ namespace AppBackend.Services.Services.BookingServices
                     request.CheckOutDate,
                     CustomerEmail = request.Email,
                     CustomerPhone = request.PhoneNumber,
-                    NewAccountPassword = newAccountPassword // Lưu mật khẩu để gửi trong email
+                    NewAccountPassword = newAccountPassword
                 });
             }
             catch (Exception ex)
@@ -1116,6 +1119,27 @@ namespace AppBackend.Services.Services.BookingServices
                 },
                 StatusCode = StatusCodes.Status200OK
             };
+        }
+
+        public async Task<ResultModel> GetBookingByTokenAsync(string token)
+        {
+            try
+            {
+                // Decode token to get bookingId
+                var bookingId = _bookingTokenHelper.DecodeBookingToken(token);
+                
+                // Use existing method to get booking details
+                return await GetBookingByIdAsync(bookingId);
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = $"Token không hợp lệ: {ex.Message}",
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
         }
 
         public async Task<ResultModel> ConfirmPaymentAsync(ConfirmPaymentRequest request)
@@ -1358,9 +1382,14 @@ namespace AppBackend.Services.Services.BookingServices
                     };
                 }
 
+                // 2. Tìm BookingId từ OrderCode
                 long orderCode = webhookData.orderCode;
-                
                 var bookingId = await FindBookingIdByOrderCodeAsync(orderCode);
+
+                if (bookingId == 0)
+                {
+                    bookingId = _cacheHelper.GetCustom<int>($"order_{orderCode}");
+                }
 
                 if (bookingId == 0)
                 {

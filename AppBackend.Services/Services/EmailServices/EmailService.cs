@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AppBackend.Services.Helpers;
 
 namespace AppBackend.Services.Services.Email
 {
@@ -16,11 +17,13 @@ namespace AppBackend.Services.Services.Email
     {
         private readonly IConfiguration _configuration;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly BookingTokenHelper _bookingTokenHelper;
 
-        public EmailService(IConfiguration configuration, IUnitOfWork unitOfWork)
+        public EmailService(IConfiguration configuration, IUnitOfWork unitOfWork, BookingTokenHelper bookingTokenHelper)
         {
             _configuration = configuration;
             _unitOfWork = unitOfWork;
+            _bookingTokenHelper = bookingTokenHelper;
         }
         public async Task SendEmail(string email, string subject, string body)
         {
@@ -51,7 +54,7 @@ namespace AppBackend.Services.Services.Email
             await SendEmail(email, "Your OTP Code", body);
         }
 
-        public async Task SendBookingConfirmationEmail(string email, string customerName, int bookingId,
+        public async Task SendBookingConfirmationEmailAsync(string email, string customerName, int bookingId,
             DateTime checkInDate, DateTime checkOutDate, List<string> roomNames,
             decimal totalAmount, decimal depositAmount)
         {
@@ -64,7 +67,6 @@ namespace AppBackend.Services.Services.Email
                 template = await reader.ReadToEndAsync();
             }
 
-            // Calculate number of nights
             var numberOfNights = (checkOutDate - checkInDate).Days;
 
             // Build room list HTML
@@ -115,13 +117,20 @@ namespace AppBackend.Services.Services.Email
                 throw new Exception("Customer không có email để gửi");
             }
 
-            // 4. Lấy danh sách phòng
+            // 4. Mã hóa bookingId thành token
+            var bookingToken = _bookingTokenHelper.EncodeBookingId(bookingId);
+
+            // 5. Lấy frontend base URL từ configuration
+            var frontendBaseUrl = _configuration["FrontendSettings:BaseUrl"] ?? "http://localhost:3000";
+            var bookingDetailUrl = $"{frontendBaseUrl}/booking/{bookingToken}";
+
+            // 6. Lấy danh sách phòng
             var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
             var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
             var rooms = await Task.WhenAll(roomIds.Select(id => _unitOfWork.Rooms.GetByIdAsync(id)));
             var roomNames = rooms.Where(r => r != null).Select(r => r!.RoomName).ToList();
 
-            // 5. Đọc template
+            // 7. Đọc template
             var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
                 "TemplateEmail", "BookingConfirmationTemplate.html");
             
@@ -131,14 +140,10 @@ namespace AppBackend.Services.Services.Email
                 template = await reader.ReadToEndAsync();
             }
 
-            // 6. Calculate số đêm
+            // 8. Calculate số đêm
             var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
 
-            // 7. Build room list HTML
-            var roomListHtml = string.Join("", roomNames.Select(room => 
-                $"<div class=\"room-item\">✓ {room}</div>"));
-
-            // 8. Build account info section nếu có password mới
+            // 9. Build account info section nếu có password mới
             var accountInfoHtml = "";
             if (!string.IsNullOrEmpty(newAccountPassword))
             {
@@ -156,22 +161,17 @@ namespace AppBackend.Services.Services.Email
                 </div>";
             }
 
-            // 9. Replace placeholders
+            // 10. Replace placeholders
             var body = template
                 .Replace("{{CustomerName}}", customer.FullName ?? "Quý khách")
-                .Replace("{{BookingId}}", bookingId.ToString())
                 .Replace("{{CheckInDate}}", booking.CheckInDate.ToString("dd/MM/yyyy HH:mm"))
                 .Replace("{{CheckOutDate}}", booking.CheckOutDate.ToString("dd/MM/yyyy HH:mm"))
                 .Replace("{{NumberOfNights}}", numberOfNights.ToString())
-                .Replace("{{RoomList}}", roomListHtml)
-                .Replace("{{TotalAmount}}", booking.TotalAmount.ToString("N0"))
-                .Replace("{{DepositAmount}}", booking.DepositAmount.ToString("N0"))
-                .Replace("{{RemainingAmount}}", (booking.TotalAmount - booking.DepositAmount).ToString("N0"))
                 .Replace("{{AccountInfo}}", accountInfoHtml)
-                .Replace("{{CurrentDate}}", DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
+                .Replace("{{BookingDetailUrl}}", bookingDetailUrl);
 
-            // 10. Gửi email
-            await SendEmail(customerEmail, $"Xác nhận đặt phòng #{bookingId} - StayHub Hotel", body);
+            // 11. Gửi email
+            await SendEmail(customerEmail, $"Xác nhận đặt phòng - StayHub Hotel", body);
         }
     }
 }

@@ -228,6 +228,43 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
+        /// Lấy thông tin booking bằng token (không cần đăng nhập)
+        /// </summary>
+        /// <remarks>
+        /// API này cho phép guest xem thông tin booking từ link trong email mà không cần đăng nhập.
+        /// Token được mã hóa 2 chiều từ bookingId để bảo mật.
+        /// 
+        /// === USAGE ===
+        /// - Guest nhận email với link: http://localhost:3000/mybooking/{token}
+        /// - Frontend gọi API này với token từ URL
+        /// - API decode token để lấy bookingId và trả về thông tin booking
+        /// 
+        /// === EXAMPLE ===
+        /// GET /api/booking/mybooking/abc123xyz456
+        /// 
+        /// Response:
+        /// ```json
+        /// {
+        ///   "bookingId": 123,
+        ///   "customerName": "Nguyen Van A",
+        ///   "checkInDate": "2025-10-25T14:00:00",
+        ///   "checkOutDate": "2025-10-27T12:00:00",
+        ///   "roomNames": ["Deluxe 101", "Deluxe 102"],
+        ///   "totalAmount": 5000000,
+        ///   "depositAmount": 1500000,
+        ///   "paymentStatus": "Paid"
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpGet("mybooking/{token}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetBookingByToken(string token)
+        {
+            var result = await _bookingService.GetBookingByTokenAsync(token);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
         /// Xác nhận thanh toán từ PayOS callback
         /// </summary>
         /// <remarks>
