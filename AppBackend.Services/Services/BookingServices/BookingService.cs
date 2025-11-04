@@ -1358,15 +1358,9 @@ namespace AppBackend.Services.Services.BookingServices
                     };
                 }
 
-                // 2. Tìm BookingId từ OrderCode
                 long orderCode = webhookData.orderCode;
+                
                 var bookingId = await FindBookingIdByOrderCodeAsync(orderCode);
-
-                if (bookingId == 0)
-                {
-                    // Fallback: Tìm trong cache
-                    bookingId = _cacheHelper.GetCustom<int>($"order_{orderCode}");
-                }
 
                 if (bookingId == 0)
                 {
@@ -1374,11 +1368,10 @@ namespace AppBackend.Services.Services.BookingServices
                     {
                         IsSuccess = false,
                         Message = "Không tìm thấy booking từ orderCode",
-                        StatusCode = StatusCodes.Status404NotFound
+                        StatusCode = StatusCodes.Status200OK
                     };
                 }
 
-                // 3. Lấy booking
                 var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
                 if (booking == null)
                 {
@@ -1386,11 +1379,10 @@ namespace AppBackend.Services.Services.BookingServices
                     {
                         IsSuccess = false,
                         Message = "Booking không tồn tại",
-                        StatusCode = StatusCodes.Status404NotFound
+                        StatusCode = StatusCodes.Status200OK
                     };
                 }
 
-                // 4. Cập nhật payment status
                 var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                     c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
                 var paidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
@@ -1404,7 +1396,6 @@ namespace AppBackend.Services.Services.BookingServices
                     await _unitOfWork.SaveChangesAsync();
                 }
 
-                // 5. Cập nhật transaction
                 var transaction = (await _unitOfWork.Transactions.FindAsync(t => 
                     t.BookingId == bookingId && t.OrderCode == orderCode.ToString())).FirstOrDefault();
 
@@ -1418,25 +1409,20 @@ namespace AppBackend.Services.Services.BookingServices
                     await _unitOfWork.SaveChangesAsync();
                 }
 
-                // 6. Lấy password từ cache (nếu có)
                 var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
                 string? newAccountPassword = paymentInfo?.NewAccountPassword;
 
-                // 7. Gửi email xác nhận (EmailService tự truy vấn tất cả thông tin từ bookingId)
                 try
                 {
                     await _emailService.SendBookingConfirmationEmailAsync(bookingId, newAccountPassword);
                 }
                 catch (Exception emailEx)
                 {
-                    // Log email error but don't fail the webhook
                     Console.WriteLine($"Failed to send confirmation email: {emailEx.Message}");
                 }
 
-                // 8. Release room locks
                 if (paymentInfo != null)
                 {
-                    // Enqueue message to release locks
                     var message = new BookingQueueMessage
                     {
                         MessageType = BookingMessageType.ConfirmPayment,
@@ -1452,11 +1438,9 @@ namespace AppBackend.Services.Services.BookingServices
 
                     await _queueService.EnqueueAsync(message);
 
-                    // Remove payment info from cache
                     _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
                 }
 
-                // Remove orderCode mapping
                 _cacheHelper.RemoveCustom($"order_{orderCode}");
 
                 return new ResultModel
