@@ -30,6 +30,7 @@ builder.Services.AddControllers()
     });
 
 builder.Services.Configure<AppBackend.BusinessObjects.AppSettings.GoogleAuthSettings>(builder.Configuration.GetSection("GoogleAuth"));
+builder.Services.Configure<AppBackend.BusinessObjects.AppSettings.FrontendSettings>(builder.Configuration.GetSection("FrontendSettings"));
 
 var app = builder.Build();
 

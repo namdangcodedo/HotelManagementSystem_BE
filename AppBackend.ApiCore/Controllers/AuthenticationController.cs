@@ -3,6 +3,8 @@ using AppBackend.Services.Authentication;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.Helpers;
 using Microsoft.AspNetCore.Authorization;
+using AppBackend.BusinessObjects.AppSettings;
+using Microsoft.Extensions.Options;
 using LoginRequest = AppBackend.Services.ApiModels.LoginRequest;
 using RegisterRequest = AppBackend.Services.ApiModels.RegisterRequest;
 using ResetPasswordRequest = AppBackend.Services.ApiModels.ResetPasswordRequest;
@@ -19,15 +21,18 @@ namespace AppBackend.ApiCore.Controllers
         private readonly IAuthenticationService _authService;
         private readonly IGoogleLoginService _googleLoginService;
         private readonly CacheHelper _cacheHelper;
+        private readonly FrontendSettings _frontendSettings;
 
         public AuthenticationController(
             IAuthenticationService authService, 
             IGoogleLoginService googleLoginService, 
-            CacheHelper cacheHelper)
+            CacheHelper cacheHelper,
+            IOptions<FrontendSettings> frontendSettings)
         {
             _authService = authService;
             _googleLoginService = googleLoginService;
             _cacheHelper = cacheHelper;
+            _frontendSettings = frontendSettings.Value;
         }
 
         /// <summary>
@@ -93,18 +98,46 @@ namespace AppBackend.ApiCore.Controllers
         /// Xử lý callback từ Google sau khi đăng nhập
         /// </summary>
         /// <param name="code">Authorization code từ Google</param>
-        /// <returns>Access token và refresh token</returns>
-        /// <response code="200">Đăng nhập Google thành công</response>
+        /// <returns>Redirect về frontend với access token và refresh token</returns>
+        /// <response code="302">Redirect về frontend thành công</response>
         /// <response code="400">Mã xác thực không hợp lệ</response>
         [HttpGet("callback-google")]
         public async Task<IActionResult> GoogleCallback(string code)
         {
-            if (string.IsNullOrEmpty(code))
-                return ValidationError("Mã xác thực không hợp lệ");
+            try
+            {
+                if (string.IsNullOrEmpty(code))
+                {
+                    // Redirect về frontend với error
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_code&message=Mã xác thực không hợp lệ";
+                    return Redirect(errorUrl);
+                }
 
-            var userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(code);
-            var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
-            return HandleResult(result);
+                var userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(code);
+                var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
+
+                if (!result.IsSuccess)
+                {
+                    // Redirect về frontend với error
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=login_failed&message={Uri.EscapeDataString(result.Message)}";
+                    return Redirect(errorUrl);
+                }
+
+                // Lấy token và refreshToken từ result.Data
+                var data = result.Data as dynamic;
+                var token = data?.Token?.ToString() ?? "";
+                var refreshToken = data?.RefreshToken?.ToString() ?? "";
+
+                // Redirect về frontend với token và refreshToken
+                var successUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?token={Uri.EscapeDataString(token)}&refreshToken={Uri.EscapeDataString(refreshToken)}";
+                return Redirect(successUrl);
+            }
+            catch (Exception ex)
+            {
+                // Redirect về frontend với error
+                var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=server_error&message={Uri.EscapeDataString(ex.Message)}";
+                return Redirect(errorUrl);
+            }
         }
         
         /// <summary>
