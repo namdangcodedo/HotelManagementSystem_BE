@@ -26,6 +26,6 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./AppBackend.ApiCore/Dockerfile
+          file: ./Dockerfile
           push: true
           tags: namcoder/hotel_management_be:tagname
