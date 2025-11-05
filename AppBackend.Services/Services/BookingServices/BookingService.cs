@@ -548,7 +548,7 @@ namespace AppBackend.Services.Services.BookingServices
             // 11. Schedule auto-cancel after 15 minutes if not paid
             _ = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                await Task.Delay(TimeSpan.FromMinutes(1));//test 1 minute
                 var paymentInfo = _cacheHelper.Get<object>(CachePrefix.BookingPayment, booking.BookingId.ToString());
                 if (paymentInfo != null)
                 {
@@ -1031,7 +1031,7 @@ namespace AppBackend.Services.Services.BookingServices
             // 12. Schedule auto-cancel after 15 minutes if not paid
             _ = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromMinutes(15));
+                await Task.Delay(TimeSpan.FromMinutes(1));//test 1 minute
                 var paymentInfo = _cacheHelper.Get<object>(CachePrefix.BookingPayment, booking.BookingId.ToString());
                 if (paymentInfo != null)
                 {
