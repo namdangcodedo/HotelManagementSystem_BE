@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using AppBackend.Services.Authentication;
 using AppBackend.Services.ApiModels;
+using AppBackend.Services.ApiModels.AccountModel;
 using AppBackend.Services.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using AppBackend.BusinessObjects.AppSettings;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 using LoginRequest = AppBackend.Services.ApiModels.LoginRequest;
 using RegisterRequest = AppBackend.Services.ApiModels.RegisterRequest;
 using ResetPasswordRequest = AppBackend.Services.ApiModels.ResetPasswordRequest;
@@ -109,7 +111,7 @@ namespace AppBackend.ApiCore.Controllers
                 if (string.IsNullOrEmpty(code))
                 {
                     // Redirect về frontend với error
-                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_code&message=Mã xác thực không hợp lệ";
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_code&message={Uri.EscapeDataString("Mã xác thực không hợp lệ")}";
                     return Redirect(errorUrl);
                 }
 
@@ -119,17 +121,25 @@ namespace AppBackend.ApiCore.Controllers
                 if (!result.IsSuccess)
                 {
                     // Redirect về frontend với error
-                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=login_failed&message={Uri.EscapeDataString(result.Message)}";
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=login_failed&message={Uri.EscapeDataString(result.Message ?? "Đăng nhập thất bại")}";
                     return Redirect(errorUrl);
                 }
 
-                // Lấy token và refreshToken từ result.Data
-                var data = result.Data as dynamic;
-                var token = data?.Token?.ToString() ?? "";
-                var refreshToken = data?.RefreshToken?.ToString() ?? "";
+                // Serialize và deserialize để chuyển đổi anonymous object sang GoogleLoginResponse
+                var jsonData = JsonSerializer.Serialize(result.Data);
+                var loginResponse = JsonSerializer.Deserialize<GoogleLoginResponse>(jsonData, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+
+                if (loginResponse == null || string.IsNullOrEmpty(loginResponse.Token))
+                {
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=server_error&message={Uri.EscapeDataString("Không thể xử lý dữ liệu đăng nhập")}";
+                    return Redirect(errorUrl);
+                }
 
                 // Redirect về frontend với token và refreshToken
-                var successUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?token={Uri.EscapeDataString(token)}&refreshToken={Uri.EscapeDataString(refreshToken)}";
+                var successUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?token={Uri.EscapeDataString(loginResponse.Token)}&refreshToken={Uri.EscapeDataString(loginResponse.RefreshToken)}";
                 return Redirect(successUrl);
             }
             catch (Exception ex)
