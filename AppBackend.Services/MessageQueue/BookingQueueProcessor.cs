@@ -139,11 +139,54 @@ namespace AppBackend.Services.MessageQueue
                 cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, lockKey, data.LockId);
             }
 
-            // Remove booking from database if not confirmed
+            // Get booking and update status instead of deleting (for audit trail)
             var booking = await unitOfWork.Bookings.GetByIdAsync(data.BookingId);
             if (booking != null)
             {
-                await unitOfWork.Bookings.DeleteAsync(booking);
+                // Check if booking has any transactions
+                var transactions = (await unitOfWork.Transactions.FindAsync(t => t.BookingId == data.BookingId)).ToList();
+                
+                if (transactions.Any())
+                {
+                    // If transactions exist, update status to "Cancelled" instead of deleting
+                    var cancelledStatus = (await unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "TransactionStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+                    
+                    if (cancelledStatus != null)
+                    {
+                        foreach (var transaction in transactions)
+                        {
+                            transaction.TransactionStatusId = cancelledStatus.CodeId;
+                            transaction.UpdatedAt = DateTime.UtcNow;
+                            await unitOfWork.Transactions.UpdateAsync(transaction);
+                        }
+                    }
+                    
+                    // Update booking payment status to cancelled
+                    var cancelledPaymentStatus = (await unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "PaymentStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+                    
+                    if (cancelledPaymentStatus != null)
+                    {
+                        booking.PaymentStatusId = cancelledPaymentStatus.CodeId;
+                        booking.UpdatedAt = DateTime.UtcNow;
+                        await unitOfWork.Bookings.UpdateAsync(booking);
+                    }
+                }
+                else
+                {
+                    // No transactions - safe to delete completely
+                    // First delete BookingRoom records (child records)
+                    var bookingRooms = await unitOfWork.BookingRooms.FindAsync(br => br.BookingId == data.BookingId);
+                    foreach (var bookingRoom in bookingRooms)
+                    {
+                        await unitOfWork.BookingRooms.DeleteAsync(bookingRoom);
+                    }
+                    
+                    // Then delete the Booking (parent record)
+                    await unitOfWork.Bookings.DeleteAsync(booking);
+                }
+                
                 await unitOfWork.SaveChangesAsync();
             }
 
@@ -161,4 +204,3 @@ namespace AppBackend.Services.MessageQueue
         }
     }
 }
-

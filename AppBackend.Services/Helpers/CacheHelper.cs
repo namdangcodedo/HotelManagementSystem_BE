@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Caching.Memory;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace AppBackend.Services.Helpers
 {
@@ -196,6 +198,108 @@ namespace AppBackend.Services.Helpers
             _cache.Remove(fullKey);
         }
 
+        /// <summary>
+        /// Search cache entries theo prefix
+        /// </summary>
+        public List<CacheEntry> SearchByPrefix(CachePrefix? prefix = null)
+        {
+            var entries = GetAllCacheEntries();
+            
+            if (prefix.HasValue)
+            {
+                var prefixString = prefix.Value.ToPrefix();
+                return entries.Where(e => e.Key.StartsWith(prefixString)).ToList();
+            }
+            
+            return entries;
+        }
+
+        /// <summary>
+        /// Search cache entries theo pattern (contains)
+        /// </summary>
+        public List<CacheEntry> SearchByPattern(string pattern)
+        {
+            var entries = GetAllCacheEntries();
+            return entries.Where(e => e.Key.Contains(pattern, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        /// <summary>
+        /// Get all cache entries với thông tin chi tiết
+        /// </summary>
+        public List<CacheEntry> GetAllCacheEntries()
+        {
+            var result = new List<CacheEntry>();
+            
+            // Sử dụng reflection để truy cập internal cache entries
+            var coherentState = typeof(MemoryCache).GetField("_coherentState", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (coherentState == null) return result;
+
+            var coherentStateValue = coherentState.GetValue(_cache);
+            if (coherentStateValue == null) return result;
+
+            var entries = coherentStateValue.GetType().GetProperty("EntriesCollection", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (entries == null) return result;
+
+            var entriesCollection = entries.GetValue(coherentStateValue) as ICollection;
+            if (entriesCollection == null) return result;
+
+            foreach (var item in entriesCollection)
+            {
+                var keyProperty = item.GetType().GetProperty("Key");
+                var valueProperty = item.GetType().GetProperty("Value");
+                var expirationProperty = item.GetType().GetProperty("AbsoluteExpiration");
+                
+                if (keyProperty != null && valueProperty != null)
+                {
+                    var key = keyProperty.GetValue(item)?.ToString() ?? "";
+                    var value = valueProperty.GetValue(item);
+                    var expiration = expirationProperty?.GetValue(item) as DateTimeOffset?;
+                    
+                    result.Add(new CacheEntry
+                    {
+                        Key = key,
+                        Value = value,
+                        ExpiresAt = expiration,
+                        Type = value?.GetType().Name ?? "null"
+                    });
+                }
+            }
+            
+            return result;
+        }
+
+        /// <summary>
+        /// Get cache statistics by prefix
+        /// </summary>
+        public Dictionary<string, int> GetCacheStatistics()
+        {
+            var entries = GetAllCacheEntries();
+            var stats = new Dictionary<string, int>();
+            
+            foreach (CachePrefix prefix in Enum.GetValues(typeof(CachePrefix)))
+            {
+                var prefixString = prefix.ToPrefix();
+                var count = entries.Count(e => e.Key.StartsWith(prefixString));
+                stats[prefix.ToString()] = count;
+            }
+            
+            stats["Total"] = entries.Count;
+            return stats;
+        }
+
+        /// <summary>
+        /// Clear all cache entries by prefix
+        /// </summary>
+        public int ClearByPrefix(CachePrefix prefix)
+        {
+            var entries = SearchByPrefix(prefix);
+            foreach (var entry in entries)
+            {
+                _cache.Remove(entry.Key);
+            }
+            return entries.Count;
+        }
+
         private TimeSpan GetDefaultTTL(CachePrefix prefix)
         {
             return prefix switch
@@ -209,5 +313,18 @@ namespace AppBackend.Services.Helpers
                 _ => TimeSpan.FromHours(1)
             };
         }
+    }
+
+    /// <summary>
+    /// Model đại diện cho một cache entry
+    /// </summary>
+    public class CacheEntry
+    {
+        public string Key { get; set; } = string.Empty;
+        public object? Value { get; set; }
+        public DateTimeOffset? ExpiresAt { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTimeOffset.UtcNow;
+        public TimeSpan? TimeToLive => ExpiresAt.HasValue ? ExpiresAt.Value - DateTimeOffset.UtcNow : null;
     }
 }

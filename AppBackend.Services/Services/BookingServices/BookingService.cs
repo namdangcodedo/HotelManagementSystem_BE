@@ -75,24 +75,10 @@ namespace AppBackend.Services.Services.BookingServices
                 var allRoomsOfType = await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == roomTypeId);
                 var availableRooms = new List<Room>();
 
+                // ✅ REFACTORED: Sử dụng hàm chung IsRoomAvailableAsync
                 foreach (var room in allRoomsOfType)
                 {
-                    // Kiểm tra trong cache xem phòng có đang bị lock không
-                    var lockKey = $"{room.RoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                    var lockedBy = _cacheHelper.Get<string>(CachePrefix.RoomBookingLock, lockKey);
-
-                    if (!string.IsNullOrEmpty(lockedBy))
-                    {
-                        continue; // Phòng đang bị lock, bỏ qua
-                    }
-
-                    // Kiểm tra trong database xem phòng có đang được đặt không
-                    var existingBookings = await _unitOfWork.BookingRooms.FindAsync(br =>
-                        br.RoomId == room.RoomId &&
-                        br.Booking.CheckInDate < request.CheckOutDate &&
-                        br.Booking.CheckOutDate > request.CheckInDate);
-
-                    if (!existingBookings.Any())
+                    if (await IsRoomAvailableAsync(room.RoomId, request.CheckInDate, request.CheckOutDate))
                     {
                         availableRooms.Add(room);
                     }
@@ -174,6 +160,59 @@ namespace AppBackend.Services.Services.BookingServices
         }
 
         /// <summary>
+        /// Kiểm tra phòng có available không (dùng chung cho tất cả flows)
+        /// Logic: Phòng available khi:
+        /// 1. Không bị lock trong cache
+        /// 2. Không có booking với transaction status = "Completed"
+        /// </summary>
+        private async Task<bool> IsRoomAvailableAsync(int roomId, DateTime checkInDate, DateTime checkOutDate, string? ignoreLockId = null)
+        {
+            // 1. Kiểm tra cache lock
+            var lockKey = $"{roomId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
+            var lockedBy = _cacheHelper.Get<string>(CachePrefix.RoomBookingLock, lockKey);
+
+            // Nếu phòng bị lock và không phải lock của mình thì không available
+            if (!string.IsNullOrEmpty(lockedBy) && lockedBy != ignoreLockId)
+            {
+                return false;
+            }
+
+            // 2. Kiểm tra booking trong database
+            var existingBookings = (await _unitOfWork.BookingRooms.FindAsync(br =>
+                br.RoomId == roomId &&
+                br.Booking.CheckInDate < checkOutDate &&
+                br.Booking.CheckOutDate > checkInDate)).ToList();
+
+            if (!existingBookings.Any())
+            {
+                return true; // Không có booking nào
+            }
+
+            // 3. Kiểm tra xem có booking nào đã thanh toán thành công chưa
+            var completedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
+
+            if (completedStatus == null)
+            {
+                return true; // Không tìm thấy status code, cho phép đặt
+            }
+
+            foreach (var bookingRoom in existingBookings)
+            {
+                var transactions = await _unitOfWork.Transactions.FindAsync(t => 
+                    t.BookingId == bookingRoom.BookingId);
+
+                // Nếu có bất kỳ transaction nào đã Completed, phòng đã được đặt
+                if (transactions.Any(t => t.TransactionStatusId == completedStatus.CodeId))
+                {
+                    return false;
+                }
+            }
+
+            return true; // Không có booking nào đã thanh toán thành công
+        }
+
+        /// <summary>
         /// Tìm và chọn phòng available theo loại phòng
         /// </summary>
         private async Task<List<Room>> FindAvailableRoomsByTypeAsync(int roomTypeId, int quantity, DateTime checkInDate, DateTime checkOutDate)
@@ -188,22 +227,8 @@ namespace AppBackend.Services.Services.BookingServices
                 if (availableRooms.Count >= quantity)
                     break; // Đã đủ số lượng
 
-                // Kiểm tra trong cache xem phòng có đang bị lock không
-                var lockKey = $"{room.RoomId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
-                var lockedBy = _cacheHelper.Get<string>(CachePrefix.RoomBookingLock, lockKey);
-
-                if (!string.IsNullOrEmpty(lockedBy))
-                {
-                    continue; // Phòng đang bị lock, bỏ qua
-                }
-
-                // Kiểm tra trong database xem phòng có đang được đặt không
-                var existingBookings = await _unitOfWork.BookingRooms.FindAsync(br =>
-                    br.RoomId == room.RoomId &&
-                    br.Booking.CheckInDate < checkOutDate &&
-                    br.Booking.CheckOutDate > checkInDate);
-
-                if (!existingBookings.Any())
+                // Sử dụng hàm chung để kiểm tra availability
+                if (await IsRoomAvailableAsync(room.RoomId, checkInDate, checkOutDate))
                 {
                     availableRooms.Add(room);
                 }
@@ -1242,12 +1267,52 @@ namespace AppBackend.Services.Services.BookingServices
                 };
             }
 
+            // ✅ FIX: Update trạng thái Transaction thành "Cancelled"
+            var cancelledTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "TransactionStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+            
+            if (cancelledTransactionStatus != null)
+            {
+                // Update tất cả transactions của booking này thành Cancelled
+                var transactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId);
+                foreach (var transaction in transactions)
+                {
+                    transaction.TransactionStatusId = cancelledTransactionStatus.CodeId;
+                    transaction.UpdatedAt = DateTime.UtcNow;
+                    transaction.UpdatedBy = userId;
+                    await _unitOfWork.Transactions.UpdateAsync(transaction);
+                }
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            // ✅ FIX: Update trạng thái Booking PaymentStatus thành "Cancelled"
+            var cancelledPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+            
+            if (cancelledPaymentStatus != null)
+            {
+                booking.PaymentStatusId = cancelledPaymentStatus.CodeId;
+                booking.UpdatedAt = DateTime.UtcNow;
+                booking.UpdatedBy = userId;
+                await _unitOfWork.Bookings.UpdateAsync(booking);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
             // Get payment info from cache
             var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
             
             // Get booking rooms
             var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
             var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
+
+            // Release room locks nếu có
+            if (paymentInfo != null && !string.IsNullOrEmpty(paymentInfo.LockId?.ToString()))
+            {
+                _cacheHelper.ReleaseAllBookingLocks(roomIds, booking.CheckInDate, booking.CheckOutDate, paymentInfo.LockId.ToString());
+            }
+            
+            // Remove payment info from cache
+            _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
 
             // Enqueue cancel message
             var message = new BookingQueueMessage
@@ -1259,7 +1324,7 @@ namespace AppBackend.Services.Services.BookingServices
                     RoomIds = roomIds,
                     CheckInDate = booking.CheckInDate,
                     CheckOutDate = booking.CheckOutDate,
-                    LockId = paymentInfo?.LockId ?? ""
+                    LockId = paymentInfo?.LockId?.ToString() ?? ""
                 }
             };
 
@@ -1268,7 +1333,7 @@ namespace AppBackend.Services.Services.BookingServices
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Hủy booking thành công",
+                Message = "Hủy booking thành công. Transaction và Booking đã được cập nhật trạng thái 'Cancelled'",
                 StatusCode = StatusCodes.Status200OK
             };
         }

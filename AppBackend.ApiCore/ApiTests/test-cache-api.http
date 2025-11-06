@@ -1,0 +1,94 @@
+### Cache Search API Tests
+### Base URL: http://localhost:8080
+
+### ============================================
+### 1. Get cache statistics (thống kê tổng quan)
+### ============================================
+GET http://localhost:8080/api/Cache/statistics
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 2. Get danh sách các cache prefixes có sẵn
+### ============================================
+GET http://localhost:8080/api/Cache/prefixes
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 3. Search cache theo prefix - RefreshToken
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-prefix?prefix=RefreshToken
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 4. Search cache theo prefix - RoomBookingLock
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-prefix?prefix=RoomBookingLock
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 5. Search cache theo prefix - OtpCode
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-prefix?prefix=OtpCode
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 6. Search cache theo prefix - BookingPayment
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-prefix?prefix=BookingPayment
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 7. Get tất cả cache entries
+### ============================================
+GET http://localhost:8080/api/Cache/all
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 8. Search cache theo pattern (contains)
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-pattern?pattern=refresh
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 9. Search cache theo pattern - room
+### ============================================
+GET http://localhost:8080/api/Cache/search-by-pattern?pattern=room
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 10. Get chi tiết một cache entry theo key
+### ============================================
+### Thay "your-cache-key" bằng key thực tế từ kết quả search
+GET http://localhost:8080/api/Cache/entry/refresh_token:1
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 11. Remove một cache entry theo key
+### ============================================
+### ⚠️ WARNING: Sẽ xóa cache entry này!
+DELETE http://localhost:8080/api/Cache/entry/otp_code:test@example.com
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### 12. Clear tất cả cache entries theo prefix
+### ============================================
+### ⚠️ WARNING: Sẽ xóa TẤT CẢ cache với prefix này!
+### Ví dụ: Clear OtpCode
+DELETE http://localhost:8080/api/Cache/clear-by-prefix?prefix=OtpCode
+Authorization: Bearer {{accessToken}}
+
+### ============================================
+### NOTES:
+### ============================================
+### - Tất cả các API này chỉ dành cho Admin
+### - AccessToken cần có role "Admin"
+### - Cache prefixes có sẵn:
+###   * RefreshToken: Refresh tokens của users (TTL: 7 days)
+###   * AccessToken: Access tokens (TTL: 30 minutes)
+###   * UserSession: User sessions (TTL: 2 hours)
+###   * OtpCode: OTP codes cho reset password
+###   * RoomBookingLock: Locks của phòng đang được booking (TTL: 10 minutes)
+###   * BookingPayment: Payment information của bookings (TTL: 15 minutes)
+###   * RoomTypeInventory: Inventory của room types (TTL: 15 minutes)
+###   * AccountActivation: Account activation tokens
+
