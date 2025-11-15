@@ -194,6 +194,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     EmployeeTypeId = table.Column<int>(type: "int", nullable: false),
                     HireDate = table.Column<DateOnly>(type: "date", nullable: false),
                     TerminationDate = table.Column<DateOnly>(type: "date", nullable: true),
+                    BaseSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -315,6 +316,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     AttendanceId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    DeviceEmployeeId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     CheckIn = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CheckOut = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
@@ -359,6 +361,42 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Employee",
                         principalColumn: "EmployeeId",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PayrollDisbursement",
+                columns: table => new
+                {
+                    PayrollDisbursementId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    PayrollMonth = table.Column<int>(type: "int", nullable: false),
+                    PayrollYear = table.Column<int>(type: "int", nullable: false),
+                    BaseSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DisbursedAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    StatusId = table.Column<int>(type: "int", nullable: false),
+                    DisbursedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    CreatedBy = table.Column<int>(type: "int", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PayrollDisbursement", x => x.PayrollDisbursementId);
+                    table.ForeignKey(
+                        name: "FK_PayrollDisbursement_CommonCode_StatusId",
+                        column: x => x.StatusId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PayrollDisbursement_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employee",
+                        principalColumn: "EmployeeId",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -1005,6 +1043,16 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "NotificationTypeId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PayrollDisbursement_EmployeeId",
+                table: "PayrollDisbursement",
+                column: "EmployeeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PayrollDisbursement_StatusId",
+                table: "PayrollDisbursement",
+                column: "StatusId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Room_RoomTypeId",
                 table: "Room",
                 column: "RoomTypeId");
@@ -1095,6 +1143,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "Notification");
+
+            migrationBuilder.DropTable(
+                name: "PayrollDisbursement");
 
             migrationBuilder.DropTable(
                 name: "RoomAmenity");

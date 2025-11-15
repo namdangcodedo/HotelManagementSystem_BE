@@ -31,6 +31,10 @@ public class Employee
     public DateOnly? TerminationDate { get; set; }
 
     [Required]
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal BaseSalary { get; set; }
+
+    [Required]
     public DateTime CreatedAt { get; set; }
 
     public int? CreatedBy { get; set; }
@@ -44,4 +48,5 @@ public class Employee
     public virtual ICollection<EmployeeSchedule> EmployeeSchedules { get; set; } = new List<EmployeeSchedule>();
     public virtual ICollection<HousekeepingTask> HousekeepingTasks { get; set; } = new List<HousekeepingTask>();
     public virtual ICollection<Salary> Salaries { get; set; } = new List<Salary>();
+    public virtual ICollection<PayrollDisbursement> PayrollDisbursements { get; set; } = new List<PayrollDisbursement>();
 }

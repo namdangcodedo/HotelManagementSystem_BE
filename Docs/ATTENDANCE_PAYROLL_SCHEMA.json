@@ -1,0 +1,1222 @@
+{
+  "documentInfo": {
+    "title": "Schema Chấm Công và Tính Lương",
+    "version": "1.0",
+    "createdDate": "2025-11-11",
+    "description": "Schema đầy đủ cho hệ thống chấm công, quản lý ca làm việc và tính lương nhân viên"
+  },
+  
+  "databaseSchema": {
+    "tables": {
+      "Employee": {
+        "tableName": "Employee",
+        "description": "Thông tin nhân viên và lương cơ bản",
+        "columns": {
+          "EmployeeId": {
+            "type": "int",
+            "constraints": "PRIMARY KEY, IDENTITY",
+            "description": "ID nhân viên"
+          },
+          "AccountId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> Account",
+            "description": "Liên kết với tài khoản đăng nhập"
+          },
+          "FullName": {
+            "type": "nvarchar(100)",
+            "constraints": "NOT NULL",
+            "description": "Họ tên nhân viên"
+          },
+          "PhoneNumber": {
+            "type": "nvarchar(100)",
+            "constraints": "NULL",
+            "description": "Số điện thoại"
+          },
+          "EmployeeTypeId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> CommonCode",
+            "description": "Loại nhân viên (Full-time, Part-time, Contract)"
+          },
+          "HireDate": {
+            "type": "date",
+            "constraints": "NOT NULL",
+            "description": "Ngày bắt đầu làm việc"
+          },
+          "TerminationDate": {
+            "type": "date",
+            "constraints": "NULL",
+            "description": "Ngày kết thúc hợp đồng"
+          },
+          "BaseSalary": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Lương cơ bản hàng tháng (VND)",
+            "example": 8000000.00
+          },
+          "CreatedAt": {
+            "type": "datetime2",
+            "constraints": "NOT NULL, DEFAULT GETDATE()",
+            "description": "Thời gian tạo bản ghi"
+          },
+          "CreatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người tạo bản ghi"
+          },
+          "UpdatedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian cập nhật"
+          },
+          "UpdatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người cập nhật"
+          }
+        },
+        "indexes": [
+          "IX_Employee_AccountId",
+          "IX_Employee_EmployeeTypeId"
+        ]
+      },
+      
+      "Attendance": {
+        "tableName": "Attendance",
+        "description": "Bảng chấm công - lưu dữ liệu từ máy chấm công",
+        "columns": {
+          "AttendanceId": {
+            "type": "int",
+            "constraints": "PRIMARY KEY, IDENTITY",
+            "description": "ID bản ghi chấm công"
+          },
+          "EmployeeId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> Employee",
+            "description": "ID nhân viên (sau khi map)"
+          },
+          "DeviceEmployeeId": {
+            "type": "nvarchar(100)",
+            "constraints": "NULL",
+            "description": "Mã nhân viên từ máy chấm công (fingerprint ID, card number, employee code)",
+            "example": "EMP00123"
+          },
+          "CheckIn": {
+            "type": "datetime2",
+            "constraints": "NOT NULL",
+            "description": "Thời gian check-in",
+            "example": "2025-11-01T08:00:00"
+          },
+          "CheckOut": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian check-out",
+            "example": "2025-11-01T17:30:00"
+          },
+          "Notes": {
+            "type": "nvarchar(255)",
+            "constraints": "NULL",
+            "description": "Ghi chú (late, early leave, etc.)"
+          },
+          "CreatedAt": {
+            "type": "datetime2",
+            "constraints": "NOT NULL, DEFAULT GETDATE()",
+            "description": "Thời gian tạo bản ghi"
+          },
+          "CreatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người tạo (system hoặc admin)"
+          },
+          "UpdatedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian cập nhật"
+          },
+          "UpdatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người cập nhật"
+          }
+        },
+        "indexes": [
+          "IX_Attendance_EmployeeId_CheckIn (EmployeeId, CheckIn DESC)",
+          "IX_Attendance_DeviceEmployeeId (DeviceEmployeeId)",
+          "IX_Attendance_CheckIn (CheckIn)"
+        ],
+        "notes": [
+          "DeviceEmployeeId dùng để map dữ liệu từ máy chấm công sang Employee trong hệ thống",
+          "CheckOut có thể NULL nếu nhân viên quên chấm công ra hoặc đang trong ca",
+          "Cần xử lý duplicate punches (nhiều lần check-in/out trong khoảng thời gian ngắn)"
+        ]
+      },
+      
+      "EmployeeSchedule": {
+        "tableName": "EmployeeSchedule",
+        "description": "Lịch làm việc theo ca của nhân viên",
+        "columns": {
+          "ScheduleId": {
+            "type": "int",
+            "constraints": "PRIMARY KEY, IDENTITY",
+            "description": "ID lịch làm việc"
+          },
+          "EmployeeId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> Employee",
+            "description": "ID nhân viên"
+          },
+          "ShiftDate": {
+            "type": "date",
+            "constraints": "NOT NULL",
+            "description": "Ngày làm việc",
+            "example": "2025-11-01"
+          },
+          "StartTime": {
+            "type": "time",
+            "constraints": "NOT NULL",
+            "description": "Giờ bắt đầu ca",
+            "example": "08:00:00"
+          },
+          "EndTime": {
+            "type": "time",
+            "constraints": "NOT NULL",
+            "description": "Giờ kết thúc ca",
+            "example": "17:00:00"
+          },
+          "Notes": {
+            "type": "nvarchar(255)",
+            "constraints": "NULL",
+            "description": "Ghi chú về ca làm"
+          },
+          "CreatedAt": {
+            "type": "datetime2",
+            "constraints": "NOT NULL, DEFAULT GETDATE()",
+            "description": "Thời gian tạo"
+          },
+          "CreatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người tạo"
+          },
+          "UpdatedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian cập nhật"
+          },
+          "UpdatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người cập nhật"
+          }
+        },
+        "indexes": [
+          "IX_EmployeeSchedule_EmployeeId_ShiftDate (EmployeeId, ShiftDate)",
+          "IX_EmployeeSchedule_ShiftDate (ShiftDate)"
+        ],
+        "notes": [
+          "Lưu lịch làm việc dự kiến của nhân viên",
+          "Dùng để so sánh với Attendance thực tế để tính late/early/absent",
+          "Nếu EndTime < StartTime => ca qua đêm (ví dụ: 22:00 -> 06:00)"
+        ]
+      },
+      
+      "Salary": {
+        "tableName": "Salary",
+        "description": "Bảng lương tháng (legacy hoặc summary)",
+        "columns": {
+          "SalaryId": {
+            "type": "int",
+            "constraints": "PRIMARY KEY, IDENTITY",
+            "description": "ID bản ghi lương"
+          },
+          "EmployeeId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> Employee",
+            "description": "ID nhân viên"
+          },
+          "SalaryMonth": {
+            "type": "int",
+            "constraints": "NOT NULL",
+            "description": "Tháng lương (1-12)",
+            "example": 11
+          },
+          "SalaryYear": {
+            "type": "int",
+            "constraints": "NOT NULL",
+            "description": "Năm lương",
+            "example": 2025
+          },
+          "TotalAmount": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Tổng lương tính được (VND)",
+            "example": 12000000.00
+          },
+          "PaidAmount": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Số tiền đã trả (VND)",
+            "example": 12000000.00
+          },
+          "StatusId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> CommonCode",
+            "description": "Trạng thái (Pending, Approved, Paid)",
+            "commonCodeType": "SALARY_STATUS"
+          },
+          "CreatedAt": {
+            "type": "datetime2",
+            "constraints": "NOT NULL, DEFAULT GETDATE()",
+            "description": "Thời gian tạo"
+          },
+          "CreatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người tạo"
+          },
+          "UpdatedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian cập nhật"
+          },
+          "UpdatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người cập nhật"
+          }
+        },
+        "indexes": [
+          "IX_Salary_EmployeeId_Year_Month (EmployeeId, SalaryYear, SalaryMonth)"
+        ]
+      },
+      
+      "PayrollDisbursement": {
+        "tableName": "PayrollDisbursement",
+        "description": "Bảng chốt sổ lương và giải ngân hàng tháng (chi tiết hơn Salary)",
+        "columns": {
+          "PayrollDisbursementId": {
+            "type": "int",
+            "constraints": "PRIMARY KEY, IDENTITY",
+            "description": "ID bản ghi giải ngân"
+          },
+          "EmployeeId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> Employee",
+            "description": "ID nhân viên"
+          },
+          "PayrollMonth": {
+            "type": "int",
+            "constraints": "NOT NULL",
+            "description": "Tháng tính lương (1-12)",
+            "example": 11
+          },
+          "PayrollYear": {
+            "type": "int",
+            "constraints": "NOT NULL",
+            "description": "Năm tính lương",
+            "example": 2025
+          },
+          "BaseSalary": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Lương cơ bản snapshot tại thời điểm chốt (VND)",
+            "example": 8000000.00
+          },
+          "TotalAmount": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Tổng lương tính được bao gồm OT, phụ cấp, thưởng (VND)",
+            "example": 12500000.00
+          },
+          "DisbursedAmount": {
+            "type": "decimal(18,2)",
+            "constraints": "NOT NULL",
+            "description": "Số tiền thực tế giải ngân (sau khi trừ thuế, bảo hiểm) (VND)",
+            "example": 11000000.00
+          },
+          "StatusId": {
+            "type": "int",
+            "constraints": "NOT NULL, FK -> CommonCode",
+            "description": "Trạng thái giải ngân (Draft, Pending, Approved, Disbursed)",
+            "commonCodeType": "PAYROLL_STATUS"
+          },
+          "DisbursedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian giải ngân thực tế",
+            "example": "2025-12-05T10:30:00"
+          },
+          "CreatedAt": {
+            "type": "datetime2",
+            "constraints": "NOT NULL, DEFAULT GETDATE()",
+            "description": "Thời gian tạo bản ghi"
+          },
+          "CreatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người tạo (HR/Admin)"
+          },
+          "UpdatedAt": {
+            "type": "datetime2",
+            "constraints": "NULL",
+            "description": "Thời gian cập nhật"
+          },
+          "UpdatedBy": {
+            "type": "int",
+            "constraints": "NULL",
+            "description": "Người cập nhật"
+          }
+        },
+        "indexes": [
+          "IX_PayrollDisbursement_EmployeeId_Year_Month (EmployeeId, PayrollYear, PayrollMonth)",
+          "IX_PayrollDisbursement_StatusId (StatusId)",
+          "IX_PayrollDisbursement_DisbursedAt (DisbursedAt)"
+        ],
+        "notes": [
+          "Bảng này là bảng chính để chốt lương hàng tháng",
+          "BaseSalary là snapshot để tránh thay đổi lương cơ bản ảnh hưởng lương cũ",
+          "TotalAmount = sum of (base pay + overtime + shift allowances + bonuses - deductions)",
+          "DisbursedAmount = TotalAmount - (tax + insurance + other deductions)"
+        ]
+      }
+    }
+  },
+  
+  "apiEndpoints": {
+    "attendance": {
+      "getAttendanceList": {
+        "method": "GET",
+        "path": "/api/attendance",
+        "description": "Lấy danh sách chấm công theo bộ lọc",
+        "queryParams": {
+          "employeeId": {
+            "type": "int",
+            "required": false,
+            "description": "Lọc theo nhân viên"
+          },
+          "month": {
+            "type": "int",
+            "required": false,
+            "description": "Tháng (1-12)"
+          },
+          "year": {
+            "type": "int",
+            "required": false,
+            "description": "Năm"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "yyyy-MM-dd",
+            "required": false,
+            "description": "Từ ngày"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "yyyy-MM-dd",
+            "required": false,
+            "description": "Đến ngày"
+          },
+          "pageNumber": {
+            "type": "int",
+            "default": 1,
+            "description": "Trang"
+          },
+          "pageSize": {
+            "type": "int",
+            "default": 50,
+            "description": "Số bản ghi mỗi trang"
+          }
+        },
+        "responseExample": {
+          "success": true,
+          "data": [
+            {
+              "attendanceId": 123,
+              "employeeId": 45,
+              "employeeName": "Nguyễn Văn A",
+              "deviceEmployeeId": "EMP00123",
+              "checkIn": "2025-11-01T08:05:30",
+              "checkOut": "2025-11-01T17:30:15",
+              "shiftDate": "2025-11-01",
+              "scheduledStart": "2025-11-01T08:00:00",
+              "scheduledEnd": "2025-11-01T17:00:00",
+              "workedHours": 9.41,
+              "normalHours": 8.00,
+              "overtimeHours": 1.41,
+              "lateMinutes": 5,
+              "earlyLeaveMinutes": 0,
+              "isApproved": false,
+              "notes": null
+            }
+          ],
+          "pagination": {
+            "currentPage": 1,
+            "pageSize": 50,
+            "totalRecords": 120,
+            "totalPages": 3
+          }
+        }
+      },
+      
+      "createAttendance": {
+        "method": "POST",
+        "path": "/api/attendance",
+        "description": "Tạo bản ghi chấm công mới (manual hoặc từ device sync)",
+        "requestBodyExample": {
+          "employeeId": 45,
+          "deviceEmployeeId": "EMP00123",
+          "checkIn": "2025-11-01T08:05:30",
+          "checkOut": "2025-11-01T17:30:15",
+          "notes": "Manual entry"
+        },
+        "responseExample": {
+          "success": true,
+          "message": "Attendance created successfully",
+          "data": {
+            "attendanceId": 124
+          }
+        }
+      },
+      
+      "updateAttendance": {
+        "method": "PUT",
+        "path": "/api/attendance/{id}",
+        "description": "Cập nhật bản ghi chấm công",
+        "requestBodyExample": {
+          "checkIn": "2025-11-01T08:00:00",
+          "checkOut": "2025-11-01T17:30:00",
+          "notes": "Adjusted by HR"
+        }
+      },
+      
+      "approveAttendance": {
+        "method": "POST",
+        "path": "/api/attendance/{id}/approve",
+        "description": "Duyệt/chốt bản ghi chấm công",
+        "responseExample": {
+          "success": true,
+          "message": "Attendance approved successfully"
+        }
+      },
+      
+      "getAttendanceSummary": {
+        "method": "GET",
+        "path": "/api/attendance/summary",
+        "description": "Lấy tóm tắt chấm công theo tháng",
+        "queryParams": {
+          "employeeId": "int (required)",
+          "month": "int (required)",
+          "year": "int (required)"
+        },
+        "responseExample": {
+          "success": true,
+          "data": {
+            "employeeId": 45,
+            "employeeName": "Nguyễn Văn A",
+            "month": 11,
+            "year": 2025,
+            "totalWorkDays": 22,
+            "actualWorkDays": 20,
+            "absentDays": 2,
+            "lateDays": 3,
+            "totalWorkedHours": 176.5,
+            "totalNormalHours": 160.0,
+            "totalOvertimeHours": 16.5,
+            "totalNightShiftHours": 0,
+            "attendanceRecords": [
+              {
+                "date": "2025-11-01",
+                "checkIn": "2025-11-01T08:05:30",
+                "checkOut": "2025-11-01T17:30:15",
+                "workedHours": 9.41,
+                "status": "Normal"
+              }
+            ]
+          }
+        }
+      }
+    },
+    
+    "payroll": {
+      "calculatePayroll": {
+        "method": "POST",
+        "path": "/api/payroll/calculate",
+        "description": "Tính lương cho tháng (chưa chốt)",
+        "requestBodyExample": {
+          "employeeId": 45,
+          "month": 11,
+          "year": 2025
+        },
+        "responseExample": {
+          "success": true,
+          "data": {
+            "employeeId": 45,
+            "employeeName": "Nguyễn Văn A",
+            "month": 11,
+            "year": 2025,
+            "baseSalary": 8000000.00,
+            "hourlyRate": 47619.05,
+            "standardMonthlyHours": 168,
+            "normalHours": 160.0,
+            "overtimeHours": 16.5,
+            "nightShiftHours": 0,
+            "normalPay": 7619047.62,
+            "overtimePay": 1178571.43,
+            "nightShiftPay": 0,
+            "allowances": 500000.00,
+            "bonuses": 0,
+            "totalGrossPay": 9297619.05,
+            "taxDeduction": 929761.91,
+            "insuranceDeduction": 640000.00,
+            "otherDeductions": 0,
+            "totalDeductions": 1569761.91,
+            "netPay": 7727857.14,
+            "breakdown": [
+              {
+                "date": "2025-11-01",
+                "normalHours": 8.0,
+                "overtimeHours": 1.41,
+                "pay": 449047.62
+              }
+            ]
+          }
+        }
+      },
+      
+      "createPayrollDisbursement": {
+        "method": "POST",
+        "path": "/api/payroll/disbursement",
+        "description": "Tạo bản chốt sổ lương (chuyển từ tính toán sang pending disbursement)",
+        "requestBodyExample": {
+          "employeeId": 45,
+          "month": 11,
+          "year": 2025,
+          "baseSalary": 8000000.00,
+          "totalAmount": 9297619.05,
+          "disbursedAmount": 7727857.14,
+          "statusId": 1
+        },
+        "responseExample": {
+          "success": true,
+          "message": "Payroll disbursement created successfully",
+          "data": {
+            "payrollDisbursementId": 89
+          }
+        }
+      },
+      
+      "approvePayroll": {
+        "method": "POST",
+        "path": "/api/payroll/{id}/approve",
+        "description": "Duyệt bản chốt lương",
+        "responseExample": {
+          "success": true,
+          "message": "Payroll approved successfully"
+        }
+      },
+      
+      "disbursePayroll": {
+        "method": "POST",
+        "path": "/api/payroll/{id}/disburse",
+        "description": "Đánh dấu đã giải ngân lương",
+        "requestBodyExample": {
+          "disbursedAt": "2025-12-05T10:30:00"
+        },
+        "responseExample": {
+          "success": true,
+          "message": "Payroll disbursed successfully"
+        }
+      },
+      
+      "getPayrollHistory": {
+        "method": "GET",
+        "path": "/api/payroll",
+        "description": "Lấy lịch sử lương đã chốt",
+        "queryParams": {
+          "employeeId": "int (optional)",
+          "month": "int (optional)",
+          "year": "int (optional)",
+          "statusId": "int (optional)"
+        },
+        "responseExample": {
+          "success": true,
+          "data": [
+            {
+              "payrollDisbursementId": 89,
+              "employeeId": 45,
+              "employeeName": "Nguyễn Văn A",
+              "month": 11,
+              "year": 2025,
+              "baseSalary": 8000000.00,
+              "totalAmount": 9297619.05,
+              "disbursedAmount": 7727857.14,
+              "status": "Disbursed",
+              "disbursedAt": "2025-12-05T10:30:00",
+              "createdAt": "2025-12-01T09:00:00"
+            }
+          ]
+        }
+      }
+    },
+    
+    "schedule": {
+      "getSchedule": {
+        "method": "GET",
+        "path": "/api/schedule",
+        "description": "Lấy lịch làm việc",
+        "queryParams": {
+          "employeeId": "int (optional)",
+          "startDate": "string (yyyy-MM-dd, optional)",
+          "endDate": "string (yyyy-MM-dd, optional)"
+        },
+        "responseExample": {
+          "success": true,
+          "data": [
+            {
+              "scheduleId": 101,
+              "employeeId": 45,
+              "employeeName": "Nguyễn Văn A",
+              "shiftDate": "2025-11-01",
+              "startTime": "08:00:00",
+              "endTime": "17:00:00",
+              "notes": "Morning shift"
+            }
+          ]
+        }
+      },
+      
+      "createSchedule": {
+        "method": "POST",
+        "path": "/api/schedule",
+        "description": "Tạo lịch làm việc",
+        "requestBodyExample": {
+          "employeeId": 45,
+          "shiftDate": "2025-11-01",
+          "startTime": "08:00:00",
+          "endTime": "17:00:00",
+          "notes": "Morning shift"
+        }
+      }
+    }
+  },
+  
+  "calculationRules": {
+    "constants": {
+      "standardMonthlyHours": {
+        "value": 168,
+        "description": "Số giờ chuẩn trong tháng (21 ngày * 8 giờ), có thể thay đổi tùy công ty",
+        "alternatives": [
+          "208 giờ (26 ngày * 8 giờ)",
+          "176 giờ (22 ngày * 8 giờ)"
+        ]
+      },
+      "standardDailyHours": {
+        "value": 8,
+        "description": "Số giờ chuẩn mỗi ngày"
+      },
+      "overtimeMultiplier": {
+        "value": 1.5,
+        "description": "Hệ số tính lương làm thêm giờ (150%)"
+      },
+      "nightShiftMultiplier": {
+        "value": 1.3,
+        "description": "Hệ số ca đêm (130%)"
+      },
+      "weekendMultiplier": {
+        "value": 2.0,
+        "description": "Hệ số làm cuối tuần (200%)"
+      },
+      "holidayMultiplier": {
+        "value": 3.0,
+        "description": "Hệ số làm ngày lễ (300%)"
+      }
+    },
+    
+    "formulas": {
+      "hourlyRate": {
+        "formula": "BaseSalary / StandardMonthlyHours",
+        "example": "8,000,000 / 168 = 47,619.05 VND/giờ",
+        "description": "Lương theo giờ"
+      },
+      
+      "workedHours": {
+        "formula": "DATEDIFF(MINUTE, CheckIn, CheckOut) / 60",
+        "example": "DATEDIFF(MINUTE, '08:00', '17:30') / 60 = 9.5 giờ",
+        "description": "Tổng giờ làm việc thực tế"
+      },
+      
+      "normalHours": {
+        "formula": "MIN(WorkedHours, StandardDailyHours)",
+        "example": "MIN(9.5, 8) = 8 giờ",
+        "description": "Giờ làm việc thường (không tính OT)"
+      },
+      
+      "overtimeHours": {
+        "formula": "MAX(0, WorkedHours - StandardDailyHours)",
+        "example": "MAX(0, 9.5 - 8) = 1.5 giờ",
+        "description": "Giờ làm thêm"
+      },
+      
+      "normalPay": {
+        "formula": "NormalHours * HourlyRate",
+        "example": "8 * 47,619.05 = 380,952.40 VND",
+        "description": "Lương giờ thường"
+      },
+      
+      "overtimePay": {
+        "formula": "OvertimeHours * HourlyRate * OvertimeMultiplier",
+        "example": "1.5 * 47,619.05 * 1.5 = 107,142.86 VND",
+        "description": "Lương làm thêm giờ"
+      },
+      
+      "nightShiftPay": {
+        "formula": "NightShiftHours * HourlyRate * NightShiftMultiplier",
+        "example": "8 * 47,619.05 * 1.3 = 495,238.12 VND",
+        "description": "Lương ca đêm"
+      },
+      
+      "totalGrossPay": {
+        "formula": "NormalPay + OvertimePay + NightShiftPay + Allowances + Bonuses",
+        "description": "Tổng lương gộp trước thuế"
+      },
+      
+      "netPay": {
+        "formula": "TotalGrossPay - TaxDeduction - InsuranceDeduction - OtherDeductions",
+        "description": "Lương thực lãnh (net salary)"
+      }
+    },
+    
+    "businessRules": {
+      "latePolicy": {
+        "description": "Quy định về đi muộn",
+        "rules": [
+          "Đi muộn < 15 phút: không tính, chỉ ghi nhận",
+          "Đi muộn 15-30 phút: cảnh cáo",
+          "Đi muộn > 30 phút: trừ 0.5 ngày công",
+          "Đi muộn > 60 phút: trừ 1 ngày công"
+        ]
+      },
+      
+      "earlyLeavePolicy": {
+        "description": "Quy định về về sớm",
+        "rules": [
+          "Về sớm < 15 phút: không tính",
+          "Về sớm > 15 phút: trừ tương ứng số giờ thiếu"
+        ]
+      },
+      
+      "absentPolicy": {
+        "description": "Quy định về nghỉ",
+        "rules": [
+          "Nghỉ có phép (approved leave): trả 100% lương",
+          "Nghỉ không phép: trừ 1 ngày công + cảnh cáo",
+          "Nghỉ ốm có giấy bác sĩ: trả 75% lương ngày nghỉ"
+        ]
+      },
+      
+      "overtimeRules": {
+        "description": "Quy định làm thêm giờ",
+        "rules": [
+          "OT trong tuần (T2-T6): hệ số 1.5",
+          "OT cuối tuần (T7-CN): hệ số 2.0",
+          "OT ngày lễ: hệ số 3.0",
+          "OT tối đa: 40 giờ/tháng (theo luật lao động)"
+        ]
+      },
+      
+      "nightShiftRules": {
+        "description": "Quy định ca đêm",
+        "rules": [
+          "Ca đêm: 22:00 - 06:00",
+          "Hệ số ca đêm: 1.3",
+          "Nếu làm OT trong ca đêm: cộng dồn hệ số (1.5 * 1.3 = 1.95)"
+        ]
+      }
+    }
+  },
+  
+  "uiComponents": {
+    "attendanceGrid": {
+      "description": "Bảng hiển thị dữ liệu chấm công",
+      "columns": [
+        {
+          "field": "employeeName",
+          "header": "Nhân viên",
+          "width": "150px",
+          "sortable": true,
+          "filterable": true
+        },
+        {
+          "field": "deviceEmployeeId",
+          "header": "Mã máy chấm",
+          "width": "120px"
+        },
+        {
+          "field": "shiftDate",
+          "header": "Ngày",
+          "width": "100px",
+          "type": "date",
+          "format": "dd/MM/yyyy"
+        },
+        {
+          "field": "scheduledStart",
+          "header": "Ca bắt đầu",
+          "width": "100px",
+          "type": "time",
+          "format": "HH:mm"
+        },
+        {
+          "field": "scheduledEnd",
+          "header": "Ca kết thúc",
+          "width": "100px",
+          "type": "time",
+          "format": "HH:mm"
+        },
+        {
+          "field": "checkIn",
+          "header": "Giờ vào",
+          "width": "120px",
+          "type": "datetime",
+          "format": "dd/MM HH:mm",
+          "highlight": "late"
+        },
+        {
+          "field": "checkOut",
+          "header": "Giờ ra",
+          "width": "120px",
+          "type": "datetime",
+          "format": "dd/MM HH:mm",
+          "highlight": "early"
+        },
+        {
+          "field": "workedHours",
+          "header": "Giờ làm",
+          "width": "80px",
+          "type": "number",
+          "format": "0.00",
+          "align": "right"
+        },
+        {
+          "field": "normalHours",
+          "header": "Giờ thường",
+          "width": "80px",
+          "type": "number",
+          "format": "0.00",
+          "align": "right"
+        },
+        {
+          "field": "overtimeHours",
+          "header": "Giờ OT",
+          "width": "80px",
+          "type": "number",
+          "format": "0.00",
+          "align": "right",
+          "highlight": "overtime"
+        },
+        {
+          "field": "lateMinutes",
+          "header": "Đi muộn",
+          "width": "80px",
+          "type": "number",
+          "suffix": " phút",
+          "highlight": "warning"
+        },
+        {
+          "field": "isApproved",
+          "header": "Đã duyệt",
+          "width": "80px",
+          "type": "boolean",
+          "trueText": "✓",
+          "falseText": "✗"
+        },
+        {
+          "field": "notes",
+          "header": "Ghi chú",
+          "width": "200px"
+        },
+        {
+          "field": "actions",
+          "header": "Thao tác",
+          "width": "120px",
+          "buttons": [
+            {
+              "label": "Sửa",
+              "icon": "edit",
+              "action": "edit"
+            },
+            {
+              "label": "Duyệt",
+              "icon": "check",
+              "action": "approve",
+              "condition": "!isApproved"
+            }
+          ]
+        }
+      ],
+      "filters": [
+        {
+          "field": "employeeId",
+          "type": "dropdown",
+          "label": "Nhân viên",
+          "multiple": true
+        },
+        {
+          "field": "dateRange",
+          "type": "daterange",
+          "label": "Khoảng thời gian"
+        },
+        {
+          "field": "status",
+          "type": "dropdown",
+          "label": "Trạng thái",
+          "options": [
+            { "value": "all", "label": "Tất cả" },
+            { "value": "approved", "label": "Đã duyệt" },
+            { "value": "pending", "label": "Chờ duyệt" },
+            { "value": "late", "label": "Đi muộn" },
+            { "value": "absent", "label": "Vắng mặt" }
+          ]
+        }
+      ],
+      "rowHighlight": {
+        "late": {
+          "condition": "lateMinutes > 15",
+          "color": "#fff3cd",
+          "borderLeft": "4px solid #ffc107"
+        },
+        "missing": {
+          "condition": "checkOut == null",
+          "color": "#f8d7da",
+          "borderLeft": "4px solid #dc3545"
+        },
+        "overtime": {
+          "condition": "overtimeHours > 2",
+          "color": "#d1ecf1",
+          "borderLeft": "4px solid #17a2b8"
+        },
+        "approved": {
+          "condition": "isApproved == true",
+          "color": "#d4edda"
+        }
+      }
+    },
+    
+    "payrollSummaryCard": {
+      "description": "Card hiển thị tóm tắt lương tháng",
+      "sections": [
+        {
+          "title": "Thông tin cơ bản",
+          "fields": [
+            { "label": "Nhân viên", "field": "employeeName" },
+            { "label": "Tháng", "field": "month" },
+            { "label": "Năm", "field": "year" },
+            { "label": "Lương cơ bản", "field": "baseSalary", "format": "currency" }
+          ]
+        },
+        {
+          "title": "Công làm việc",
+          "fields": [
+            { "label": "Tổng ngày làm", "field": "actualWorkDays", "suffix": " ngày" },
+            { "label": "Tổng giờ làm", "field": "totalWorkedHours", "suffix": " giờ" },
+            { "label": "Giờ thường", "field": "totalNormalHours", "suffix": " giờ" },
+            { "label": "Giờ OT", "field": "totalOvertimeHours", "suffix": " giờ" },
+            { "label": "Giờ ca đêm", "field": "totalNightShiftHours", "suffix": " giờ" }
+          ]
+        },
+        {
+          "title": "Lương chi tiết",
+          "fields": [
+            { "label": "Lương giờ thường", "field": "normalPay", "format": "currency" },
+            { "label": "Lương OT", "field": "overtimePay", "format": "currency" },
+            { "label": "Lương ca đêm", "field": "nightShiftPay", "format": "currency" },
+            { "label": "Phụ cấp", "field": "allowances", "format": "currency" },
+            { "label": "Thưởng", "field": "bonuses", "format": "currency" },
+            { "label": "Tổng lương gộp", "field": "totalGrossPay", "format": "currency", "highlight": true }
+          ]
+        },
+        {
+          "title": "Khấu trừ",
+          "fields": [
+            { "label": "Thuế TNCN", "field": "taxDeduction", "format": "currency" },
+            { "label": "Bảo hiểm", "field": "insuranceDeduction", "format": "currency" },
+            { "label": "Khác", "field": "otherDeductions", "format": "currency" },
+            { "label": "Tổng khấu trừ", "field": "totalDeductions", "format": "currency", "highlight": true }
+          ]
+        },
+        {
+          "title": "Thực lãnh",
+          "fields": [
+            { "label": "Lương thực lãnh", "field": "netPay", "format": "currency", "size": "large", "color": "success" }
+          ]
+        }
+      ]
+    }
+  },
+  
+  "workflowSteps": {
+    "monthlyPayrollProcess": {
+      "description": "Quy trình tính lương hàng tháng",
+      "steps": [
+        {
+          "step": 1,
+          "name": "Thu thập dữ liệu chấm công",
+          "description": "Sync dữ liệu từ máy chấm công, map DeviceEmployeeId với EmployeeId",
+          "responsible": "System/HR",
+          "output": "Bảng Attendance đầy đủ cho tháng"
+        },
+        {
+          "step": 2,
+          "name": "Xác thực và điều chỉnh",
+          "description": "HR kiểm tra, sửa lỗi (missing checkout, duplicate, wrong employee mapping)",
+          "responsible": "HR",
+          "output": "Dữ liệu chấm công đã được verified"
+        },
+        {
+          "step": 3,
+          "name": "Tính toán lương",
+          "description": "Chạy API calculate payroll cho từng nhân viên, áp dụng các công thức và hệ số",
+          "responsible": "System",
+          "output": "Bản tính lương draft (chưa lưu DB)"
+        },
+        {
+          "step": 4,
+          "name": "Review và điều chỉnh",
+          "description": "HR/Manager review kết quả tính lương, thêm allowances/bonuses/deductions thủ công nếu cần",
+          "responsible": "HR/Manager",
+          "output": "Bản tính lương đã review"
+        },
+        {
+          "step": 5,
+          "name": "Chốt sổ lương",
+          "description": "Tạo bản ghi PayrollDisbursement với status = Pending",
+          "responsible": "HR",
+          "output": "Bản ghi PayrollDisbursement (status: Pending)"
+        },
+        {
+          "step": 6,
+          "name": "Phê duyệt",
+          "description": "Manager/Director phê duyệt bảng lương",
+          "responsible": "Manager/Director",
+          "output": "PayrollDisbursement (status: Approved)"
+        },
+        {
+          "step": 7,
+          "name": "Giải ngân",
+          "description": "Kế toán chuyển lương, cập nhật DisbursedAt và status = Disbursed",
+          "responsible": "Accounting",
+          "output": "PayrollDisbursement (status: Disbursed)"
+        },
+        {
+          "step": 8,
+          "name": "Thông báo nhân viên",
+          "description": "Gửi phiếu lương cho nhân viên qua email/portal",
+          "responsible": "System",
+          "output": "Email/notification sent"
+        }
+      ]
+    }
+  },
+  
+  "commonCodeValues": {
+    "description": "Các giá trị CommonCode cần thiết cho hệ thống chấm công và lương",
+    "codeTypes": {
+      "PAYROLL_STATUS": {
+        "description": "Trạng thái giải ngân lương",
+        "values": [
+          { "codeValue": "DRAFT", "codeName": "Bản nháp" },
+          { "codeValue": "PENDING", "codeName": "Chờ duyệt" },
+          { "codeValue": "APPROVED", "codeName": "Đã duyệt" },
+          { "codeValue": "DISBURSED", "codeName": "Đã giải ngân" },
+          { "codeValue": "REJECTED", "codeName": "Từ chối" }
+        ]
+      },
+      "SALARY_STATUS": {
+        "description": "Trạng thái lương (bảng Salary legacy)",
+        "values": [
+          { "codeValue": "PENDING", "codeName": "Chờ xử lý" },
+          { "codeValue": "APPROVED", "codeName": "Đã duyệt" },
+          { "codeValue": "PAID", "codeName": "Đã trả" }
+        ]
+      },
+      "ATTENDANCE_STATUS": {
+        "description": "Trạng thái chấm công (nếu cần)",
+        "values": [
+          { "codeValue": "NORMAL", "codeName": "Bình thường" },
+          { "codeValue": "LATE", "codeName": "Đi muộn" },
+          { "codeValue": "EARLY_LEAVE", "codeName": "Về sớm" },
+          { "codeValue": "ABSENT", "codeName": "Vắng mặt" },
+          { "codeValue": "ON_LEAVE", "codeName": "Nghỉ phép" }
+        ]
+      },
+      "EMPLOYEE_TYPE": {
+        "description": "Loại nhân viên",
+        "values": [
+          { "codeValue": "FULL_TIME", "codeName": "Nhân viên chính thức" },
+          { "codeValue": "PART_TIME", "codeName": "Nhân viên bán thời gian" },
+          { "codeValue": "CONTRACT", "codeName": "Nhân viên hợp đồng" },
+          { "codeValue": "INTERN", "codeName": "Thực tập sinh" }
+        ]
+      }
+    }
+  },
+  
+  "sampleQueries": {
+    "getMonthlyAttendance": {
+      "description": "Lấy dữ liệu chấm công cho 1 nhân viên trong tháng",
+      "sql": "SELECT \n  a.AttendanceId,\n  a.EmployeeId,\n  e.FullName,\n  a.DeviceEmployeeId,\n  a.CheckIn,\n  a.CheckOut,\n  CAST(a.CheckIn AS DATE) as ShiftDate,\n  es.StartTime as ScheduledStart,\n  es.EndTime as ScheduledEnd,\n  DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0 as WorkedHours,\n  CASE \n    WHEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0 <= 8 \n    THEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0\n    ELSE 8.0\n  END as NormalHours,\n  CASE \n    WHEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0 > 8 \n    THEN (DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0) - 8.0\n    ELSE 0\n  END as OvertimeHours,\n  CASE \n    WHEN a.CheckIn > CAST(CAST(a.CheckIn AS DATE) AS DATETIME) + CAST(es.StartTime AS DATETIME)\n    THEN DATEDIFF(MINUTE, CAST(CAST(a.CheckIn AS DATE) AS DATETIME) + CAST(es.StartTime AS DATETIME), a.CheckIn)\n    ELSE 0\n  END as LateMinutes,\n  a.Notes\nFROM Attendance a\nINNER JOIN Employee e ON e.EmployeeId = a.EmployeeId\nLEFT JOIN EmployeeSchedule es ON es.EmployeeId = a.EmployeeId AND es.ShiftDate = CAST(a.CheckIn AS DATE)\nWHERE a.EmployeeId = @employeeId\n  AND a.CheckIn >= @monthStart\n  AND a.CheckIn < @monthEnd\nORDER BY a.CheckIn"
+    },
+    
+    "calculateMonthlyPayroll": {
+      "description": "Tính tổng lương cho 1 nhân viên trong tháng",
+      "sql": "WITH AttendanceSummary AS (\n  SELECT \n    a.EmployeeId,\n    SUM(DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0) as TotalWorkedHours,\n    SUM(CASE \n      WHEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0 <= 8 \n      THEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0\n      ELSE 8.0\n    END) as TotalNormalHours,\n    SUM(CASE \n      WHEN DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0 > 8 \n      THEN (DATEDIFF(MINUTE, a.CheckIn, ISNULL(a.CheckOut, GETDATE())) / 60.0) - 8.0\n      ELSE 0\n    END) as TotalOvertimeHours\n  FROM Attendance a\n  WHERE a.EmployeeId = @employeeId\n    AND a.CheckIn >= @monthStart\n    AND a.CheckIn < @monthEnd\n  GROUP BY a.EmployeeId\n)\nSELECT \n  e.EmployeeId,\n  e.FullName,\n  e.BaseSalary,\n  e.BaseSalary / 168.0 as HourlyRate,\n  asummary.TotalWorkedHours,\n  asummary.TotalNormalHours,\n  asummary.TotalOvertimeHours,\n  (asummary.TotalNormalHours * (e.BaseSalary / 168.0)) as NormalPay,\n  (asummary.TotalOvertimeHours * (e.BaseSalary / 168.0) * 1.5) as OvertimePay,\n  (asummary.TotalNormalHours * (e.BaseSalary / 168.0)) + \n  (asummary.TotalOvertimeHours * (e.BaseSalary / 168.0) * 1.5) as TotalGrossPay\nFROM Employee e\nINNER JOIN AttendanceSummary asummary ON asummary.EmployeeId = e.EmployeeId\nWHERE e.EmployeeId = @employeeId"
+    }
+  },
+  
+  "implementationNotes": {
+    "deviceSync": {
+      "title": "Đồng bộ dữ liệu từ máy chấm công",
+      "notes": [
+        "Máy chấm công thường export dữ liệu qua file (CSV, Excel) hoặc API",
+        "DeviceEmployeeId là mã nhân viên được lưu trong máy (có thể là số vân tay, mã thẻ, mã nhân viên)",
+        "Cần có bảng mapping hoặc logic để map DeviceEmployeeId -> Employee.EmployeeId",
+        "Xử lý duplicate: nếu có nhiều punch trong 5 phút, chỉ lấy record đầu tiên",
+        "Xử lý missing checkout: có thể tự động set checkout = scheduled end time hoặc để null và yêu cầu HR xử lý",
+        "Xử lý overnight shift: nếu checkout < checkin thì checkout là ngày hôm sau"
+      ]
+    },
+    
+    "performanceOptimization": {
+      "title": "Tối ưu hiệu năng",
+      "notes": [
+        "Tạo index trên (EmployeeId, CheckIn) cho bảng Attendance",
+        "Tạo index trên (EmployeeId, ShiftDate) cho bảng EmployeeSchedule",
+        "Cache hourly rate và constants để tránh tính toán lặp lại",
+        "Khi tính lương hàng loạt, dùng batch processing và parallel processing",
+        "Lưu kết quả tính lương vào PayrollDisbursement để tránh tính lại mỗi lần xem"
+      ]
+    },
+    
+    "dataValidation": {
+      "title": "Validation dữ liệu",
+      "notes": [
+        "CheckIn phải < CheckOut (nếu CheckOut có giá trị)",
+        "CheckIn không được là thời gian tương lai",
+        "EmployeeId hoặc DeviceEmployeeId phải tồn tại",
+        "Không cho phép duplicate attendance cho cùng nhân viên trong cùng khoảng thời gian",
+        "BaseSalary phải > 0",
+        "WorkedHours không được > 24 giờ trong 1 ngày"
+      ]
+    },
+    
+    "securityConsiderations": {
+      "title": "Bảo mật",
+      "notes": [
+        "Chỉ HR và Manager được xem/sửa dữ liệu chấm công",
+        "Chỉ HR/Accounting được xem lương của tất cả nhân viên",
+        "Nhân viên chỉ được xem lương của chính mình",
+        "Log tất cả thay đổi về attendance và payroll (audit trail)",
+        "Encrypt dữ liệu lương khi lưu vào database hoặc gửi qua email"
+      ]
+    }
+  }
+}
+

@@ -173,4 +173,144 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public DateTime CheckOutDate { get; set; }
         public int TotalNights { get; set; }
     }
+
+    // ===== BOOKING MANAGEMENT - OFFLINE BOOKING MODELS =====
+
+    /// <summary>
+    /// Request tạo booking offline - dành cho lễ tán
+    /// Tự động tìm customer theo email/SĐT, nếu chưa có thì tạo mới
+    /// </summary>
+    public class CreateOfflineBookingRequest
+    {
+        // Customer Info
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string? IdentityCard { get; set; }
+        public string? Address { get; set; }
+
+        // Booking Info
+        public List<RoomTypeQuantityRequest> RoomTypes { get; set; } = new List<RoomTypeQuantityRequest>();
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public string? SpecialRequests { get; set; }
+
+        // Payment Info
+        public decimal DepositAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty; // Cash, Card, Transfer
+        public string? PaymentNote { get; set; }
+    }
+
+    /// <summary>
+    /// Request cập nhật booking offline
+    /// </summary>
+    public class UpdateOfflineBookingRequest
+    {
+        public string? FullName { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? IdentityCard { get; set; }
+        public string? Address { get; set; }
+        public DateTime? CheckInDate { get; set; }
+        public DateTime? CheckOutDate { get; set; }
+        public string? SpecialRequests { get; set; }
+    }
+
+    /// <summary>
+    /// Request xác nhận đặt cọc offline
+    /// </summary>
+    public class ConfirmOfflineDepositRequest
+    {
+        public decimal DepositAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty; // Cash, Card, Transfer
+        public string? PaymentNote { get; set; }
+        public string? TransactionReference { get; set; }
+    }
+
+    /// <summary>
+    /// Request xác nhận thanh toán toàn bộ offline
+    /// </summary>
+    public class ConfirmOfflinePaymentRequest
+    {
+        public decimal PaidAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string? PaymentNote { get; set; }
+        public string? TransactionReference { get; set; }
+    }
+
+    /// <summary>
+    /// Filter để lọc danh sách booking offline
+    /// </summary>
+    public class OfflineBookingFilterRequest
+    {
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public string? PaymentStatus { get; set; }
+        public string? DepositStatus { get; set; }
+        public string? CustomerName { get; set; }
+        public string? PhoneNumber { get; set; }
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 20;
+    }
+
+    /// <summary>
+    /// DTO thông tin customer tìm được
+    /// </summary>
+    public class CustomerInfoDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string? IdentityCard { get; set; }
+        public string? Address { get; set; }
+        public int TotalBookings { get; set; }
+        public DateTime? LastBookingDate { get; set; }
+    }
+
+    /// <summary>
+    /// DTO chi tiết booking offline
+    /// </summary>
+    public class OfflineBookingDto
+    {
+        public int BookingId { get; set; }
+        public CustomerInfoDto Customer { get; set; } = new CustomerInfoDto();
+        public List<RoomDto> Rooms { get; set; } = new List<RoomDto>();
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public int TotalNights { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal DepositAmount { get; set; }
+        public decimal RemainingAmount { get; set; }
+        public string PaymentStatus { get; set; } = string.Empty;
+        public string DepositStatus { get; set; } = string.Empty;
+        public string? SpecialRequests { get; set; }
+        public string CreatedByEmployee { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public List<PaymentHistoryDto> PaymentHistory { get; set; } = new List<PaymentHistoryDto>();
+    }
+
+    /// <summary>
+    /// DTO thông tin phòng
+    /// </summary>
+    public class RoomDto
+    {
+        public int RoomId { get; set; }
+        public string RoomNumber { get; set; } = string.Empty;
+        public string RoomTypeName { get; set; } = string.Empty;
+        public decimal PricePerNight { get; set; }
+    }
+
+    /// <summary>
+    /// DTO lịch sử thanh toán
+    /// </summary>
+    public class PaymentHistoryDto
+    {
+        public int TransactionId { get; set; }
+        public decimal Amount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string TransactionType { get; set; } = string.Empty; // Deposit, FullPayment
+        public string? Note { get; set; }
+        public string ProcessedBy { get; set; } = string.Empty;
+        public DateTime ProcessedAt { get; set; }
+    }
 }

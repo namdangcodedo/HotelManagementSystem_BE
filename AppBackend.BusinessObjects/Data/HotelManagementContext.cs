@@ -35,6 +35,7 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<AccountRole> AccountRoles { get; set; }
     public virtual DbSet<BookingRoom> BookingRooms { get; set; }
     public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
+    public virtual DbSet<PayrollDisbursement> PayrollDisbursements { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -153,6 +154,16 @@ public class HotelManagementContext : DbContext
             .HasOne(s => s.Employee)
             .WithMany(e => e.Salaries)
             .HasForeignKey(s => s.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayrollDisbursement>()
+            .HasOne(p => p.Employee)
+            .WithMany(e => e.PayrollDisbursements)
+            .HasForeignKey(p => p.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PayrollDisbursement>()
+            .HasOne(p => p.Status)
+            .WithMany()
+            .HasForeignKey(p => p.StatusId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<HousekeepingTask>()
             .HasOne(h => h.TaskType)

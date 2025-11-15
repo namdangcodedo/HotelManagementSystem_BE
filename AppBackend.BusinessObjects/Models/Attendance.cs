@@ -15,6 +15,10 @@ public partial class Attendance
     [ForeignKey("Employee")]
     public int EmployeeId { get; set; }
 
+    // New: employee identifier from the attendance device (e.g., fingerprint/terminal id or employee code)
+    [StringLength(100)]
+    public string? DeviceEmployeeId { get; set; }
+
     [Required]
     public DateTime CheckIn { get; set; }
 
