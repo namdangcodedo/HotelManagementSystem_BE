@@ -24,10 +24,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="appsettings.json">
+    <None Include="appsettings.json" Condition="Exists('appsettings.json')">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="appsettings.Development.json">
+    <None Include="appsettings.Development.json" Condition="Exists('appsettings.Development.json')">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

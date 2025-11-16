@@ -65,6 +65,11 @@ project.fragment.lock.json
 # Ignore local test results
 TestResults/
 
-# Ignore configuration files
+# Ignore configuration files with sensitive data
 *.config
-appsettings.*
+appsettings.json
+appsettings.*.json
+
+# Keep template file for reference
+!appsettings.template.json
+*/appsettings.json
