@@ -1,0 +1,392 @@
+### ===================================
+### BOOKING MANAGEMENT FLOW - LỄ TÂN
+### ===================================
+### 
+### Luồng đặt phòng tại quầy (Offline Booking):
+### 1. Đăng nhập với tài khoản Lễ tân
+### 2. Tìm kiếm customer (nếu là khách cũ)
+### 3. Kiểm tra phòng available với filter
+### 4. Tạo booking offline (Walkin) với deposit
+### 5. Xác nhận thanh toán deposit
+### 6. Cập nhật thông tin booking (nếu cần)
+### 7. Quản lý danh sách booking
+### 8. Xác nhận thanh toán toàn bộ khi check-out
+### 9. Hủy booking (nếu cần)
+###
+### Base URL: http://localhost:8080
+### ===================================
+
+@baseUrl = http://localhost:8080
+
+### ===================================
+### BƯỚC 1: Đăng nhập với tài khoản Lễ tân
+### ===================================
+### Credentials:
+### - Username: receptionist
+### - Password: Staff@123
+### - Role: Receptionist
+
+# @name login
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "receptionist@hotel.com",
+  "password": "Staff@123"
+}
+
+###
+
+### Lưu token từ response
+@token = {{login.response.body.data.token}}
+
+### ===================================
+### BƯỚC 2: Tìm kiếm customer (khách cũ)
+### ===================================
+### Tự động điền thông tin nếu khách đã từng đặt phòng
+### Tìm theo email hoặc số điện thoại
+
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=0901234567
+Authorization: Bearer {{token}}
+
+### Response Example (Found):
+### {
+###   "isSuccess": true,
+###   "data": {
+###     "customerId": 1,
+###     "fullName": "Nguyễn Văn A",
+###     "email": "nguyenvana@gmail.com",
+###     "phoneNumber": "0901234567",
+###     "identityCard": "001234567890",
+###     "address": "123 Đường ABC, TP.HCM",
+###     "totalBookings": 3,
+###     "lastBookingDate": "2025-11-10T10:00:00Z"
+###   }
+### }
+
+### Response Example (Not Found):
+### {
+###   "isSuccess": true,
+###   "data": null,
+###   "message": "Không tìm thấy khách hàng"
+### }
+
+### ===================================
+### BƯỚC 3: Kiểm tra phòng available
+### ===================================
+### Check phòng trống theo:
+### - Loại phòng (roomTypeId)
+### - Số lượng phòng cần đặt
+### - Ngày check-in / check-out
+### ⚠️ Tự động loại bỏ phòng đang bị lock trong cache
+
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 2
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z"
+}
+
+### Response Example:
+### {
+###   "isSuccess": true,
+###   "data": {
+###     "isAllAvailable": true,
+###     "message": "✓ Tất cả loại phòng đều có đủ số lượng",
+###     "roomTypes": [
+###       {
+###         "roomTypeId": 1,
+###         "roomTypeName": "Phòng Tiêu Chuẩn",
+###         "roomTypeCode": "STD",
+###         "basePriceNight": 800000,
+###         "availableCount": 5,
+###         "requestedQuantity": 2,
+###         "isAvailable": true,
+###         "message": "✓ Còn 5 phòng trống, đủ để đáp ứng yêu cầu 2 phòng"
+###       }
+###     ],
+###     "checkInDate": "2025-11-20T14:00:00Z",
+###     "checkOutDate": "2025-11-22T12:00:00Z",
+###     "totalNights": 2
+###   }
+### }
+
+### ===================================
+### BƯỚC 4: Tạo booking offline (Walkin)
+### ===================================
+### Lễ tân nhập thông tin khách tại quầy
+### ✨ BookingType sẽ tự động = "Walkin"
+### 💰 Có thể nhận deposit ngay (tiền mặt/thẻ/chuyển khoản)
+
+# @name createBooking
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn B",
+  "email": "nguyenvanb@gmail.com",
+  "phoneNumber": "0912345678",
+  "identityCard": "012345678901",
+  "address": "456 Đường XYZ, Hà Nội",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "specialRequests": "Tầng cao, view biển",
+  "depositAmount": 500000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Khách đặt cọc tiền mặt tại quầy"
+}
+
+### Response Example:
+### {
+###   "isSuccess": true,
+###   "statusCode": 201,
+###   "data": {
+###     "bookingId": 15
+###   },
+###   "message": "Tạo booking offline thành công"
+### }
+
+@bookingId = {{createBooking.response.body.$.data.bookingId}}
+
+### ===================================
+### BƯỚC 5: Xem chi tiết booking vừa tạo
+### ===================================
+
+GET {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}
+Authorization: Bearer {{token}}
+
+### Response sẽ hiển thị:
+### - Thông tin khách hàng
+### - Danh sách phòng đã đặt
+### - Tổng tiền, tiền cọc, còn lại
+### - Trạng thái thanh toán
+### - Lịch sử giao dịch
+
+### ===================================
+### BƯỚC 6: Cập nhật thông tin booking (nếu cần)
+### ===================================
+### Chỉ cập nhật được trước khi check-in
+
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Nguyễn Văn B Updated",
+  "phoneNumber": "0912345679",
+  "specialRequests": "Tầng cao, view biển, thêm giường phụ"
+}
+
+### ===================================
+### BƯỚC 7: Xác nhận thanh toán deposit bổ sung (nếu cần)
+### ===================================
+### Trường hợp khách đặt cọc thêm
+
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}/confirm-deposit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "depositAmount": 300000,
+  "paymentMethod": "Card",
+  "paymentNote": "Khách đặt cọc thêm bằng thẻ",
+  "transactionReference": "TXN-2025111601"
+}
+
+### ===================================
+### BƯỚC 8: Lấy danh sách tất cả booking offline
+### ===================================
+### Màn hình quản lý booking với filter đầy đủ
+
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageNumber=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Hoặc filter theo tiêu chí cụ thể:
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?fromDate=2025-11-15&toDate=2025-11-25&paymentStatus=Unpaid&pageNumber=1&pageSize=10
+Authorization: Bearer {{token}}
+
+### Response Example:
+### {
+###   "isSuccess": true,
+###   "data": {
+###     "totalRecords": 15,
+###     "pageNumber": 1,
+###     "pageSize": 10,
+###     "totalPages": 2,
+###     "bookings": [...]
+###   }
+### }
+
+### ===================================
+### BƯỚC 9: Xác nhận thanh toán toàn bộ (khi check-out)
+### ===================================
+### Khách thanh toán phần còn lại khi trả phòng
+### 📧 Tự động gửi email cảm ơn sau khi thanh toán
+
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}/confirm-payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "paidAmount": 1100000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Thanh toán phần còn lại khi check-out",
+  "transactionReference": "TXN-2025111602"
+}
+
+### Response:
+### {
+###   "isSuccess": true,
+###   "message": "Xác nhận thanh toán thành công"
+### }
+
+### ===================================
+### BƯỚC 10: Gửi lại email xác nhận (nếu cần)
+### ===================================
+
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}/resend-email
+Authorization: Bearer {{token}}
+
+### ===================================
+### BƯỚC 11: Hủy booking (nếu khách hủy)
+### ===================================
+### Chỉ hủy được trước khi check-in
+
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Khách hủy do thay đổi lịch trình"
+}
+
+### ===================================
+### ADVANCED SCENARIOS
+### ===================================
+
+### Scenario 1: Khách cũ quay lại đặt phòng
+### Tìm theo email → Tự động điền thông tin → Tạo booking mới
+
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=nguyenvana@gmail.com
+Authorization: Bearer {{token}}
+
+### Sau đó dùng thông tin tìm được để tạo booking với email/SĐT đã có
+
+### Scenario 2: Booking nhiều loại phòng cùng lúc
+
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Trần Thị C",
+  "email": "tranthic@gmail.com",
+  "phoneNumber": "0923456789",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 2
+    },
+    {
+      "roomTypeId": 3,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-25T14:00:00Z",
+  "checkOutDate": "2025-11-27T12:00:00Z",
+  "depositAmount": 1000000,
+  "paymentMethod": "Bank"
+}
+
+### Scenario 3: Filter booking theo nhiều tiêu chí
+
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?fromDate=2025-11-01&toDate=2025-11-30&paymentStatus=Unpaid&depositStatus=Paid&customerName=Nguyen&phoneNumber=090&pageNumber=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### ===================================
+### ERROR CASES - Test các trường hợp lỗi
+### ===================================
+
+### Error 1: Không đủ phòng
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@test.com",
+  "phoneNumber": "0900000000",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 999
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "depositAmount": 0,
+  "paymentMethod": "Cash"
+}
+
+### Error 2: Cập nhật booking đã check-in (sẽ bị lỗi)
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "fullName": "Updated Name"
+}
+
+### Error 3: Hủy booking đã check-in (sẽ bị lỗi)
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "Test cancel"
+}
+
+### Error 4: Truy cập không có quyền (không phải lễ tân)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+### Không có Authorization header → 401 Unauthorized
+
+### ===================================
+### NOTES
+### ===================================
+### 
+### 1. BookingType:
+###    - "Walkin" = Đặt tại quầy (booking của lễ tân)
+###    - "Online" = Đặt trực tuyến (booking của khách)
+###
+### 2. PaymentMethod:
+###    - Cash = Tiền mặt
+###    - Card = Thẻ ngân hàng
+###    - Bank = Chuyển khoản
+###    - EWallet = Ví điện tử
+###
+### 3. Phòng bị lock trong cache:
+###    - Khi có người đang trong quá trình booking
+###    - Lock tự động expire sau 10 phút
+###    - API available-rooms tự động loại bỏ phòng lock
+###
+### 4. Transaction History:
+###    - Mỗi lần thanh toán sẽ tạo 1 transaction record
+###    - Type: Deposit hoặc FullPayment
+###    - Lưu thông tin: Người xử lý, Thời gian, Số tiền
+###
+### ===================================

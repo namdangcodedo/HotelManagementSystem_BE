@@ -1,0 +1,765 @@
+### ===================================
+### BOOKING MANAGEMENT API - ALL TEST CASES
+### ===================================
+### 
+### Tất cả các API cho quản lý booking offline (Lễ tân)
+### Bao gồm: CRUD, Search, Filter, Payment confirmation
+###
+### Base URL: http://localhost:8080
+### ===================================
+
+@baseUrl = http://localhost:8080
+
+### ===================================
+### AUTHENTICATION - Đăng nhập các role
+### ===================================
+
+### 1.1. Login as Receptionist
+# @name loginReceptionist
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "receptionist@hotel.com",
+  "password": "Staff@123"
+}
+
+###
+
+### 1.2. Login as Manager
+# @name loginManager
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+###
+
+### 1.3. Login as Admin
+# @name loginAdmin
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+###
+
+### ===================================
+### CUSTOMER SEARCH - Tìm kiếm khách hàng
+### ===================================
+
+### 2.1. Search customer by email (Found)
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=nguyenvana@gmail.com
+Authorization: Bearer {{loginReceptionist.response.body.data.token}}
+
+### 2.2. Search customer by phone (Found)
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=0901234567
+Authorization: Bearer {{loginReceptionist.response.body.data.token}}
+
+### 2.3. Search customer not found
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=notexist@gmail.com
+Authorization: Bearer {{loginReceptionist.response.body.data.token}}
+
+### 2.4. Search with empty term (Error)
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=
+Authorization: Bearer {{loginReceptionist.response.body.data.token}}
+
+### ===================================
+### CHECK ROOM AVAILABILITY
+### ===================================
+
+### 3.1. Check availability - All available
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 2
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z"
+}
+
+### 3.2. Check availability - Multiple room types
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    },
+    {
+      "roomTypeId": 2,
+      "quantity": 1
+    },
+    {
+      "roomTypeId": 3,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-12-01T14:00:00Z",
+  "checkOutDate": "2025-12-03T12:00:00Z"
+}
+
+### 3.3. Check availability - Not enough rooms
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 100
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z"
+}
+
+### 3.4. Check availability - Long stay
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 3,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-25T14:00:00Z",
+  "checkOutDate": "2025-12-05T12:00:00Z"
+}
+
+### 3.5. Check availability - Invalid date (checkout before checkin)
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-25T14:00:00Z",
+  "checkOutDate": "2025-11-20T12:00:00Z"
+}
+
+### ===================================
+### CREATE OFFLINE BOOKING
+### ===================================
+
+### 4.1. Create booking - New customer with deposit
+# @name createBooking1
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Lê Văn Test 1",
+  "email": "levantest1@gmail.com",
+  "phoneNumber": "0901111111",
+  "identityCard": "011111111111",
+  "address": "111 Test Street, TP.HCM",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "specialRequests": "Tầng cao, view đẹp",
+  "depositAmount": 500000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Đặt cọc tiền mặt"
+}
+
+@bookingId1 = {{createBooking1.response.body.data.bookingId}}
+
+### 4.2. Create booking - Existing customer (same email)
+# @name createBooking2
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Lê Văn Test 1 Updated",
+  "email": "levantest1@gmail.com",
+  "phoneNumber": "0901111112",
+  "roomTypes": [
+    {
+      "roomTypeId": 2,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-23T14:00:00Z",
+  "checkOutDate": "2025-11-25T12:00:00Z",
+  "depositAmount": 800000,
+  "paymentMethod": "Card"
+}
+
+@bookingId2 = {{createBooking2.response.body.data.bookingId}}
+
+### 4.3. Create booking - Multiple room types
+# @name createBooking3
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Phạm Thị Test 2",
+  "email": "phamthitest2@gmail.com",
+  "phoneNumber": "0902222222",
+  "identityCard": "022222222222",
+  "address": "222 Test Avenue, Hà Nội",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 2
+    },
+    {
+      "roomTypeId": 3,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-25T14:00:00Z",
+  "checkOutDate": "2025-11-28T12:00:00Z",
+  "specialRequests": "Cần thêm giường phụ cho 2 phòng standard",
+  "depositAmount": 1500000,
+  "paymentMethod": "Bank",
+  "paymentNote": "Chuyển khoản ngân hàng"
+}
+
+@bookingId3 = {{createBooking3.response.body.data.bookingId}}
+
+### 4.4. Create booking - No deposit
+# @name createBooking4
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Hoàng Văn Test 3",
+  "email": "hoangvantest3@gmail.com",
+  "phoneNumber": "0903333333",
+  "roomTypes": [
+    {
+      "roomTypeId": 4,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-12-01T14:00:00Z",
+  "checkOutDate": "2025-12-03T12:00:00Z",
+  "depositAmount": 0,
+  "paymentMethod": "Cash"
+}
+
+@bookingId4 = {{createBooking4.response.body.data.bookingId}}
+
+### 4.5. Create booking - Not enough rooms (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "testuser@gmail.com",
+  "phoneNumber": "0900000000",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 999
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "depositAmount": 0,
+  "paymentMethod": "Cash"
+}
+
+### 4.6. Create booking - Missing required fields (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@test.com"
+}
+
+### 4.7. Create booking - Invalid room type (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@test.com",
+  "phoneNumber": "0900000000",
+  "roomTypes": [
+    {
+      "roomTypeId": 9999,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "depositAmount": 0,
+  "paymentMethod": "Cash"
+}
+
+### ===================================
+### GET BOOKING DETAILS
+### ===================================
+
+### 5.1. Get booking by ID (Success)
+GET {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}
+Authorization: Bearer {{receptionistToken}}
+
+### 5.2. Get booking by ID (Not found)
+GET {{baseUrl}}/api/BookingManagement/offline-booking/99999
+Authorization: Bearer {{receptionistToken}}
+
+### 5.3. Get booking with full details
+GET {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId3}}
+Authorization: Bearer {{receptionistToken}}
+
+### ===================================
+### UPDATE OFFLINE BOOKING
+### ===================================
+
+### 6.1. Update booking - Customer info
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Lê Văn Test 1 - Updated Name",
+  "phoneNumber": "0901111119",
+  "identityCard": "011111111119",
+  "address": "111 Updated Street, TP.HCM"
+}
+
+### 6.2. Update booking - Special requests
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId2}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "specialRequests": "Thêm yêu cầu: cần thêm khăn tắm và dép"
+}
+
+### 6.3. Update booking - Check-in/out dates
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-11-20T15:00:00Z",
+  "checkOutDate": "2025-11-23T11:00:00Z"
+}
+
+### 6.4. Update booking - Not found (Error)
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/99999
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test Update"
+}
+
+### 6.5. Update booking - Already checked in (Error)
+### Chỉ test nếu có booking đã check-in
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/1
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Test Update"
+}
+
+### ===================================
+### CONFIRM DEPOSIT
+### ===================================
+
+### 7.1. Confirm deposit - Cash
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}/confirm-deposit
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "depositAmount": 300000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Khách đặt cọc thêm 300k tiền mặt",
+  "transactionReference": "CASH-DEP-001"
+}
+
+### 7.2. Confirm deposit - Card with reference
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId2}}/confirm-deposit
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "depositAmount": 500000,
+  "paymentMethod": "Card",
+  "paymentNote": "Thanh toán bằng thẻ Visa",
+  "transactionReference": "CARD-TXN-20251116-001"
+}
+
+### 7.3. Confirm deposit - Bank transfer
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId4}}/confirm-deposit
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "depositAmount": 1000000,
+  "paymentMethod": "Bank",
+  "paymentNote": "Chuyển khoản qua VietcomBank",
+  "transactionReference": "VCB-REF-123456789"
+}
+
+### 7.4. Confirm deposit - Booking not found (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking/99999/confirm-deposit
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "depositAmount": 500000,
+  "paymentMethod": "Cash"
+}
+
+### ===================================
+### CONFIRM FULL PAYMENT
+### ===================================
+
+### 8.1. Confirm full payment - Cash (with email)
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}/confirm-payment
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "paidAmount": 1100000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Thanh toán phần còn lại khi check-out",
+  "transactionReference": "CASH-FULL-001"
+}
+
+### 8.2. Confirm full payment - Card
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId2}}/confirm-payment
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "paidAmount": 2500000,
+  "paymentMethod": "Card",
+  "paymentNote": "Thanh toán toàn bộ bằng thẻ tín dụng",
+  "transactionReference": "CARD-FULL-002"
+}
+
+### 8.3. Confirm full payment - E-Wallet
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId3}}/confirm-payment
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "paidAmount": 5000000,
+  "paymentMethod": "EWallet",
+  "paymentNote": "Thanh toán qua Momo",
+  "transactionReference": "MOMO-TXN-987654321"
+}
+
+### 8.4. Confirm payment - Booking not found (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking/99999/confirm-payment
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "paidAmount": 1000000,
+  "paymentMethod": "Cash"
+}
+
+### ===================================
+### LIST & FILTER BOOKINGS
+### ===================================
+
+### 9.1. Get all offline bookings - Default pagination
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+Authorization: Bearer {{receptionistToken}}
+
+### 9.2. Get bookings - Page 1, 10 items
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageNumber=1&pageSize=10
+Authorization: Bearer {{receptionistToken}}
+
+### 9.3. Get bookings - Page 2, 5 items
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageNumber=2&pageSize=5
+Authorization: Bearer {{receptionistToken}}
+
+### 9.4. Filter by date range
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?fromDate=2025-11-15&toDate=2025-11-30
+Authorization: Bearer {{receptionistToken}}
+
+### 9.5. Filter by payment status (Unpaid)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?paymentStatus=Unpaid
+Authorization: Bearer {{receptionistToken}}
+
+### 9.6. Filter by payment status (Paid)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?paymentStatus=Paid
+Authorization: Bearer {{receptionistToken}}
+
+### 9.7. Filter by deposit status (Paid)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?depositStatus=Paid
+Authorization: Bearer {{receptionistToken}}
+
+### 9.8. Filter by deposit status (Unpaid)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?depositStatus=Unpaid
+Authorization: Bearer {{receptionistToken}}
+
+### 9.9. Filter by customer name
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?customerName=Nguyen
+Authorization: Bearer {{receptionistToken}}
+
+### 9.10. Filter by phone number
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?phoneNumber=090
+Authorization: Bearer {{receptionistToken}}
+
+### 9.11. Complex filter - Multiple criteria
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?fromDate=2025-11-01&toDate=2025-12-31&paymentStatus=Unpaid&depositStatus=Paid&customerName=Test&pageNumber=1&pageSize=20
+Authorization: Bearer {{receptionistToken}}
+
+### 9.12. Filter with large page size
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageSize=100
+Authorization: Bearer {{receptionistToken}}
+
+### ===================================
+### RESEND CONFIRMATION EMAIL
+### ===================================
+
+### 10.1. Resend email - Success
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}/resend-email
+Authorization: Bearer {{receptionistToken}}
+
+### 10.2. Resend email - Another booking
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId2}}/resend-email
+Authorization: Bearer {{receptionistToken}}
+
+### 10.3. Resend email - Booking not found (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking/99999/resend-email
+Authorization: Bearer {{receptionistToken}}
+
+### ===================================
+### CANCEL BOOKING
+### ===================================
+
+### 11.1. Cancel booking - Customer request
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId4}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "reason": "Khách hủy do thay đổi lịch trình công tác"
+}
+
+### 11.2. Cancel booking - Weather issue
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId3}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "reason": "Hủy do thời tiết xấu, bão lũ"
+}
+
+### 11.3. Cancel booking - Double booking correction
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId2}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "reason": "Hủy do khách đặt nhầm 2 lần"
+}
+
+### 11.4. Cancel booking - Not found (Error)
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/99999
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "reason": "Test cancel"
+}
+
+### 11.5. Cancel booking - Already checked in (Error)
+### Chỉ test nếu có booking đã check-in
+DELETE {{baseUrl}}/api/BookingManagement/offline-booking/1
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "reason": "Test cancel after checkin"
+}
+
+### ===================================
+### AUTHORIZATION TESTS
+### ===================================
+
+### 12.1. Access with Manager role (Should work)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+Authorization: Bearer {{managerToken}}
+
+### 12.2. Access with Admin role (Should work)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+Authorization: Bearer {{adminToken}}
+
+### 12.3. Access without token (Error - 401)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+
+### 12.4. Access with invalid token (Error - 401)
+GET {{baseUrl}}/api/BookingManagement/offline-bookings
+Authorization: Bearer invalid_token_here
+
+### 12.5. Create booking without permission (Error)
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@test.com",
+  "phoneNumber": "0900000000",
+  "roomTypes": [{"roomTypeId": 1, "quantity": 1}],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "depositAmount": 0,
+  "paymentMethod": "Cash"
+}
+
+### ===================================
+### EDGE CASES & VALIDATION
+### ===================================
+
+### 13.1. Search customer with special characters
+GET {{baseUrl}}/api/BookingManagement/search-customer?searchTerm=nguyễn@gmail.com
+Authorization: Bearer {{receptionistToken}}
+
+### 13.2. Check availability for past dates (Should fail)
+POST {{baseUrl}}/api/BookingManagement/available-rooms
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomTypes": [{"roomTypeId": 1, "quantity": 1}],
+  "checkInDate": "2020-01-01T14:00:00Z",
+  "checkOutDate": "2020-01-03T12:00:00Z"
+}
+
+### 13.3. Create booking with very long stay
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Long Stay Test",
+  "email": "longstay@test.com",
+  "phoneNumber": "0909999999",
+  "roomTypes": [{"roomTypeId": 1, "quantity": 1}],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-12-20T12:00:00Z",
+  "depositAmount": 5000000,
+  "paymentMethod": "Bank"
+}
+
+### 13.4. Update booking with invalid dates
+PUT {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-11-25T14:00:00Z",
+  "checkOutDate": "2025-11-20T12:00:00Z"
+}
+
+### 13.5. Confirm deposit with negative amount (Should fail)
+POST {{baseUrl}}/api/BookingManagement/offline-booking/{{bookingId1}}/confirm-deposit
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "depositAmount": -500000,
+  "paymentMethod": "Cash"
+}
+
+### 13.6. Filter with invalid page number
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageNumber=0&pageSize=10
+Authorization: Bearer {{receptionistToken}}
+
+### 13.7. Filter with negative page size
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageNumber=1&pageSize=-10
+Authorization: Bearer {{receptionistToken}}
+
+### ===================================
+### PERFORMANCE TESTS
+### ===================================
+
+### 14.1. Load test - Get all bookings with large page size
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?pageSize=1000
+Authorization: Bearer {{receptionistToken}}
+
+### 14.2. Load test - Multiple filters
+GET {{baseUrl}}/api/BookingManagement/offline-bookings?fromDate=2020-01-01&toDate=2030-12-31&paymentStatus=Unpaid&depositStatus=Paid&customerName=a&phoneNumber=0
+Authorization: Bearer {{receptionistToken}}
+
+### 14.3. Stress test - Create multiple bookings rapidly
+### Run this multiple times in quick succession
+POST {{baseUrl}}/api/BookingManagement/offline-booking
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "fullName": "Stress Test User {{$timestamp}}",
+  "email": "stress{{$timestamp}}@test.com",
+  "phoneNumber": "09{{$timestamp}}",
+  "roomTypes": [{"roomTypeId": 1, "quantity": 1}],
+  "checkInDate": "2025-12-10T14:00:00Z",
+  "checkOutDate": "2025-12-12T12:00:00Z",
+  "depositAmount": 500000,
+  "paymentMethod": "Cash"
+}
+
+### ===================================
+### SUMMARY
+### ===================================
+###
+### Total Test Cases: 70+
+###
+### Coverage:
+### ✅ Authentication (3 roles)
+### ✅ Customer Search (4 cases)
+### ✅ Room Availability (5 cases)
+### ✅ Create Booking (7 cases)
+### ✅ Get Booking Details (3 cases)
+### ✅ Update Booking (5 cases)
+### ✅ Confirm Deposit (4 cases)
+### ✅ Confirm Payment (4 cases)
+### ✅ List & Filter (12 cases)
+### ✅ Resend Email (3 cases)
+### ✅ Cancel Booking (5 cases)
+### ✅ Authorization (5 cases)
+### ✅ Edge Cases (7 cases)
+### ✅ Performance (3 cases)
+###
+### ===================================

@@ -313,4 +313,12 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string ProcessedBy { get; set; } = string.Empty;
         public DateTime ProcessedAt { get; set; }
     }
+
+    /// <summary>
+    /// Request để hủy booking
+    /// </summary>
+    public class CancelBookingRequest
+    {
+        public string? Reason { get; set; }
+    }
 }

@@ -45,6 +45,7 @@ public static class ServicesConfig
         services.AddScoped<IRoomService, RoomService>();
         services.AddScoped<IRoomAmenityService, RoomAmenityService>();
         services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<IBookingManagementService, BookingManagementService>();
         services.AddScoped<IRoleService, RoleService>();
         
         // Message Queue Service - Singleton for thread-safe queue

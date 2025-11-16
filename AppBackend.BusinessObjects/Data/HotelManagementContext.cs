@@ -195,10 +195,6 @@ public class HotelManagementContext : DbContext
             .WithMany()
             .HasForeignKey(n => n.NotificationTypeId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Salary>()
-            .HasOne(s => s.Status)
-            .WithMany()
-            .HasForeignKey(s => s.StatusId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }
+
