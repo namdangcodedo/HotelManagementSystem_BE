@@ -1365,7 +1365,7 @@ namespace AppBackend.Services.Services.BookingServices
             var bookingType = booking.BookingTypeId.HasValue ?
                 (await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value))?.CodeValue : "N/A";
 
-            var transactions = (await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId)).ToList();
+            var transactions = (await _unitOfWork.Transactions.FindAsync(t => t.BookingId == booking.BookingId)).ToList();
             var paidAmount = transactions.Sum(t => t.TotalAmount);
 
             var createdByEmployee = booking.CreatedBy.HasValue ?
@@ -1415,8 +1415,6 @@ namespace AppBackend.Services.Services.BookingServices
                 PhoneNumber = customer.PhoneNumber ?? "",
                 IdentityCard = customer.IdentityCard,
                 Address = customer.Address,
-                DateOfBirth = customer.DateOfBirth,
-                Gender = customer.Gender,
                 TotalBookings = customerBookings.Count,
                 LastBookingDate = customerBookings.OrderByDescending(b => b.CreatedAt).FirstOrDefault()?.CreatedAt,
                 TotalSpent = customerBookings.Sum(b => b.TotalAmount)
@@ -1430,8 +1428,13 @@ namespace AppBackend.Services.Services.BookingServices
                 if (room == null) continue;
 
                 var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
-                var roomImages = (await _unitOfWork.RoomImages.FindAsync(ri => ri.RoomId == room.RoomId))
-                    .Select(ri => ri.FilePath).ToList();
+                var roomImages = (await _unitOfWork.Mediums.FindAsync(m => 
+                    m.ReferenceTable == "Room" && 
+                    m.ReferenceKey == room.RoomId.ToString() && 
+                    m.IsActive))
+                    .OrderBy(m => m.DisplayOrder)
+                    .Select(m => m.FilePath)
+                    .ToList();
                 var amenities = (await _unitOfWork.RoomAmenities.FindAsync(ra => ra.RoomId == room.RoomId))
                     .Select(ra => ra.Amenity?.AmenityName ?? "").Where(a => !string.IsNullOrEmpty(a)).ToList();
 
@@ -1441,10 +1444,10 @@ namespace AppBackend.Services.Services.BookingServices
                     RoomId = room.RoomId,
                     RoomNumber = room.RoomName,
                     RoomTypeName = roomType?.TypeName ?? "",
-                    RoomTypeCode = roomType?.CodeValue ?? "",
+                    RoomTypeCode = roomType?.TypeCode ?? "",
                     PricePerNight = br.PricePerNight,
                     NumberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days,
-                    SubTotal = br.PricePerNight * (booking.CheckOutDate - booking.CheckInDate).Days,
+                    SubTotal = br.SubTotal,
                     Status = "Active",
                     RoomImages = roomImages,
                     MaxOccupancy = roomType?.MaxOccupancy ?? 0,
@@ -1458,10 +1461,10 @@ namespace AppBackend.Services.Services.BookingServices
             var paymentHistory = new List<PaymentHistoryDetailDto>();
             foreach (var trans in transactions)
             {
-                var paymentMethod = trans.PaymentMethodId.HasValue ?
-                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.PaymentMethodId.Value) : null;
-                var transStatus = trans.TransactionStatusId.HasValue ?
-                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.TransactionStatusId.Value) : null;
+                var paymentMethod = trans.PaymentMethodId > 0 ?
+                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.PaymentMethodId) : null;
+                var transStatus = trans.TransactionStatusId > 0 ?
+                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.TransactionStatusId) : null;
                 var employee = trans.CreatedBy.HasValue ?
                     await _unitOfWork.Employees.GetByIdAsync(trans.CreatedBy.Value) : null;
 
