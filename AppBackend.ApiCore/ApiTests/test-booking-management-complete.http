@@ -1,0 +1,228 @@
+### Test Booking Management API - Filter, Pagination, Detail, Statistics
+
+@baseUrl = http://localhost:5000/api
+@token = YOUR_JWT_TOKEN_HERE
+
+### 1. Lấy danh sách tất cả booking với filter và phân trang
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### 2. Lấy booking theo khoảng thời gian
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&fromDate=2024-11-01&toDate=2024-11-30
+Authorization: Bearer {{token}}
+
+### 3. Filter booking theo trạng thái thanh toán
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&paymentStatus=Paid
+Authorization: Bearer {{token}}
+
+### 4. Filter booking theo loại (Online/Walkin)
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&bookingType=Online
+Authorization: Bearer {{token}}
+
+### 5. Tìm kiếm booking theo tên khách hàng
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&customerName=Nguyen Van A
+Authorization: Bearer {{token}}
+
+### 6. Tìm kiếm booking theo số điện thoại
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&phoneNumber=0901234567
+Authorization: Bearer {{token}}
+
+### 7. Tìm kiếm booking theo email
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&email=test@gmail.com
+Authorization: Bearer {{token}}
+
+### 8. Sắp xếp theo ngày check-in (mới nhất)
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&sortBy=CheckInDate&isDescending=true
+Authorization: Bearer {{token}}
+
+### 9. Sắp xếp theo tổng tiền (cao nhất)
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&sortBy=TotalAmount&isDescending=true
+Authorization: Bearer {{token}}
+
+### 10. Filter kết hợp nhiều điều kiện
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&fromDate=2024-11-01&toDate=2024-11-30&bookingType=Online&paymentStatus=Paid&sortBy=CheckInDate&isDescending=true
+Authorization: Bearer {{token}}
+
+### 11. Lấy chi tiết đầy đủ của một booking
+GET {{baseUrl}}/bookingmanagement/booking/1/detail
+Authorization: Bearer {{token}}
+
+### 12. Cập nhật trạng thái booking thành Confirmed
+PUT {{baseUrl}}/bookingmanagement/booking/1/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "Confirmed",
+  "note": "Booking đã được xác nhận"
+}
+
+### 13. Cập nhật trạng thái booking thành CheckedIn
+PUT {{baseUrl}}/bookingmanagement/booking/1/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "CheckedIn",
+  "note": "Khách đã check-in lúc 14:00"
+}
+
+### 14. Cập nhật trạng thái booking thành CheckedOut
+PUT {{baseUrl}}/bookingmanagement/booking/1/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "CheckedOut",
+  "note": "Khách đã check-out lúc 12:00"
+}
+
+### 15. Hủy booking với lý do
+POST {{baseUrl}}/bookingmanagement/booking/1/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Khách yêu cầu hủy do thay đổi lịch trình"
+}
+
+### 16. Lấy thống kê booking theo ngày
+GET {{baseUrl}}/bookingmanagement/statistics?fromDate=2024-11-01&toDate=2024-11-30&groupBy=day
+Authorization: Bearer {{token}}
+
+### 17. Lấy thống kê booking theo tuần
+GET {{baseUrl}}/bookingmanagement/statistics?fromDate=2024-11-01&toDate=2024-11-30&groupBy=week
+Authorization: Bearer {{token}}
+
+### 18. Lấy thống kê booking theo tháng
+GET {{baseUrl}}/bookingmanagement/statistics?fromDate=2024-01-01&toDate=2024-12-31&groupBy=month
+Authorization: Bearer {{token}}
+
+### 19. Lấy thống kê booking theo năm
+GET {{baseUrl}}/bookingmanagement/statistics?fromDate=2020-01-01&toDate=2024-12-31&groupBy=year
+Authorization: Bearer {{token}}
+
+### 20. Lấy thống kê tổng quan (không group by)
+GET {{baseUrl}}/bookingmanagement/statistics?fromDate=2024-01-01&toDate=2024-12-31
+Authorization: Bearer {{token}}
+
+### 21. Gửi lại email xác nhận booking
+POST {{baseUrl}}/bookingmanagement/booking/1/resend-confirmation
+Authorization: Bearer {{token}}
+
+### 22. Lấy danh sách booking offline
+GET {{baseUrl}}/bookingmanagement/offline-bookings?pageNumber=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### 23. Filter booking offline theo trạng thái deposit
+GET {{baseUrl}}/bookingmanagement/offline-bookings?pageNumber=1&pageSize=20&depositStatus=Paid
+Authorization: Bearer {{token}}
+
+### 24. Tìm customer để tự động điền form
+GET {{baseUrl}}/bookingmanagement/search-customer?searchTerm=0901234567
+Authorization: Bearer {{token}}
+
+### 25. Kiểm tra phòng available
+POST {{baseUrl}}/bookingmanagement/available-rooms
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 2 },
+    { "roomTypeId": 3, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z"
+}
+
+### 26. Tạo booking offline
+POST {{baseUrl}}/bookingmanagement/offline-booking
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "fullName": "Nguyễn Văn A",
+  "email": "nguyenvana@gmail.com",
+  "phoneNumber": "0901234567",
+  "identityCard": "001234567890",
+  "address": "123 Đường ABC, TP.HCM",
+  "roomTypes": [
+    { "roomTypeId": 1, "quantity": 1 }
+  ],
+  "checkInDate": "2025-11-20T14:00:00Z",
+  "checkOutDate": "2025-11-22T12:00:00Z",
+  "specialRequests": "Tầng cao, view biển",
+  "depositAmount": 500000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Khách đặt cọc tiền mặt"
+}
+
+### 27. Cập nhật booking offline
+PUT {{baseUrl}}/bookingmanagement/offline-booking/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "fullName": "Nguyễn Văn A - Updated",
+  "phoneNumber": "0901234568",
+  "identityCard": "001234567891",
+  "address": "456 Đường XYZ, TP.HCM",
+  "checkInDate": "2025-11-21T14:00:00Z",
+  "checkOutDate": "2025-11-23T12:00:00Z",
+  "specialRequests": "Tầng trung, view thành phố"
+}
+
+### 28. Xác nhận đặt cọc offline
+POST {{baseUrl}}/bookingmanagement/offline-booking/1/confirm-deposit
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "depositAmount": 500000,
+  "paymentMethod": "Cash",
+  "paymentNote": "Khách đặt cọc tiền mặt",
+  "transactionReference": "DEP-001"
+}
+
+### 29. Xác nhận thanh toán toàn bộ offline
+POST {{baseUrl}}/bookingmanagement/offline-booking/1/confirm-payment
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "paidAmount": 1500000,
+  "paymentMethod": "Card",
+  "paymentNote": "Thanh toán bằng thẻ",
+  "transactionReference": "PAY-001"
+}
+
+### 30. Lấy chi tiết booking offline
+GET {{baseUrl}}/bookingmanagement/offline-booking/1
+Authorization: Bearer {{token}}
+
+### 31. Hủy booking offline
+DELETE {{baseUrl}}/bookingmanagement/offline-booking/1
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Khách yêu cầu hủy phòng"
+}
+
+### 32. Test phân trang - Trang 2
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=2&pageSize=20
+Authorization: Bearer {{token}}
+
+### 33. Test phân trang với page size khác
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=50
+Authorization: Bearer {{token}}
+
+### 34. Filter booking theo deposit status
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&depositStatus=Unpaid
+Authorization: Bearer {{token}}
+
+### 35. Kết hợp filter status + search
+GET {{baseUrl}}/bookingmanagement/bookings?pageNumber=1&pageSize=20&paymentStatus=Unpaid&customerName=Nguyen
+Authorization: Bearer {{token}}
+

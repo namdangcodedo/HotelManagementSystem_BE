@@ -741,6 +741,333 @@ namespace AppBackend.Services.Services.BookingServices
             }
         }
 
+        /// <summary>
+        /// Lấy danh sách booking với filter và phân trang
+        /// </summary>
+        public async Task<ResultModel<PagedBookingListResponse>> GetBookingListAsync(GetBookingListRequest request)
+        {
+            try
+            {
+                // Lấy tất cả bookings
+                var query = (await _unitOfWork.Bookings.GetAllAsync()).AsQueryable();
+
+                // Apply filters
+                if (request.FromDate.HasValue)
+                {
+                    query = query.Where(b => b.CheckInDate >= request.FromDate.Value);
+                }
+
+                if (request.ToDate.HasValue)
+                {
+                    query = query.Where(b => b.CheckOutDate <= request.ToDate.Value);
+                }
+
+                if (!string.IsNullOrEmpty(request.BookingStatus))
+                {
+                    var statusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "BookingStatus" && c.CodeValue == request.BookingStatus)).FirstOrDefault();
+                    if (statusCode != null)
+                        query = query.Where(b => b.PaymentStatusId == statusCode.CodeId);
+                }
+
+                if (!string.IsNullOrEmpty(request.PaymentStatus))
+                {
+                    var paymentCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "PaymentStatus" && c.CodeValue == request.PaymentStatus)).FirstOrDefault();
+                    if (paymentCode != null)
+                        query = query.Where(b => b.PaymentStatusId == paymentCode.CodeId);
+                }
+
+                if (!string.IsNullOrEmpty(request.DepositStatus))
+                {
+                    var depositCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "DepositStatus" && c.CodeValue == request.DepositStatus)).FirstOrDefault();
+                    if (depositCode != null)
+                        query = query.Where(b => b.DepositStatusId == depositCode.CodeId);
+                }
+
+                if (!string.IsNullOrEmpty(request.BookingType))
+                {
+                    var typeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "BookingType" && c.CodeValue == request.BookingType)).FirstOrDefault();
+                    if (typeCode != null)
+                        query = query.Where(b => b.BookingTypeId == typeCode.CodeId);
+                }
+
+                // Search filters
+                if (!string.IsNullOrEmpty(request.CustomerName))
+                {
+                    var customers = await _unitOfWork.Customers.FindAsync(c =>
+                        c.FullName.Contains(request.CustomerName));
+                    var customerIds = customers.Select(c => c.CustomerId).ToList();
+                    query = query.Where(b => customerIds.Contains(b.CustomerId));
+                }
+
+                if (!string.IsNullOrEmpty(request.PhoneNumber))
+                {
+                    var customers = await _unitOfWork.Customers.FindAsync(c =>
+                        c.PhoneNumber != null && c.PhoneNumber.Contains(request.PhoneNumber));
+                    var customerIds = customers.Select(c => c.CustomerId).ToList();
+                    query = query.Where(b => customerIds.Contains(b.CustomerId));
+                }
+
+                if (!string.IsNullOrEmpty(request.Email))
+                {
+                    var accounts = await _unitOfWork.Accounts.FindAsync(a =>
+                        a.Email.Contains(request.Email));
+                    var accountIds = accounts.Select(a => a.AccountId).ToList();
+                    var customers = await _unitOfWork.Customers.FindAsync(c =>
+                        c.AccountId.HasValue && accountIds.Contains(c.AccountId.Value));
+                    var customerIds = customers.Select(c => c.CustomerId).ToList();
+                    query = query.Where(b => customerIds.Contains(b.CustomerId));
+                }
+
+                // Sorting
+                query = request.SortBy?.ToLower() switch
+                {
+                    "checkindate" => request.IsDescending ? 
+                        query.OrderByDescending(b => b.CheckInDate) : query.OrderBy(b => b.CheckInDate),
+                    "totalamount" => request.IsDescending ? 
+                        query.OrderByDescending(b => b.TotalAmount) : query.OrderBy(b => b.TotalAmount),
+                    _ => request.IsDescending ? 
+                        query.OrderByDescending(b => b.CreatedAt) : query.OrderBy(b => b.CreatedAt)
+                };
+
+                // Count total
+                var totalRecords = query.Count();
+
+                // Pagination
+                var bookings = query
+                    .Skip((request.PageNumber - 1) * request.PageSize)
+                    .Take(request.PageSize)
+                    .ToList();
+
+                // Map to DTOs
+                var items = new List<BookingListItemDto>();
+                foreach (var booking in bookings)
+                {
+                    var item = await MapToBookingListItemDto(booking);
+                    items.Add(item);
+                }
+
+                var response = new PagedBookingListResponse
+                {
+                    Items = items,
+                    PageNumber = request.PageNumber,
+                    PageSize = request.PageSize,
+                    TotalRecords = totalRecords,
+                    TotalPages = (int)Math.Ceiling(totalRecords / (double)request.PageSize),
+                    HasPreviousPage = request.PageNumber > 1,
+                    HasNextPage = request.PageNumber < (int)Math.Ceiling(totalRecords / (double)request.PageSize)
+                };
+
+                return new ResultModel<PagedBookingListResponse>
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Data = response,
+                    Message = "Lấy danh sách booking thành công"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel<PagedBookingListResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = $"Lỗi: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Lấy chi tiết đầy đủ của một booking
+        /// </summary>
+        public async Task<ResultModel<BookingDetailDto>> GetBookingDetailAsync(int bookingId)
+        {
+            try
+            {
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+                if (booking == null)
+                {
+                    return new ResultModel<BookingDetailDto>
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status404NotFound,
+                        Message = "Không tìm thấy booking"
+                    };
+                }
+
+                var detail = await MapToBookingDetailDto(booking);
+
+                return new ResultModel<BookingDetailDto>
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Data = detail,
+                    Message = "Lấy chi tiết booking thành công"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel<BookingDetailDto>
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = $"Lỗi: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Cập nhật trạng thái booking
+        /// </summary>
+        public async Task<ResultModel> UpdateBookingStatusAsync(int bookingId, UpdateBookingStatusRequest request, int employeeId)
+        {
+            try
+            {
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+                if (booking == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status404NotFound,
+                        Message = "Không tìm thấy booking"
+                    };
+                }
+
+                // Lấy status code từ CommonCode
+                var statusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingStatus" && c.CodeValue == request.Status)).FirstOrDefault();
+
+                if (statusCode == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status400BadRequest,
+                        Message = "Trạng thái không hợp lệ"
+                    };
+                }
+
+                booking.PaymentStatusId = statusCode.CodeId;
+                booking.UpdatedAt = DateTime.UtcNow;
+                booking.UpdatedBy = employeeId;
+
+                if (!string.IsNullOrEmpty(request.Note))
+                {
+                    booking.SpecialRequests = (booking.SpecialRequests ?? "") + $"\n[{DateTime.UtcNow:yyyy-MM-dd HH:mm}] {request.Note}";
+                }
+
+                await _unitOfWork.Bookings.UpdateAsync(booking);
+                await _unitOfWork.SaveChangesAsync();
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Message = "Cập nhật trạng thái thành công"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = $"Lỗi: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Lấy thống kê booking
+        /// </summary>
+        public async Task<ResultModel<BookingStatisticsResponse>> GetBookingStatisticsAsync(BookingStatisticsRequest request)
+        {
+            try
+            {
+                var query = (await _unitOfWork.Bookings.GetAllAsync()).AsQueryable();
+
+                if (request.FromDate.HasValue)
+                    query = query.Where(b => b.CreatedAt >= request.FromDate.Value);
+
+                if (request.ToDate.HasValue)
+                    query = query.Where(b => b.CreatedAt <= request.ToDate.Value);
+
+                var bookings = query.ToList();
+
+                var onlineType = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingType" && c.CodeValue == "Online")).FirstOrDefault();
+                var walkinType = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingType" && c.CodeValue == "Walkin")).FirstOrDefault();
+                var confirmedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingStatus" && c.CodeValue == "Confirmed")).FirstOrDefault();
+                var cancelledStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingStatus" && c.CodeValue == "Cancelled")).FirstOrDefault();
+
+                var statistics = new BookingStatisticsResponse
+                {
+                    TotalBookings = bookings.Count,
+                    TotalOnlineBookings = onlineType != null ? bookings.Count(b => b.BookingTypeId == onlineType.CodeId) : 0,
+                    TotalWalkinBookings = walkinType != null ? bookings.Count(b => b.BookingTypeId == walkinType.CodeId) : 0,
+                    TotalConfirmedBookings = confirmedStatus != null ? bookings.Count(b => b.PaymentStatusId == confirmedStatus.CodeId) : 0,
+                    TotalCancelledBookings = cancelledStatus != null ? bookings.Count(b => b.PaymentStatusId == cancelledStatus.CodeId) : 0,
+                    TotalRevenue = bookings.Sum(b => b.TotalAmount),
+                    TotalDeposit = bookings.Sum(b => b.DepositAmount),
+                    AverageBookingValue = bookings.Any() ? bookings.Average(b => b.TotalAmount) : 0
+                };
+
+                // Group by period
+                if (!string.IsNullOrEmpty(request.GroupBy))
+                {
+                    var grouped = request.GroupBy.ToLower() switch
+                    {
+                        "day" => bookings.GroupBy(b => b.CreatedAt.Date),
+                        "week" => bookings.GroupBy(b => b.CreatedAt.Date.AddDays(-(int)b.CreatedAt.DayOfWeek)),
+                        "month" => bookings.GroupBy(b => new DateTime(b.CreatedAt.Year, b.CreatedAt.Month, 1)),
+                        "year" => bookings.GroupBy(b => new DateTime(b.CreatedAt.Year, 1, 1)),
+                        _ => bookings.GroupBy(b => b.CreatedAt.Date)
+                    };
+
+                    statistics.StatisticsByPeriod = grouped.Select(g => new BookingStatisticsItemDto
+                    {
+                        Date = g.Key,
+                        Period = g.Key.ToString("yyyy-MM-dd"),
+                        TotalBookings = g.Count(),
+                        TotalRevenue = g.Sum(b => b.TotalAmount),
+                        AverageBookingValue = g.Average(b => b.TotalAmount)
+                    }).ToList();
+                }
+
+                return new ResultModel<BookingStatisticsResponse>
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Data = statistics,
+                    Message = "Lấy thống kê thành công"
+                };
+            }
+            catch (Exception ex)
+            {
+                return new ResultModel<BookingStatisticsResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = $"Lỗi: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Hủy booking
+        /// </summary>
+        public async Task<ResultModel> CancelBookingAsync(int bookingId, CancelBookingRequest request, int employeeId)
+        {
+            return await CancelOfflineBookingAsync(bookingId, request.Reason ?? "No reason provided", employeeId);
+        }
+
         // ===== PRIVATE HELPER METHODS =====
 
         private async Task<Customer?> FindOrCreateCustomerAsync(string email, string phoneNumber, string fullName, 
@@ -904,9 +1231,17 @@ namespace AppBackend.Services.Services.BookingServices
             var paymentHistory = new List<PaymentHistoryDto>();
             foreach (var trans in transactions)
             {
-                var paymentMethod = await _unitOfWork.CommonCodes.GetByIdAsync(trans.PaymentMethodId);
-                var employee = trans.CreatedBy.HasValue ? 
-                    await _unitOfWork.Employees.GetByIdAsync(trans.CreatedBy.Value) : null;
+                CommonCode? paymentMethod = null;
+                if (trans.PaymentMethodId > 0)
+                {
+                    paymentMethod = await _unitOfWork.CommonCodes.GetByIdAsync(trans.PaymentMethodId);
+                }
+
+                Employee? employee = null;
+                if (trans.CreatedBy.HasValue && trans.CreatedBy.Value > 0)
+                {
+                    employee = await _unitOfWork.Employees.GetByIdAsync(trans.CreatedBy.Value);
+                }
 
                 paymentHistory.Add(new PaymentHistoryDto
                 {
@@ -920,12 +1255,23 @@ namespace AppBackend.Services.Services.BookingServices
                 });
             }
 
-            var paymentStatus = booking.PaymentStatusId.HasValue ?
-                await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value) : null;
-            var depositStatus = booking.DepositStatusId.HasValue ?
-                await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId.Value) : null;
-            var createdByEmployee = booking.CreatedBy.HasValue ?
-                await _unitOfWork.Employees.GetByIdAsync(booking.CreatedBy.Value) : null;
+            CommonCode? paymentStatus = null;
+            if (booking.PaymentStatusId.HasValue && booking.PaymentStatusId.Value > 0)
+            {
+                paymentStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value);
+            }
+
+            CommonCode? depositStatus = null;
+            if (booking.DepositStatusId.HasValue && booking.DepositStatusId.Value > 0)
+            {
+                depositStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId.Value);
+            }
+
+            Employee? createdByEmployee = null;
+            if (booking.CreatedBy.HasValue && booking.CreatedBy.Value > 0)
+            {
+                createdByEmployee = await _unitOfWork.Employees.GetByIdAsync(booking.CreatedBy.Value);
+            }
 
             if (customer == null)
             {
@@ -986,6 +1332,198 @@ namespace AppBackend.Services.Services.BookingServices
                 "Cảm ơn quý khách",
                 $"Cảm ơn quý khách đã sử dụng dịch vụ. Booking #{bookingId}"
             );
+        }
+
+        // ===== PRIVATE MAPPING METHODS =====
+
+        private async Task<BookingListItemDto> MapToBookingListItemDto(Booking booking)
+        {
+            var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
+            var bookingRooms = (await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId)).ToList();
+            
+            var roomNumbers = new List<string>();
+            var roomTypes = new List<string>();
+
+            foreach (var br in bookingRooms)
+            {
+                var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
+                if (room != null)
+                {
+                    roomNumbers.Add(room.RoomName);
+                    var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
+                    if (roomType != null && !roomTypes.Contains(roomType.TypeName))
+                        roomTypes.Add(roomType.TypeName);
+                }
+            }
+
+            var bookingStatus = booking.PaymentStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value))?.CodeValue : "N/A";
+            var paymentStatus = booking.PaymentStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value))?.CodeValue : "N/A";
+            var depositStatus = booking.DepositStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId.Value))?.CodeValue : "N/A";
+            var bookingType = booking.BookingTypeId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value))?.CodeValue : "N/A";
+
+            var transactions = (await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId)).ToList();
+            var paidAmount = transactions.Sum(t => t.TotalAmount);
+
+            var createdByEmployee = booking.CreatedBy.HasValue ?
+                (await _unitOfWork.Employees.GetByIdAsync(booking.CreatedBy.Value))?.FullName : null;
+
+            return new BookingListItemDto
+            {
+                BookingId = booking.BookingId,
+                BookingCode = $"BK{booking.BookingId:D6}",
+                CustomerId = booking.CustomerId,
+                CustomerName = customer?.FullName ?? "N/A",
+                CustomerPhone = customer?.PhoneNumber ?? "N/A",
+                CustomerEmail = customer?.Account?.Email ?? "N/A",
+                BookingType = bookingType ?? "N/A",
+                CheckInDate = booking.CheckInDate,
+                CheckOutDate = booking.CheckOutDate,
+                TotalNights = (booking.CheckOutDate - booking.CheckInDate).Days,
+                TotalRooms = bookingRooms.Count,
+                RoomNumbers = roomNumbers,
+                RoomTypes = roomTypes,
+                TotalAmount = booking.TotalAmount,
+                DepositAmount = booking.DepositAmount,
+                PaidAmount = paidAmount,
+                RemainingAmount = booking.TotalAmount - paidAmount,
+                BookingStatus = bookingStatus ?? "N/A",
+                PaymentStatus = paymentStatus ?? "N/A",
+                DepositStatus = depositStatus ?? "N/A",
+                CreatedAt = booking.CreatedAt,
+                CreatedByEmployee = createdByEmployee,
+                UpdatedAt = booking.UpdatedAt
+            };
+        }
+
+        private async Task<BookingDetailDto> MapToBookingDetailDto(Booking booking)
+        {
+            var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
+            var bookingRooms = (await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId)).ToList();
+            var transactions = (await _unitOfWork.Transactions.FindAsync(t => t.BookingId == booking.BookingId)).ToList();
+
+            // Map customer
+            var customerBookings = (await _unitOfWork.Bookings.FindAsync(b => b.CustomerId == booking.CustomerId)).ToList();
+            var customerDetail = new CustomerDetailDto
+            {
+                CustomerId = customer!.CustomerId,
+                FullName = customer.FullName,
+                Email = customer.Account?.Email ?? "",
+                PhoneNumber = customer.PhoneNumber ?? "",
+                IdentityCard = customer.IdentityCard,
+                Address = customer.Address,
+                DateOfBirth = customer.DateOfBirth,
+                Gender = customer.Gender,
+                TotalBookings = customerBookings.Count,
+                LastBookingDate = customerBookings.OrderByDescending(b => b.CreatedAt).FirstOrDefault()?.CreatedAt,
+                TotalSpent = customerBookings.Sum(b => b.TotalAmount)
+            };
+
+            // Map rooms
+            var rooms = new List<BookingRoomDetailDto>();
+            foreach (var br in bookingRooms)
+            {
+                var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
+                if (room == null) continue;
+
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
+                var roomImages = (await _unitOfWork.RoomImages.FindAsync(ri => ri.RoomId == room.RoomId))
+                    .Select(ri => ri.FilePath).ToList();
+                var amenities = (await _unitOfWork.RoomAmenities.FindAsync(ra => ra.RoomId == room.RoomId))
+                    .Select(ra => ra.Amenity?.AmenityName ?? "").Where(a => !string.IsNullOrEmpty(a)).ToList();
+
+                rooms.Add(new BookingRoomDetailDto
+                {
+                    BookingRoomId = br.BookingRoomId,
+                    RoomId = room.RoomId,
+                    RoomNumber = room.RoomName,
+                    RoomTypeName = roomType?.TypeName ?? "",
+                    RoomTypeCode = roomType?.CodeValue ?? "",
+                    PricePerNight = br.PricePerNight,
+                    NumberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days,
+                    SubTotal = br.PricePerNight * (booking.CheckOutDate - booking.CheckInDate).Days,
+                    Status = "Active",
+                    RoomImages = roomImages,
+                    MaxOccupancy = roomType?.MaxOccupancy ?? 0,
+                    RoomSize = roomType?.RoomSize ?? 0,
+                    BedType = roomType?.BedType ?? "",
+                    Amenities = amenities
+                });
+            }
+
+            // Map payment history
+            var paymentHistory = new List<PaymentHistoryDetailDto>();
+            foreach (var trans in transactions)
+            {
+                var paymentMethod = trans.PaymentMethodId.HasValue ?
+                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.PaymentMethodId.Value) : null;
+                var transStatus = trans.TransactionStatusId.HasValue ?
+                    await _unitOfWork.CommonCodes.GetByIdAsync(trans.TransactionStatusId.Value) : null;
+                var employee = trans.CreatedBy.HasValue ?
+                    await _unitOfWork.Employees.GetByIdAsync(trans.CreatedBy.Value) : null;
+
+                paymentHistory.Add(new PaymentHistoryDetailDto
+                {
+                    TransactionId = trans.TransactionId,
+                    TransactionCode = $"TXN{trans.TransactionId:D6}",
+                    Amount = trans.TotalAmount,
+                    PaymentMethod = paymentMethod?.CodeValue ?? "N/A",
+                    TransactionType = trans.DepositAmount.HasValue ? "Deposit" : "FullPayment",
+                    Status = transStatus?.CodeValue ?? "N/A",
+                    Note = trans.TransactionRef,
+                    TransactionReference = trans.TransactionRef,
+                    ProcessedAt = trans.CreatedAt,
+                    ProcessedBy = employee?.FullName ?? "System"
+                });
+            }
+
+            var bookingStatus = booking.PaymentStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value))?.CodeValue : "N/A";
+            var paymentStatus = booking.PaymentStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId.Value))?.CodeValue : "N/A";
+            var depositStatus = booking.DepositStatusId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId.Value))?.CodeValue : "N/A";
+            var bookingType = booking.BookingTypeId.HasValue ?
+                (await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value))?.CodeValue : "N/A";
+
+            var createdByEmployee = booking.CreatedBy.HasValue ?
+                (await _unitOfWork.Employees.GetByIdAsync(booking.CreatedBy.Value))?.FullName : null;
+            var updatedByEmployee = booking.UpdatedBy.HasValue ?
+                (await _unitOfWork.Employees.GetByIdAsync(booking.UpdatedBy.Value))?.FullName : null;
+
+            var paidAmount = transactions.Sum(t => t.TotalAmount);
+
+            return new BookingDetailDto
+            {
+                BookingId = booking.BookingId,
+                BookingCode = $"BK{booking.BookingId:D6}",
+                BookingType = bookingType ?? "N/A",
+                Customer = customerDetail,
+                Rooms = rooms,
+                CheckInDate = booking.CheckInDate,
+                CheckOutDate = booking.CheckOutDate,
+                TotalNights = (booking.CheckOutDate - booking.CheckInDate).Days,
+                SubTotal = booking.TotalAmount,
+                TaxAmount = 0,
+                ServiceCharge = 0,
+                TotalAmount = booking.TotalAmount,
+                DepositAmount = booking.DepositAmount,
+                PaidAmount = paidAmount,
+                RemainingAmount = booking.TotalAmount - paidAmount,
+                BookingStatus = bookingStatus ?? "N/A",
+                PaymentStatus = paymentStatus ?? "N/A",
+                DepositStatus = depositStatus ?? "N/A",
+                SpecialRequests = booking.SpecialRequests,
+                PaymentHistory = paymentHistory,
+                BookingHistory = new List<BookingHistoryDto>(),
+                CreatedAt = booking.CreatedAt,
+                CreatedByEmployee = createdByEmployee,
+                UpdatedAt = booking.UpdatedAt,
+                UpdatedByEmployee = updatedByEmployee
+            };
         }
     }
 }

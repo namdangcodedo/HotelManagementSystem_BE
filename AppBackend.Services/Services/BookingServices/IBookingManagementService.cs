@@ -76,5 +76,30 @@ namespace AppBackend.Services.Services.BookingServices
         /// <param name="bookingId">ID booking</param>
         /// <returns>Kết quả gửi email</returns>
         Task<ResultModel> ResendBookingConfirmationEmailAsync(int bookingId);
+
+        /// <summary>
+        /// Lấy danh sách booking với filter và phân trang
+        /// </summary>
+        Task<ResultModel<PagedBookingListResponse>> GetBookingListAsync(GetBookingListRequest request);
+
+        /// <summary>
+        /// Lấy chi tiết đầy đủ của một booking
+        /// </summary>
+        Task<ResultModel<BookingDetailDto>> GetBookingDetailAsync(int bookingId);
+
+        /// <summary>
+        /// Cập nhật trạng thái booking (Confirmed, CheckedIn, CheckedOut, Cancelled)
+        /// </summary>
+        Task<ResultModel> UpdateBookingStatusAsync(int bookingId, UpdateBookingStatusRequest request, int employeeId);
+
+        /// <summary>
+        /// Lấy thống kê booking theo khoảng thời gian
+        /// </summary>
+        Task<ResultModel<BookingStatisticsResponse>> GetBookingStatisticsAsync(BookingStatisticsRequest request);
+
+        /// <summary>
+        /// Hủy booking với lý do
+        /// </summary>
+        Task<ResultModel> CancelBookingAsync(int bookingId, CancelBookingRequest request, int employeeId);
     }
 }

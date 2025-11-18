@@ -219,10 +219,149 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
+        /// Lấy danh sách tất cả booking với filter và phân trang (Online + Offline)
+        /// </summary>
+        /// <remarks>
+        /// ### API tổng hợp cho quản lý tất cả booking
+        /// Hỗ trợ filter theo nhiều tiêu chí:
+        /// - Khoảng thời gian (fromDate, toDate)
+        /// - Trạng thái booking (bookingStatus)
+        /// - Trạng thái thanh toán (paymentStatus)
+        /// - Trạng thái đặt cọc (depositStatus)
+        /// - Loại booking (bookingType: Online, Walkin)
+        /// - Tìm kiếm khách hàng (customerName, phoneNumber, email)
+        /// - Tìm theo mã booking (bookingCode)
+        /// - Sắp xếp (sortBy: CreatedAt, CheckInDate, TotalAmount)
+        /// 
+        /// ### Query Parameters Example:
+        /// ```
+        /// GET /api/bookingmanagement/bookings?pageNumber=1&pageSize=20&fromDate=2024-01-01&bookingType=Online&sortBy=CheckInDate&isDescending=true
+        /// ```
+        /// </remarks>
+        [HttpGet("bookings")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> GetBookingList([FromQuery] GetBookingListRequest request)
+        {
+            var result = await _bookingManagementService.GetBookingListAsync(request);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Lấy chi tiết đầy đủ của một booking
+        /// </summary>
+        /// <remarks>
+        /// ### Thông tin chi tiết bao gồm:
+        /// - Thông tin khách hàng đầy đủ (lịch sử booking, tổng chi tiêu)
+        /// - Danh sách phòng với ảnh và tiện nghi
+        /// - Lịch sử thanh toán chi tiết
+        /// - Lịch sử thay đổi booking
+        /// - Thông tin nhân viên tạo/cập nhật
+        /// </remarks>
+        [HttpGet("booking/{bookingId}/detail")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> GetBookingDetail(int bookingId)
+        {
+            var result = await _bookingManagementService.GetBookingDetailAsync(bookingId);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Cập nhật trạng thái booking
+        /// </summary>
+        /// <remarks>
+        /// ### Các trạng thái hợp lệ:
+        /// - Confirmed: Xác nhận booking
+        /// - CheckedIn: Khách đã check-in
+        /// - CheckedOut: Khách đã check-out
+        /// - Cancelled: Hủy booking
+        /// 
+        /// ### Request Example:
+        /// ```json
+        /// {
+        ///   "status": "CheckedIn",
+        ///   "note": "Khách đã check-in lúc 14:00"
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPut("booking/{bookingId}/status")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> UpdateBookingStatus(int bookingId, [FromBody] UpdateBookingStatusRequest request)
+        {
+            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
+            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
+            {
+                return Unauthorized("Không tìm thấy thông tin nhân viên");
+            }
+
+            var result = await _bookingManagementService.UpdateBookingStatusAsync(bookingId, request, employeeId);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Hủy booking với lý do
+        /// </summary>
+        /// <remarks>
+        /// ### Lưu ý:
+        /// - Chỉ có thể hủy booking chưa check-in
+        /// - Lý do hủy sẽ được lưu vào SpecialRequests
+        /// - Phòng sẽ được mở khóa tự động
+        /// 
+        /// ### Request Example:
+        /// ```json
+        /// {
+        ///   "reason": "Khách yêu cầu hủy do thay đổi lịch trình"
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("booking/{bookingId}/cancel")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> CancelBooking(int bookingId, [FromBody] CancelBookingRequest request)
+        {
+            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
+            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
+            {
+                return Unauthorized("Không tìm thấy thông tin nhân viên");
+            }
+
+            var result = await _bookingManagementService.CancelBookingAsync(bookingId, request, employeeId);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Lấy thống kê booking theo khoảng thời gian
+        /// </summary>
+        /// <remarks>
+        /// ### Thống kê bao gồm:
+        /// - Tổng số booking (online + offline)
+        /// - Tổng doanh thu
+        /// - Giá trị trung bình mỗi booking
+        /// - Số booking đã xác nhận/hủy
+        /// - Thống kê theo ngày/tuần/tháng/năm
+        /// 
+        /// ### Query Parameters:
+        /// - fromDate: Ngày bắt đầu
+        /// - toDate: Ngày kết thúc
+        /// - groupBy: day | week | month | year
+        /// 
+        /// ### Example:
+        /// ```
+        /// GET /api/bookingmanagement/statistics?fromDate=2024-01-01&toDate=2024-12-31&groupBy=month
+        /// ```
+        /// </remarks>
+        [HttpGet("statistics")]
+        [Authorize(Roles = "Manager,Admin")]
+        public async Task<IActionResult> GetBookingStatistics([FromQuery] BookingStatisticsRequest request)
+        {
+            var result = await _bookingManagementService.GetBookingStatisticsAsync(request);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
         /// Gửi lại email xác nhận booking cho khách
         /// </summary>
-        [HttpPost("offline-booking/{bookingId}/resend-email")]
-        public async Task<IActionResult> ResendBookingConfirmationEmail(int bookingId)
+        [HttpPost("booking/{bookingId}/resend-confirmation")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> ResendBookingConfirmation(int bookingId)
         {
             var result = await _bookingManagementService.ResendBookingConfirmationEmailAsync(bookingId);
             return StatusCode(result.StatusCode, result);
