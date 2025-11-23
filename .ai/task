@@ -1,0 +1,171 @@
+Tiêu đề: Tính lương (Payroll) và xuất payslip PDF theo nhân viên (Attendance -> Payroll -> PDF)
+
+Tóm tắt ngắn:
+Tạo task triển khai module chấm công + xuất lương theo employee, đầu ra là payslip dưới định dạng PDF cho từng nhân viên theo kỳ (tháng/quý). Task bao gồm phân tích yêu cầu, thiết kế dữ liệu, API/flow, template PDF, business rules tính lương, tests và checklist triển khai.
+
+Checklist công việc (ghi rõ từng bước):
+- [ ] Phân tích yêu cầu chi tiết (functional + non-functional)
+- [ ] Thiết kế dữ liệu (DB entities, migration plan)
+- [ ] Viết service tính lương (PayrollService) và business rules (overtime, lateness, leave, allowances, deductions)
+- [ ] Viết repository + unit of work nếu cần để truy xuất Attendance, Leave, Contract, Employee, SalaryComponents
+- [ ] Tạo endpoint để chạy payroll (batch/per employee) và lấy pdf payslip
+- [ ] Tạo generator PDF (sử dụng QuestPDF hoặc tương đương), cài template A4
+- [ ] Lưu PDF (file storage) và metadata (Payslip record)
+- [ ] Viết unit tests cho logic tính lương và integration test cho endpoint
+- [ ] Review bảo mật, performance, và deploy
+
+1) Mục tiêu và ràng buộc
+- Mục tiêu: Cho phép tạo payslip PDF cho từng employee cho một kỳ (ví dụ tháng) dựa trên dữ liệu chấm công, ca làm việc, nghỉ phép, và thông tin lương.
+- Không làm thay đổi cấu trúc lương chính (contract) trừ khi được chỉ định.
+- PDF cần có layout chuyên nghiệp, A4, có logo công ty, thông tin employee, breakdown các khoản thu/chi, tổng lương, ngày in.
+
+2) Yêu cầu chức năng (Functional Requirements)
+- FR1: Có thể chạy payroll cho 1 employee hoặc batch cho nhiều employee theo kỳ (year, month).
+- FR2: Tính đầy đủ: base salary (tỷ lệ theo hợp đồng/Ngày công), allowances, bonuses, overtime, phép, lateness deductions, social insurance, tax, other deductions.
+- FR3: Hỗ trợ các loại ca/giờ (standard shift, night shift, flexible), tính hệ số overtime theo config.
+- FR4: Hỗ trợ import/đọc dữ liệu chấm công hiện có (AttendanceRecord: clockIn, clockOut, shiftId, duration).
+- FR5: Lưu kết quả payroll run và metadata từng payslip (employeeId, runId, gross, net, pdfUrl, createdAt).
+- FR6: Tạo payslip PDF theo template và trả link download hoặc stream file.
+- FR7: Endpoint để preview payslip (JSON) trước khi generate PDF.
+- FR8: Audit log: ai chạy payroll, thời gian, runId, trạng thái.
+
+3) Yêu cầu phi chức năng (Non-Functional)
+- NFR1: Thời gian tạo payslip cho 1000 nhân viên < 2 phút (tối ưu job batching, streaming PDF creation).
+- NFR2: PDF có encoding Unicode (UTF-8) và hỗ trợ tiếng Việt.
+- NFR3: Quyền truy cập: chỉ role HR/Manager/Admin mới được chạy payroll hoặc download payslip của người khác.
+- NFR4: Bảo mật storage: PDF chứa dữ liệu nhạy cảm, lưu ở private storage (S3 hoặc server với access control).
+
+4) Dữ liệu & Schema đề xuất (DB changes)
+- Entity: AttendanceRecord (nếu chưa có)
+  - AttendanceRecordId, EmployeeId, Booking/ShiftId (nullable), ClockIn (DateTime), ClockOut (DateTime), DurationHours (decimal), Status (Present, Absent, Leave), CreatedAt
+- Entity: PayrollRun
+  - PayrollRunId, PeriodYear, PeriodMonth, CreatedBy, CreatedAt, Status (Pending, Completed, Failed), TotalEmployees, Notes
+- Entity: Payslip
+  - PayslipId, PayrollRunId, EmployeeId, GrossAmount, NetAmount, TaxAmount, DeductionsJson, ComponentsJson, PdfPath, CreatedAt
+- Entity: SalaryComponent (if dynamic components needed)
+  - ComponentId, EmployeeId (or global), Type (Allowance/Deduction), AmountOrFormula, IsRecurring
+
+Migration: thêm bảng PayrollRun và Payslip tối thiểu; AttendanceRecord nếu chưa có.
+
+5) API contract / Endpoints (đề xuất)
+- POST /api/payroll/run
+  - Body: { year, month, employeeIds?: [int], options?: { previewOnly: bool, storePdf: bool } }
+  - Auth: Roles HR/Manager/Admin
+  - Response: { runId, status }
+
+- GET /api/payroll/run/{runId}/status
+  - Response: { runId, status, totalProcessed, succeeded, failed }
+
+- GET /api/payroll/run/{runId}/payslip/{employeeId}
+  - Response JSON preview payslip (components breakdown + totals)
+
+- GET /api/payroll/run/{runId}/payslip/{employeeId}/pdf
+  - Response: application/pdf stream or redirect to secure storage URL
+
+- POST /api/payroll/run/{runId}/payslip/{employeeId}/email
+  - Body: { toEmail, subject?, body? }
+  - Sends payslip via email (attach PDF link)
+
+6) Contract service (inputs/outputs)
+- Service: IPayrollService
+  - Task<ResultModel> RunPayrollAsync(int year, int month, IEnumerable<int>? employeeIds, bool previewOnly, int requestedBy)
+  - Task<ResultModel> GetPayslipAsync(int runId, int employeeId)
+  - Task<ResultModel> GeneratePayslipPdfAsync(int runId, int employeeId)
+
+7) Business rules (chi tiết tính lương)
+- Base salary:
+  - Nếu lương theo tháng: pro-rate theo số ngày công thực tế / ngày công chuẩn trong tháng.
+  - Nếu lương theo giờ: base = hourlyRate * totalHoursWorked
+- Overtime:
+  - Configurable multipliers (e.g., 1.5 x bình thường, 2.0 x ngày nghỉ, 3.0 x lễ)
+  - Overtime hours = hours over scheduled shift
+- Lateness/early leave:
+  - Nếu lateness > threshold (ví dụ >15 phút), áp dụng deduction theo rule (fixed amount or % cơ bản)
+- Leave:
+  - Paid leave: không trừ lương
+  - Unpaid leave: trừ tương ứng (pro-rate)
+- Social insurance & tax:
+  - Apply configured percentages with pre-defined order: gross -> social -> taxableIncome -> tax -> net
+- Rounding: round tiền sang 1,000 VND (cấu hình)
+
+8) PDF format chi tiết (example)
+- Page size: A4, Portrait
+- Fonts: system Unicode (e.g., Noto Sans VN hoặc Roboto) để hỗ trợ tiếng Việt
+- Header: Company logo, Company name, Address, Payslip tháng/năm
+- Employee block: EmployeeId, FullName, Position, Department, Bank Account
+- Table: Component | Description | Amount (VND)
+  - Earnings: Base Salary, Allowance1, Allowance2, Overtime
+  - Deductions: Social Insurance, Tax, Advance, Other Deductions
+- Totals: Gross Earnings, Total Deductions, Net Pay
+- Footer: Prepared by, Approved by, Payment date, Signature area
+- Accessibility: include metadata title, subject
+- File naming: payslip_{employeeId}_{YYYYMM}.pdf
+
+9) Library Recommendation
+- QuestPDF (https://www.questpdf.com/) - fluent API, good for complex layout, supports .NET 6+
+- iText7 (commercial license for some uses) hoặc DinkToPdf (wkhtmltopdf) nếu muốn HTML-to-PDF.
+- Tôi đề xuất QuestPDF cho maintainability.
+
+10) Implementation plan (tasks nhỏ & ước lượng)
+- Task A: Data model + migrations (PayrollRun, Payslip, AttendanceRecord if missing) — 4-8h
+- Task B: PayrollService core logic (calculation engine, rules config) — 16-24h
+- Task C: PDF Template + generator using QuestPDF — 8-12h
+- Task D: Controller endpoints + routing + authorization — 4h
+- Task E: Persistence (save Payslip, store PDF) — 4h
+- Task F: Unit tests (calculation engine: base+overtime+deductions) — 6-10h
+- Task G: Integration tests + manual QA (generate pdf, verify visual) — 4-6h
+- Task H: Documentation (README, deployment notes) — 2-4h
+- Tổng ước lượng: 44–72 giờ (tùy complexity business rules và số lượng rules cần support)
+
+11) Acceptance criteria (how to verify / tests)
+- AC1: Với bộ dữ liệu mẫu, service trả kết quả JSON payslip đúng (unit tests assert component values).
+- AC2: Endpoint create run trả về runId, trạng thái Completed sau khi chạy.
+- AC3: PDF được tạo, mở được, có thông tin employee và các khoản thu/chi, tổng net đúng.
+- AC4: Quyền truy cập: user không có role HR/Manager không thể gọi run payroll.
+- AC5: Tất cả unit tests pass, integration tests pass.
+
+12) Edge cases & validation
+- Missing attendance data: treat as absent (or fallback business rule)
+- Multiple contracts: pick active contract at period start
+- Part-time employees: support hourly calculation
+- Negative adjustments: support negative components but ensure net >= 0 or flag
+- Large number of employees: implement background job (queue) for batch generation
+
+13) Logging & monitoring
+- Log payroll runs (start, end, duration)
+- Store per-employee errors in run result
+- Metrics: number of payslips generated / time, failure rate
+
+14) Security & privacy
+- Payslip PDFs contain PII; store in private bucket/secure folder
+- Generate signed URLs with expiry for download (if using S3/Minio)
+- Audit who downloaded or emailed a payslip
+
+15) Deliverables
+- Database migrations to add PayrollRun, Payslip (and AttendanceRecord if missing)
+- IPayrollService + PayrollService implementation
+- Controller endpoints as listed
+- QuestPDF template + generator
+- Unit & integration tests
+- README.md with usage and configuration
+
+16) Example acceptance test data (to include in test fixtures)
+- Employee A: Monthly salary 20,000,000 VND, 22 working days in month, 2 overtime hours @1.5
+- Expected: base prorated (if full month), overtime amount, deductions
+
+17) Next steps (gợi ý triển khai)
+- Confirm business rules with HR (overtime multipliers, tax formulas, rounding rules).
+- Chọn PDF library (QuestPDF recommended).
+- Implement small PoC: compute payslip JSON for 1 employee and render PDF.
+- Iterate with HR for layout tweaks.
+
+Ghi chú cho devs:
+- Tách logic tính toán (pure functions) để dễ unit test.
+- Keep payroll config (overtime rates, thresholds) configurable via DB hoặc appsettings.
+- Nếu muốn tôi có thể tạo task tiếp theo thực tế (tạo migration, skeleton service, và endpoint) — báo tôi để tôi tiếp tục implement code.
+
+---
+File created: .ai/task
+
+Nếu bạn muốn, tôi có thể tiếp tục và tạo các mẫu file code (entities, migration, IPayrollService interface, controller skeleton, QuestPDF template) ngay bây giờ.
+
