@@ -4,8 +4,11 @@ using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.TransactionModel;
 using AppBackend.Services.Helpers;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Net.payOS;
+using Net.payOS.Types;
+using Transaction = AppBackend.BusinessObjects.Models.Transaction;
 
 namespace AppBackend.Services.Services.TransactionServices
 {
@@ -15,17 +18,26 @@ namespace AppBackend.Services.Services.TransactionServices
         private readonly QRPaymentHelper _qrPaymentHelper;
         private readonly CacheHelper _cacheHelper;
         private readonly ILogger<TransactionService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly PayOS _payOSClient;
+        private readonly PayOSHelper _payOSHelper;
 
         public TransactionService(
             IUnitOfWork unitOfWork,
             QRPaymentHelper qrPaymentHelper,
             CacheHelper cacheHelper,
-            ILogger<TransactionService> logger)
+            ILogger<TransactionService> logger,
+            IConfiguration configuration,
+            PayOS payOSClient,
+            PayOSHelper payOSHelper)
         {
             _unitOfWork = unitOfWork;
             _qrPaymentHelper = qrPaymentHelper;
             _cacheHelper = cacheHelper;
             _logger = logger;
+            _configuration = configuration;
+            _payOSClient = payOSClient;
+            _payOSHelper = payOSHelper;
         }
 
         #region Payment Management
@@ -963,8 +975,41 @@ namespace AppBackend.Services.Services.TransactionServices
         {
             try
             {
-                // Get active bank config
-                var bankConfig = await _unitOfWork.BankConfigs.GetActiveBankConfigAsync();
+                // Try get active bank config from DB. If the table doesn't exist or DB access fails
+                // fall back to reading VietQR configuration from appsettings.json.
+                BankConfig? bankConfig = null;
+                try
+                {
+                    bankConfig = await _unitOfWork.BankConfigs.GetActiveBankConfigAsync();
+                }
+                catch (Exception dbEx)
+                {
+                    // Log warning and fallback to appsettings. This handles the case where the DB
+                    // doesn't have the BankConfig table yet (e.g. missing migration)
+                    _logger.LogWarning(dbEx, "Failed to read BankConfig from database - falling back to appsettings. Message: {Message}", dbEx.Message);
+                }
+
+                // If not found in DB (or DB read failed), try to read from appsettings VietQR section
+                if (bankConfig == null)
+                {
+                    var vietQrSection = _configuration.GetSection("VietQR");
+                    if (vietQrSection.Exists())
+                    {
+                        bankConfig = new BankConfig
+                        {
+                            BankName = vietQrSection["BankName"] ?? string.Empty,
+                            BankCode = vietQrSection["BankCode"] ?? string.Empty,
+                            AccountNumber = vietQrSection["AccountNumber"] ?? string.Empty,
+                            AccountName = vietQrSection["AccountName"] ?? vietQrSection["MerchantName"] ?? string.Empty,
+                            BankBranch = vietQrSection["BankBranch"],
+                            IsActive = true,
+                            CreatedAt = DateTime.UtcNow
+                        };
+
+                        _logger.LogInformation("Using VietQR configuration from appsettings as fallback.");
+                    }
+                }
+
                 if (bankConfig == null)
                 {
                     return new ResultModel
@@ -989,7 +1034,7 @@ namespace AppBackend.Services.Services.TransactionServices
                     };
                 }
 
-                // Generate QR code URL
+                // Generate QR code URL (image link) only, do not upload image to API
                 var qrUrl = _qrPaymentHelper.GenerateVietQRUrl(
                     bankConfig,
                     request.Amount,
@@ -1000,7 +1045,7 @@ namespace AppBackend.Services.Services.TransactionServices
                 var qrCodeDto = new QRCodeDto
                 {
                     QRCodeUrl = qrUrl,
-                    QRCodeBase64 = "", // Can be generated from URL if needed
+                    QRCodeBase64 = string.Empty, // intentionally left empty; we return only the link
                     BankName = bankConfig.BankName,
                     AccountNumber = bankConfig.AccountNumber,
                     AccountName = bankConfig.AccountName,
@@ -1009,7 +1054,7 @@ namespace AppBackend.Services.Services.TransactionServices
                     ExpiresAt = DateTime.UtcNow.AddMinutes(15) // QR code expires in 15 minutes
                 };
 
-                _logger.LogInformation($"QR code generated for amount: {request.Amount}");
+                _logger.LogInformation($"QR code link generated for amount: {request.Amount}");
 
                 return new ResultModel
                 {
@@ -1381,6 +1426,107 @@ namespace AppBackend.Services.Services.TransactionServices
                     ResponseCode = "SERVER_ERROR",
                     StatusCode = 500,
                     Message = $"Error retrieving transactions: {ex.Message}"
+                };
+            }
+        }
+
+        #endregion
+
+        #region PayOS Payment
+
+        public async Task<ResultModel> CreatePayOSPaymentLinkAsync(CreatePayOSPaymentRequest request)
+        {
+            try
+            {
+                // Validate booking
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId);
+                if (booking == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "NOT_FOUND",
+                        StatusCode = 404,
+                        Message = "Booking not found"
+                    };
+                }
+
+                // Determine amount: prefer DepositAmount if present, else TotalAmount
+                var amountDecimal = booking.DepositAmount > 0 ? booking.DepositAmount : booking.TotalAmount;
+                if (amountDecimal <= 0)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "INVALID_AMOUNT",
+                        StatusCode = 400,
+                        Message = "Invalid payment amount for booking"
+                    };
+                }
+
+                // Build PayOS payment data
+                long orderCode = long.Parse(DateTimeOffset.Now.ToString("yyMMddHHmmss"));
+                var returnUrl = _configuration["PayOS:ReturnUrl"] ?? _configuration.GetSection("PayOS")["ReturnUrl"] ?? string.Empty;
+                var cancelUrl = _configuration["PayOS:CancelUrl"] ?? _configuration.GetSection("PayOS")["CancelUrl"] ?? string.Empty;
+
+                var description = $"Booking #{booking.BookingId}";
+                if (description.Length > 25) description = description.Substring(0, 25);
+
+                var paymentData = new PaymentData(
+                    orderCode: orderCode,
+                    amount: (int)amountDecimal,
+                    description: description,
+                    items: new List<ItemData>
+                    {
+                        new ItemData($"Booking #{booking.BookingId}", 1, (int)amountDecimal)
+                    },
+                    cancelUrl: cancelUrl,
+                    returnUrl: returnUrl
+                );
+
+                CreatePaymentResult createPayment = null;
+                try
+                {
+                    createPayment = await _payOSClient.createPaymentLink(paymentData);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error calling PayOS to create payment link");
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "PAYOS_ERROR",
+                        StatusCode = 500,
+                        Message = $"Failed to create PayOS payment link: {ex.Message}"
+                    };
+                }
+
+                var dto = new PayOSPaymentLinkDto
+                {
+                    PaymentUrl = createPayment?.checkoutUrl ?? string.Empty,
+                    OrderId = orderCode.ToString(),
+                    Amount = amountDecimal,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(15)
+                };
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    ResponseCode = "SUCCESS",
+                    StatusCode = 200,
+                    Data = dto,
+                    Message = "PayOS payment link created"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating PayOS payment link");
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    ResponseCode = "SERVER_ERROR",
+                    StatusCode = 500,
+                    Message = $"Error creating PayOS payment link: {ex.Message}"
                 };
             }
         }

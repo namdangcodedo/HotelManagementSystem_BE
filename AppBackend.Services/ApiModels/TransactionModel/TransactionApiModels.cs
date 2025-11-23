@@ -362,4 +362,28 @@ namespace AppBackend.Services.ApiModels.TransactionModel
     }
 
     #endregion
+
+    #region PayOS Payment DTOs
+
+    /// <summary>
+    /// Request to create a PayOS payment link for an existing booking
+    /// </summary>
+    public class CreatePayOSPaymentRequest
+    {
+        [Required]
+        public int BookingId { get; set; }
+    }
+
+    /// <summary>
+    /// Response DTO containing PayOS payment link info
+    /// </summary>
+    public class PayOSPaymentLinkDto
+    {
+        public string PaymentUrl { get; set; } = string.Empty;
+        public string? OrderId { get; set; }
+        public decimal Amount { get; set; }
+        public DateTime ExpiresAt { get; set; }
+    }
+
+    #endregion
 }

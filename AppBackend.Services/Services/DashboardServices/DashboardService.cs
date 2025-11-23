@@ -1,7 +1,9 @@
+using AppBackend.BusinessObjects.Data;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.DashboardModel;
 using AppBackend.Services.Helpers;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace AppBackend.Services.Services.DashboardServices
@@ -9,18 +11,91 @@ namespace AppBackend.Services.Services.DashboardServices
     public class DashboardService : IDashboardService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly HotelManagementContext _context;
         private readonly CacheHelper _cacheHelper;
         private readonly ILogger<DashboardService> _logger;
 
+        // Cache keys
+        private const string CACHE_KEY_COMMON_CODES = "dashboard_common_codes";
+        private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(10);
+
         public DashboardService(
             IUnitOfWork unitOfWork,
+            HotelManagementContext context,
             CacheHelper cacheHelper,
             ILogger<DashboardService> logger)
         {
             _unitOfWork = unitOfWork;
+            _context = context;
             _cacheHelper = cacheHelper;
             _logger = logger;
         }
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Get CommonCode ID by type and value with caching
+        /// </summary>
+        private async Task<int?> GetCommonCodeIdAsync(string codeType, string codeValue)
+        {
+            try
+            {
+                var commonCodes = await GetCachedCommonCodesAsync();
+                var code = commonCodes.FirstOrDefault(c => c.CodeType == codeType && c.CodeValue == codeValue);
+                // FirstOrDefault on a value-tuple will return default tuple when not found.
+                // We treat CodeId == 0 as not found (CodeId usually starts from 1 in DB).
+                return code.CodeId != 0 ? (int?)code.CodeId : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error getting CommonCode: {codeType} - {codeValue}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get all CommonCodes with caching
+        /// </summary>
+        private async Task<List<(int CodeId, string CodeType, string CodeValue, string CodeName)>> GetCachedCommonCodesAsync()
+        {
+            var cached = _cacheHelper.Get<List<(int, string, string, string)>>(CachePrefix.UserSession, CACHE_KEY_COMMON_CODES);
+            if (cached != null)
+            {
+                return cached;
+            }
+
+            var commonCodes = await _context.CommonCodes
+                .Where(c => c.IsActive)
+                .Select(c => ValueTuple.Create(c.CodeId, c.CodeType, c.CodeValue, c.CodeName))
+                .ToListAsync();
+
+            _cacheHelper.Set(CachePrefix.UserSession, CACHE_KEY_COMMON_CODES, commonCodes, _cacheExpiration);
+            return commonCodes;
+        }
+
+        /// <summary>
+        /// Get week of year
+        /// </summary>
+        private static int GetWeekOfYear(DateTime date)
+        {
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            return culture.Calendar.GetWeekOfYear(date,
+                System.Globalization.CalendarWeekRule.FirstDay, DayOfWeek.Monday);
+        }
+
+        /// <summary>
+        /// Get first date of week
+        /// </summary>
+        private static DateTime FirstDateOfWeek(int year, int weekOfYear)
+        {
+            var jan1 = new DateTime(year, 1, 1);
+            var daysOffset = DayOfWeek.Monday - jan1.DayOfWeek;
+            var firstMonday = jan1.AddDays(daysOffset);
+            var firstWeek = GetWeekOfYear(jan1) == 1 ? firstMonday : firstMonday.AddDays(7);
+            return firstWeek.AddDays((weekOfYear - 1) * 7);
+        }
+
+        #endregion
 
         #region Overview Statistics
 
@@ -31,59 +106,78 @@ namespace AppBackend.Services.Services.DashboardServices
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
                 var toDate = request.ToDate ?? DateTime.UtcNow;
 
-                // Get all bookings in date range
-                var bookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt >= fromDate && b.CreatedAt <= toDate)).ToList();
+                // Get CommonCode IDs
+                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
 
-                // Get all transactions
-                var transactions = (await _unitOfWork.Transactions.FindAsync(t =>
-                    t.CreatedAt >= fromDate && t.CreatedAt <= toDate)).ToList();
+                // Optimized queries - execute in parallel
+                var totalBookingsTask = _context.Bookings
+                    .Where(b => b.CreatedAt >= fromDate && b.CreatedAt <= toDate)
+                    .CountAsync();
 
-                // Get payment status codes
-                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Paid")).FirstOrDefault();
+                var totalCustomersTask = _context.Bookings
+                    .Where(b => b.CreatedAt >= fromDate && b.CreatedAt <= toDate)
+                    .Select(b => b.CustomerId)
+                    .Distinct()
+                    .CountAsync();
 
-                // Calculate total revenue
-                var totalRevenue = transactions
-                    .Where(t => paidStatus != null && t.PaymentStatusId == paidStatus.CodeId)
-                    .Sum(t => t.PaidAmount);
+                // Use Task<decimal?> for SumAsync to represent nullable results
+                var totalRevenueTask = paidStatusId.HasValue
+                    ? _context.Transactions
+                        .Where(t => t.CreatedAt >= fromDate && t.CreatedAt <= toDate && t.PaymentStatusId == paidStatusId.Value)
+                        .SumAsync(t => (decimal?)t.PaidAmount)
+                    : Task.FromResult<decimal?>(0);
 
-                // Total bookings
-                var totalBookings = bookings.Count;
+                var totalRoomsTask = _context.Rooms.CountAsync();
 
-                // Unique customers
-                var totalCustomers = bookings.Select(b => b.CustomerId).Distinct().Count();
+                var bookedRoomsTask = _context.BookingRooms
+                    .Where(br => br.Booking.CreatedAt >= fromDate && br.Booking.CreatedAt <= toDate)
+                    .Select(br => br.RoomId)
+                    .Distinct()
+                    .CountAsync();
 
-                // Calculate occupancy rate
-                var totalRooms = (await _unitOfWork.Rooms.GetAllAsync()).Count();
-                var bookedRooms = bookings.SelectMany(b => b.BookingRooms).Select(br => br.RoomId).Distinct().Count();
-                var occupancyRate = totalRooms > 0 ? (decimal)bookedRooms / totalRooms * 100 : 0;
+                var activeBookingsTask = _context.Bookings
+                    .Where(b => b.CheckInDate <= DateTime.UtcNow && b.CheckOutDate >= DateTime.UtcNow)
+                    .CountAsync();
 
-                // Average booking value
-                var averageBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+                var pendingPaymentsTask = unpaidStatusId.HasValue
+                    ? _context.Transactions
+                        .Where(t => t.PaymentStatusId == unpaidStatusId.Value)
+                        .CountAsync()
+                    : Task.FromResult(0);
 
-                // Get previous period for growth calculation
+                // Previous period for growth calculation
                 var previousPeriodStart = fromDate.AddMonths(-1);
-                var previousBookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt >= previousPeriodStart && b.CreatedAt < fromDate)).Count();
+                var previousBookingsTask = _context.Bookings
+                    .Where(b => b.CreatedAt >= previousPeriodStart && b.CreatedAt < fromDate)
+                    .CountAsync();
 
-                var previousTransactions = (await _unitOfWork.Transactions.FindAsync(t =>
-                    t.CreatedAt >= previousPeriodStart && t.CreatedAt < fromDate)).ToList();
+                var previousRevenueTask = paidStatusId.HasValue
+                    ? _context.Transactions
+                        .Where(t => t.CreatedAt >= previousPeriodStart && t.CreatedAt < fromDate && t.PaymentStatusId == paidStatusId.Value)
+                        .SumAsync(t => (decimal?)t.PaidAmount)
+                    : Task.FromResult<decimal?>(0);
 
-                var previousRevenue = previousTransactions
-                    .Where(t => paidStatus != null && t.PaymentStatusId == paidStatus.CodeId)
-                    .Sum(t => t.PaidAmount);
+                // Wait for all queries
+                await Task.WhenAll(totalBookingsTask, totalCustomersTask, totalRevenueTask,
+                    totalRoomsTask, bookedRoomsTask, activeBookingsTask, pendingPaymentsTask,
+                    previousBookingsTask, previousRevenueTask);
 
-                // Calculate growth
+                var totalBookings = await totalBookingsTask;
+                var totalCustomers = await totalCustomersTask;
+                var totalRevenue = (await totalRevenueTask) ?? 0m;
+                var totalRooms = await totalRoomsTask;
+                var bookedRooms = await bookedRoomsTask;
+                var activeBookings = await activeBookingsTask;
+                var pendingPayments = await pendingPaymentsTask;
+                var previousBookings = await previousBookingsTask;
+                var previousRevenue = (await previousRevenueTask) ?? 0m;
+
+                // Calculate metrics
+                var occupancyRate = totalRooms > 0 ? (decimal)bookedRooms / totalRooms * 100 : 0;
+                var averageBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
                 var revenueGrowth = previousRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 : 0;
-                var bookingsGrowth = previousBookings > 0 ? ((totalBookings - previousBookings) / previousBookings) * 100 : 0;
-
-                // Active bookings and pending payments
-                var activeBookings = bookings.Count(b => b.CheckInDate <= DateTime.UtcNow && b.CheckOutDate >= DateTime.UtcNow);
-
-                var unpaidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Unpaid")).FirstOrDefault();
-                var pendingPayments = transactions.Count(t => unpaidStatus != null && t.PaymentStatusId == unpaidStatus.CodeId);
+                var bookingsGrowth = previousBookings > 0 ? ((decimal)(totalBookings - previousBookings) / previousBookings) * 100 : 0;
 
                 var overview = new DashboardOverviewDto
                 {
@@ -128,19 +222,29 @@ namespace AppBackend.Services.Services.DashboardServices
                 var toDate = request.ToDate ?? DateTime.UtcNow;
                 var groupBy = request.GroupBy?.ToLower() ?? "day";
 
-                var transactions = (await _unitOfWork.Transactions.FindAsync(t =>
-                    t.CreatedAt >= fromDate && t.CreatedAt <= toDate)).ToList();
+                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                if (!paidStatusId.HasValue)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = true,
+                        ResponseCode = "SUCCESS",
+                        StatusCode = 200,
+                        Data = new List<RevenueDataPoint>(),
+                        Message = "No paid status configured"
+                    };
+                }
 
-                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Paid")).FirstOrDefault();
-
-                var paidTransactions = transactions.Where(t => paidStatus != null && t.PaymentStatusId == paidStatus.CodeId).ToList();
+                var transactions = await _context.Transactions
+                    .Where(t => t.CreatedAt >= fromDate && t.CreatedAt <= toDate && t.PaymentStatusId == paidStatusId.Value)
+                    .Select(t => new { t.CreatedAt, t.PaidAmount })
+                    .ToListAsync();
 
                 var revenueData = new List<RevenueDataPoint>();
 
                 if (groupBy == "day")
                 {
-                    revenueData = paidTransactions
+                    revenueData = transactions
                         .GroupBy(t => t.CreatedAt.Date)
                         .Select(g => new RevenueDataPoint
                         {
@@ -155,7 +259,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 }
                 else if (groupBy == "week")
                 {
-                    revenueData = paidTransactions
+                    revenueData = transactions
                         .GroupBy(t => new { Year = t.CreatedAt.Year, Week = GetWeekOfYear(t.CreatedAt) })
                         .Select(g => new RevenueDataPoint
                         {
@@ -170,7 +274,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 }
                 else if (groupBy == "month")
                 {
-                    revenueData = paidTransactions
+                    revenueData = transactions
                         .GroupBy(t => new { t.CreatedAt.Year, t.CreatedAt.Month })
                         .Select(g => new RevenueDataPoint
                         {
@@ -185,7 +289,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 }
                 else if (groupBy == "year")
                 {
-                    revenueData = paidTransactions
+                    revenueData = transactions
                         .GroupBy(t => t.CreatedAt.Year)
                         .Select(g => new RevenueDataPoint
                         {
@@ -226,17 +330,16 @@ namespace AppBackend.Services.Services.DashboardServices
             try
             {
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
-                var toDate = request.ToDate ?? DateTime.UtcNow;
+                var toDate = request.ToDate ?? DateTime.UtcNow.AddMonths(-1);
                 var groupBy = request.GroupBy?.ToLower() ?? "day";
 
-                var bookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt >= fromDate && b.CreatedAt <= toDate)).ToList();
+                var onlineTypeId = await GetCommonCodeIdAsync("BookingType", "Online");
+                var walkinTypeId = await GetCommonCodeIdAsync("BookingType", "WalkIn");
 
-                // Get booking type codes
-                var onlineType = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingType" && c.CodeValue == "Online")).FirstOrDefault();
-                var walkinType = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingType" && c.CodeValue == "WalkIn")).FirstOrDefault();
+                var bookings = await _context.Bookings
+                    .Where(b => b.CreatedAt >= fromDate && b.CreatedAt <= toDate)
+                    .Select(b => new { b.CreatedAt, b.BookingTypeId, b.TotalAmount })
+                    .ToListAsync();
 
                 var bookingData = new List<BookingDataPoint>();
 
@@ -248,8 +351,8 @@ namespace AppBackend.Services.Services.DashboardServices
                         {
                             Date = g.Key,
                             Label = g.Key.ToString("dd/MM"),
-                            OnlineBookings = g.Count(b => onlineType != null && b.BookingTypeId == onlineType.CodeId),
-                            WalkinBookings = g.Count(b => walkinType != null && b.BookingTypeId == walkinType.CodeId),
+                            OnlineBookings = onlineTypeId.HasValue ? g.Count(b => b.BookingTypeId == onlineTypeId.Value) : 0,
+                            WalkinBookings = walkinTypeId.HasValue ? g.Count(b => b.BookingTypeId == walkinTypeId.Value) : 0,
                             TotalBookings = g.Count(),
                             TotalRevenue = g.Sum(b => b.TotalAmount)
                         })
@@ -264,8 +367,8 @@ namespace AppBackend.Services.Services.DashboardServices
                         {
                             Date = new DateTime(g.Key.Year, g.Key.Month, 1),
                             Label = $"{g.Key.Month}/{g.Key.Year}",
-                            OnlineBookings = g.Count(b => onlineType != null && b.BookingTypeId == onlineType.CodeId),
-                            WalkinBookings = g.Count(b => walkinType != null && b.BookingTypeId == walkinType.CodeId),
+                            OnlineBookings = onlineTypeId.HasValue ? g.Count(b => b.BookingTypeId == onlineTypeId.Value) : 0,
+                            WalkinBookings = walkinTypeId.HasValue ? g.Count(b => b.BookingTypeId == walkinTypeId.Value) : 0,
                             TotalBookings = g.Count(),
                             TotalRevenue = g.Sum(b => b.TotalAmount)
                         })
@@ -306,31 +409,27 @@ namespace AppBackend.Services.Services.DashboardServices
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
                 var toDate = request.ToDate ?? DateTime.UtcNow;
 
-                var bookingRooms = (await _unitOfWork.BookingRooms.FindAsync(br =>
-                    br.Booking.CreatedAt >= fromDate && br.Booking.CreatedAt <= toDate)).ToList();
-
-                var rooms = await _unitOfWork.Rooms.GetAllAsync();
-                var roomsList = rooms.ToList();
-
-                var topRooms = bookingRooms
-                    .GroupBy(br => br.RoomId)
-                    .Select(g =>
+                var topRooms = await _context.BookingRooms
+                    .Where(br => br.Booking.CreatedAt >= fromDate && br.Booking.CreatedAt <= toDate)
+                    .GroupBy(br => new
                     {
-                        var room = roomsList.FirstOrDefault(r => r.RoomId == g.Key);
-                        return new TopRoomDto
-                        {
-                            RoomId = g.Key,
-                            RoomNumber = room?.RoomNumber ?? "",
-                            RoomTypeName = room?.RoomType?.TypeName ?? "",
-                            BookingCount = g.Count(),
-                            TotalRevenue = g.Sum(br => br.RoomPrice * (decimal)(br.Booking.CheckOutDate - br.Booking.CheckInDate).TotalDays),
-                            OccupancyRate = 0, // Calculate if needed
-                            ImageUrl = room?.Media?.FirstOrDefault()?.Url
-                        };
+                        br.RoomId,
+                        br.Room.RoomName,
+                        RoomTypeName = br.Room.RoomType != null ? br.Room.RoomType.TypeName : ""
+                    })
+                    .Select(g => new TopRoomDto
+                    {
+                        RoomId = g.Key.RoomId,
+                        RoomNumber = g.Key.RoomName,
+                        RoomTypeName = g.Key.RoomTypeName,
+                        BookingCount = g.Count(),
+                        TotalRevenue = g.Sum(br => br.SubTotal),
+                        OccupancyRate = 0, // Can calculate if needed
+                        ImageUrl = null
                     })
                     .OrderByDescending(r => r.BookingCount)
                     .Take(request.Limit)
-                    .ToList();
+                    .ToListAsync();
 
                 return new ResultModel
                 {
@@ -361,42 +460,47 @@ namespace AppBackend.Services.Services.DashboardServices
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
                 var toDate = request.ToDate ?? DateTime.UtcNow;
 
-                var bookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt >= fromDate && b.CreatedAt <= toDate)).ToList();
-
-                var customers = await _unitOfWork.Customers.GetAllAsync();
-                var customersList = customers.ToList();
-
-                var topCustomers = bookings
-                    .GroupBy(b => b.CustomerId)
-                    .Select(g =>
+                var topCustomers = await _context.Bookings
+                    .Where(b => b.CreatedAt >= fromDate && b.CreatedAt <= toDate)
+                    .GroupBy(b => new
                     {
-                        var customer = customersList.FirstOrDefault(c => c.CustomerId == g.Key);
-                        var totalSpent = g.Sum(b => b.TotalAmount);
-                        var bookingCount = g.Count();
-
-                        return new TopCustomerDto
-                        {
-                            CustomerId = g.Key,
-                            FullName = customer?.FullName ?? "",
-                            Email = customer?.Email ?? "",
-                            PhoneNumber = customer?.PhoneNumber,
-                            BookingCount = bookingCount,
-                            TotalSpent = totalSpent,
-                            LastBookingDate = g.Max(b => b.CreatedAt),
-                            CustomerTier = totalSpent > 50000000 ? "Premium" : (totalSpent > 20000000 ? "VIP" : "Regular")
-                        };
+                        b.CustomerId,
+                        b.Customer.FullName,
+                        Email = b.Customer.Account != null ? b.Customer.Account.Email : "",
+                        b.Customer.PhoneNumber
+                    })
+                    .Select(g => new
+                    {
+                        g.Key.CustomerId,
+                        g.Key.FullName,
+                        g.Key.Email,
+                        g.Key.PhoneNumber,
+                        BookingCount = g.Count(),
+                        TotalSpent = g.Sum(b => b.TotalAmount),
+                        LastBookingDate = g.Max(b => b.CreatedAt)
                     })
                     .OrderByDescending(c => c.TotalSpent)
                     .Take(request.Limit)
-                    .ToList();
+                    .ToListAsync();
+
+                var result = topCustomers.Select(c => new TopCustomerDto
+                {
+                    CustomerId = c.CustomerId,
+                    FullName = c.FullName ?? "",
+                    Email = c.Email ?? "",
+                    PhoneNumber = c.PhoneNumber,
+                    BookingCount = c.BookingCount,
+                    TotalSpent = c.TotalSpent,
+                    LastBookingDate = c.LastBookingDate,
+                    CustomerTier = c.TotalSpent > 50000000 ? "Premium" : (c.TotalSpent > 20000000 ? "VIP" : "Regular")
+                }).ToList();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = topCustomers,
+                    Data = result,
                     Message = "Top customers retrieved successfully"
                 };
             }
@@ -420,41 +524,41 @@ namespace AppBackend.Services.Services.DashboardServices
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
                 var toDate = request.ToDate ?? DateTime.UtcNow;
 
-                var bookingRooms = (await _unitOfWork.BookingRooms.FindAsync(br =>
-                    br.Booking.CreatedAt >= fromDate && br.Booking.CreatedAt <= toDate)).ToList();
-
-                var roomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
-                var roomTypesList = roomTypes.ToList();
-
-                var topRoomTypes = bookingRooms
-                    .GroupBy(br => br.Room.RoomTypeId)
-                    .Select(g =>
+                var topRoomTypes = await _context.BookingRooms
+                    .Where(br => br.Booking.CreatedAt >= fromDate && br.Booking.CreatedAt <= toDate)
+                    .GroupBy(br => new
                     {
-                        var roomType = roomTypesList.FirstOrDefault(rt => rt.RoomTypeId == g.Key);
-                        var revenue = g.Sum(br => br.RoomPrice * (decimal)(br.Booking.CheckOutDate - br.Booking.CheckInDate).TotalDays);
-                        var bookingCount = g.Count();
-
-                        return new TopRoomTypeDto
-                        {
-                            RoomTypeId = g.Key,
-                            TypeName = roomType?.TypeName ?? "",
-                            BookingCount = bookingCount,
-                            TotalRevenue = revenue,
-                            AveragePrice = bookingCount > 0 ? revenue / bookingCount : 0,
-                            AvailableRooms = roomType?.Rooms?.Count ?? 0,
-                            PopularityScore = bookingCount * 10 + (revenue / 1000000)
-                        };
+                        RoomTypeId = br.Room.RoomTypeId,
+                        TypeName = br.Room.RoomType != null ? br.Room.RoomType.TypeName : ""
                     })
-                    .OrderByDescending(rt => rt.PopularityScore)
+                    .Select(g => new
+                    {
+                        g.Key.RoomTypeId,
+                        g.Key.TypeName,
+                        BookingCount = g.Count(),
+                        TotalRevenue = g.Sum(br => br.SubTotal)
+                    })
+                    .OrderByDescending(rt => rt.BookingCount)
                     .Take(request.Limit)
-                    .ToList();
+                    .ToListAsync();
+
+                var result = topRoomTypes.Select(rt => new TopRoomTypeDto
+                {
+                    RoomTypeId = rt.RoomTypeId,
+                    TypeName = rt.TypeName,
+                    BookingCount = rt.BookingCount,
+                    TotalRevenue = rt.TotalRevenue,
+                    AveragePrice = rt.BookingCount > 0 ? rt.TotalRevenue / rt.BookingCount : 0,
+                    AvailableRooms = 0, // Can fetch if needed
+                    PopularityScore = rt.BookingCount * 10 + (rt.TotalRevenue / 1000000)
+                }).ToList();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = topRoomTypes,
+                    Data = result,
                     Message = "Top room types retrieved successfully"
                 };
             }
@@ -479,44 +583,36 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var bookings = (await _unitOfWork.Bookings.GetAllAsync())
+                var commonCodes = await GetCachedCommonCodesAsync();
+
+                var bookings = await _context.Bookings
+                    .Include(b => b.Customer)
+                        .ThenInclude(c => c.Account)
+                    .Include(b => b.BookingRooms)
+                        .ThenInclude(br => br.Room)
                     .OrderByDescending(b => b.CreatedAt)
                     .Take(limit)
-                    .ToList();
-
-                var customers = await _unitOfWork.Customers.GetAllAsync();
-                var customersList = customers.ToList();
-
-                var paymentStatuses = (await _unitOfWork.CommonCodes.FindAsync(c => c.CodeType == "PaymentStatus")).ToList();
-                var bookingTypes = (await _unitOfWork.CommonCodes.FindAsync(c => c.CodeType == "BookingType")).ToList();
-
-                var recentBookings = bookings.Select(b =>
-                {
-                    var customer = customersList.FirstOrDefault(c => c.CustomerId == b.CustomerId);
-                    var paymentStatus = paymentStatuses.FirstOrDefault(ps => ps.CodeId == b.PaymentStatusId);
-                    var bookingType = bookingTypes.FirstOrDefault(bt => bt.CodeId == b.BookingTypeId);
-
-                    return new RecentBookingDto
+                    .Select(b => new RecentBookingDto
                     {
                         BookingId = b.BookingId,
-                        BookingReference = b.BookingReference ?? $"BK{b.BookingId}",
-                        CustomerName = customer?.FullName ?? "",
-                        RoomNumbers = string.Join(", ", b.BookingRooms.Select(br => br.Room.RoomNumber)),
+                        BookingReference = $"BK{b.BookingId}",
+                        CustomerName = b.Customer != null ? b.Customer.FullName : "",
+                        RoomNumbers = string.Join(", ", b.BookingRooms.Select(br => br.Room.RoomName)),
                         CheckInDate = b.CheckInDate,
                         CheckOutDate = b.CheckOutDate,
                         TotalAmount = b.TotalAmount,
-                        PaymentStatus = paymentStatus?.CodeValue ?? "",
-                        BookingType = bookingType?.CodeValue ?? "",
+                        PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == b.PaymentStatusId).CodeValue ?? "",
+                        BookingType = commonCodes.FirstOrDefault(c => c.CodeId == b.BookingTypeId).CodeValue ?? "",
                         CreatedAt = b.CreatedAt
-                    };
-                }).ToList();
+                    })
+                    .ToListAsync();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = recentBookings,
+                    Data = bookings,
                     Message = "Recent bookings retrieved successfully"
                 };
             }
@@ -537,46 +633,32 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var transactions = (await _unitOfWork.Transactions.GetAllAsync())
+                var commonCodes = await GetCachedCommonCodesAsync();
+
+                var payments = await _context.Transactions
+                    .Include(t => t.Booking)
+                        .ThenInclude(b => b.Customer)
                     .OrderByDescending(t => t.CreatedAt)
                     .Take(limit)
-                    .ToList();
-
-                var bookings = await _unitOfWork.Bookings.GetAllAsync();
-                var bookingsList = bookings.ToList();
-
-                var customers = await _unitOfWork.Customers.GetAllAsync();
-                var customersList = customers.ToList();
-
-                var paymentMethods = (await _unitOfWork.CommonCodes.FindAsync(c => c.CodeType == "PaymentMethod")).ToList();
-                var paymentStatuses = (await _unitOfWork.CommonCodes.FindAsync(c => c.CodeType == "PaymentStatus")).ToList();
-
-                var recentPayments = transactions.Select(t =>
-                {
-                    var booking = bookingsList.FirstOrDefault(b => b.BookingId == t.BookingId);
-                    var customer = customersList.FirstOrDefault(c => c.CustomerId == booking?.CustomerId);
-                    var paymentMethod = paymentMethods.FirstOrDefault(pm => pm.CodeId == t.PaymentMethodId);
-                    var paymentStatus = paymentStatuses.FirstOrDefault(ps => ps.CodeId == t.PaymentStatusId);
-
-                    return new RecentPaymentDto
+                    .Select(t => new RecentPaymentDto
                     {
                         TransactionId = t.TransactionId,
                         TransactionRef = t.TransactionRef ?? $"TXN{t.TransactionId}",
                         BookingId = t.BookingId,
-                        CustomerName = customer?.FullName ?? "",
+                        CustomerName = t.Booking != null && t.Booking.Customer != null ? t.Booking.Customer.FullName : "",
                         Amount = t.PaidAmount,
-                        PaymentMethod = paymentMethod?.CodeValue ?? "",
-                        PaymentStatus = paymentStatus?.CodeValue ?? "",
+                        PaymentMethod = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentMethodId).CodeValue ?? "",
+                        PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentStatusId).CodeValue ?? "",
                         CreatedAt = t.CreatedAt
-                    };
-                }).ToList();
+                    })
+                    .ToListAsync();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = recentPayments,
+                    Data = payments,
                     Message = "Recent payments retrieved successfully"
                 };
             }
@@ -599,46 +681,46 @@ namespace AppBackend.Services.Services.DashboardServices
             {
                 var alerts = new List<SystemAlertDto>();
                 var today = DateTime.UtcNow.Date;
-                var tomorrow = today.AddDays(1);
 
                 // Check-ins today
-                var checkInsToday = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckInDate.Date == today)).ToList();
+                var checkInsCount = await _context.Bookings
+                    .Where(b => b.CheckInDate.Date == today)
+                    .CountAsync();
 
-                if (checkInsToday.Any())
+                if (checkInsCount > 0)
                 {
                     alerts.Add(new SystemAlertDto
                     {
                         AlertType = "CheckIn",
                         Severity = "Info",
-                        Message = $"{checkInsToday.Count} check-ins scheduled for today",
+                        Message = $"{checkInsCount} check-ins scheduled for today",
                         CreatedAt = DateTime.UtcNow
                     });
                 }
 
                 // Check-outs today
-                var checkOutsToday = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckOutDate.Date == today)).ToList();
+                var checkOutsCount = await _context.Bookings
+                    .Where(b => b.CheckOutDate.Date == today)
+                    .CountAsync();
 
-                if (checkOutsToday.Any())
+                if (checkOutsCount > 0)
                 {
                     alerts.Add(new SystemAlertDto
                     {
                         AlertType = "CheckOut",
                         Severity = "Info",
-                        Message = $"{checkOutsToday.Count} check-outs scheduled for today",
+                        Message = $"{checkOutsCount} check-outs scheduled for today",
                         CreatedAt = DateTime.UtcNow
                     });
                 }
 
                 // Pending payments
-                var unpaidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Unpaid")).FirstOrDefault();
-
-                if (unpaidStatus != null)
+                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
+                if (unpaidStatusId.HasValue)
                 {
-                    var pendingPayments = (await _unitOfWork.Transactions.FindAsync(t =>
-                        t.PaymentStatusId == unpaidStatus.CodeId)).Count();
+                    var pendingPayments = await _context.Transactions
+                        .Where(t => t.PaymentStatusId == unpaidStatusId.Value)
+                        .CountAsync();
 
                     if (pendingPayments > 0)
                     {
@@ -682,22 +764,34 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var transactions = (await _unitOfWork.Transactions.FindAsync(t =>
-                    t.CreatedAt >= request.FromDate && t.CreatedAt <= request.ToDate)).ToList();
+                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var refundedStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Refunded");
 
-                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Paid")).FirstOrDefault();
+                if (!paidStatusId.HasValue)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "CONFIG_ERROR",
+                        StatusCode = 400,
+                        Message = "Payment status configuration not found"
+                    };
+                }
 
-                var paidTransactions = transactions.Where(t => paidStatus != null && t.PaymentStatusId == paidStatus.CodeId).ToList();
+                var transactions = await _context.Transactions
+                    .Where(t => t.CreatedAt >= request.FromDate && t.CreatedAt <= request.ToDate)
+                    .Select(t => new { t.PaymentStatusId, t.PaymentMethodId, t.PaidAmount, t.TotalAmount, t.CreatedAt })
+                    .ToListAsync();
 
+                var paidTransactions = transactions.Where(t => t.PaymentStatusId == paidStatusId.Value).ToList();
                 var totalRevenue = paidTransactions.Sum(t => t.PaidAmount);
 
                 // Revenue by payment method
-                var paymentMethods = (await _unitOfWork.CommonCodes.FindAsync(c => c.CodeType == "PaymentMethod")).ToList();
+                var commonCodes = await GetCachedCommonCodesAsync();
                 var revenueByMethod = paidTransactions
                     .GroupBy(t => t.PaymentMethodId)
                     .ToDictionary(
-                        g => paymentMethods.FirstOrDefault(pm => pm.CodeId == g.Key)?.CodeValue ?? "Unknown",
+                        g => commonCodes.FirstOrDefault(c => c.CodeId == g.Key).CodeValue ?? "Unknown",
                         g => g.Sum(t => t.PaidAmount)
                     );
 
@@ -706,11 +800,9 @@ namespace AppBackend.Services.Services.DashboardServices
                 var onlineRevenue = revenueByMethod.GetValueOrDefault("PayOS", 0) + revenueByMethod.GetValueOrDefault("QR", 0);
 
                 // Refunded amount
-                var refundedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Refunded")).FirstOrDefault();
-                var refundedAmount = transactions
-                    .Where(t => refundedStatus != null && t.PaymentStatusId == refundedStatus.CodeId)
-                    .Sum(t => t.TotalAmount - t.PaidAmount);
+                var refundedAmount = refundedStatusId.HasValue
+                    ? transactions.Where(t => t.PaymentStatusId == refundedStatusId.Value).Sum(t => t.TotalAmount - t.PaidAmount)
+                    : 0;
 
                 // Daily revenue
                 var dailyRevenue = paidTransactions
@@ -766,16 +858,18 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var totalRooms = (await _unitOfWork.Rooms.GetAllAsync()).Count();
+                var totalRooms = await _context.Rooms.CountAsync();
 
-                var bookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    (b.CheckInDate >= request.FromDate && b.CheckInDate <= request.ToDate) ||
-                    (b.CheckOutDate >= request.FromDate && b.CheckOutDate <= request.ToDate) ||
-                    (b.CheckInDate <= request.FromDate && b.CheckOutDate >= request.ToDate))).ToList();
+                var bookings = await _context.Bookings
+                    .Where(b => (b.CheckInDate >= request.FromDate && b.CheckInDate <= request.ToDate) ||
+                                (b.CheckOutDate >= request.FromDate && b.CheckOutDate <= request.ToDate) ||
+                                (b.CheckInDate <= request.FromDate && b.CheckOutDate >= request.ToDate))
+                    .Select(b => new { b.CheckInDate, b.CheckOutDate })
+                    .ToListAsync();
 
                 // Calculate daily occupancy
                 var dailyOccupancy = new List<OccupancyDataPoint>();
-                for (var date = request.FromDate; date <= request.ToDate; date = date.AddDays(1))
+                for (var date = request.FromDate.Date; date <= request.ToDate.Date; date = date.AddDays(1))
                 {
                     var occupiedRooms = bookings.Count(b => b.CheckInDate <= date && b.CheckOutDate > date);
                     var occupancyRate = totalRooms > 0 ? (decimal)occupiedRooms / totalRooms * 100 : 0;
@@ -786,7 +880,7 @@ namespace AppBackend.Services.Services.DashboardServices
                         OccupiedRooms = occupiedRooms,
                         TotalRooms = totalRooms,
                         OccupancyRate = Math.Round(occupancyRate, 2),
-                        Revenue = 0 // Can calculate from bookings if needed
+                        Revenue = 0
                     });
                 }
 
@@ -831,17 +925,22 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var bookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt >= request.FromDate && b.CreatedAt <= request.ToDate)).ToList();
+                var bookings = await _context.Bookings
+                    .Where(b => b.CreatedAt >= request.FromDate && b.CreatedAt <= request.ToDate)
+                    .Select(b => new { b.CustomerId, b.TotalAmount, b.CreatedAt })
+                    .ToListAsync();
 
-                var allCustomers = await _unitOfWork.Customers.GetAllAsync();
                 var totalCustomers = bookings.Select(b => b.CustomerId).Distinct().Count();
 
                 // New vs returning customers
-                var previousBookings = await _unitOfWork.Bookings.FindAsync(b => b.CreatedAt < request.FromDate);
-                var previousCustomerIds = previousBookings.Select(b => b.CustomerId).Distinct().ToList();
+                var previousBookingCustomers = await _context.Bookings
+                    .Where(b => b.CreatedAt < request.FromDate)
+                    .Select(b => b.CustomerId)
+                    .Distinct()
+                    .ToListAsync();
 
-                var newCustomers = bookings.Where(b => !previousCustomerIds.Contains(b.CustomerId))
+                var newCustomers = bookings
+                    .Where(b => !previousBookingCustomers.Contains(b.CustomerId))
                     .Select(b => b.CustomerId)
                     .Distinct()
                     .Count();
@@ -851,8 +950,8 @@ namespace AppBackend.Services.Services.DashboardServices
                 var totalSpent = bookings.Sum(b => b.TotalAmount);
                 var averageSpend = totalCustomers > 0 ? totalSpent / totalCustomers : 0;
 
-                var retentionRate = previousCustomerIds.Count > 0
-                    ? (decimal)returningCustomers / previousCustomerIds.Count * 100
+                var retentionRate = previousBookingCustomers.Count > 0
+                    ? (decimal)returningCustomers / previousBookingCustomers.Count * 100
                     : 0;
 
                 var report = new CustomerReportDto
@@ -900,21 +999,21 @@ namespace AppBackend.Services.Services.DashboardServices
             {
                 var today = DateTime.UtcNow.Date;
 
-                var allRooms = (await _unitOfWork.Rooms.GetAllAsync()).ToList();
-                var totalRooms = allRooms.Count;
+                var totalRooms = await _context.Rooms.CountAsync();
 
                 // Rooms occupied today
-                var activeBookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckInDate <= today && b.CheckOutDate > today)).ToList();
+                var occupiedRoomIds = await _context.Bookings
+                    .Where(b => b.CheckInDate <= today && b.CheckOutDate > today)
+                    .SelectMany(b => b.BookingRooms.Select(br => br.RoomId))
+                    .Distinct()
+                    .ToListAsync();
 
-                var occupiedRoomIds = activeBookings.SelectMany(b => b.BookingRooms.Select(br => br.RoomId)).Distinct().ToList();
                 var occupiedRooms = occupiedRoomIds.Count;
 
-                // Maintenance rooms (assuming there's a status for this)
-                var maintenanceStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "RoomStatus" && c.CodeValue == "Maintenance")).FirstOrDefault();
-                var maintenanceRooms = maintenanceStatus != null
-                    ? allRooms.Count(r => r.StatusId == maintenanceStatus.CodeId)
+                // Maintenance rooms
+                var maintenanceStatusId = await GetCommonCodeIdAsync("RoomStatus", "Maintenance");
+                var maintenanceRooms = maintenanceStatusId.HasValue
+                    ? await _context.Rooms.CountAsync(r => r.StatusId == maintenanceStatusId.Value)
                     : 0;
 
                 var availableRooms = totalRooms - occupiedRooms - maintenanceRooms;
@@ -924,7 +1023,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 {
                     TotalRooms = totalRooms,
                     OccupiedRooms = occupiedRooms,
-                    AvailableRooms = availableRooms,
+                    AvailableRooms = Math.Max(0, availableRooms),
                     MaintenanceRooms = maintenanceRooms,
                     OccupancyPercentage = Math.Round(occupancyPercentage, 2),
                     UpdatedAt = DateTime.UtcNow,
@@ -959,34 +1058,39 @@ namespace AppBackend.Services.Services.DashboardServices
             {
                 var today = DateTime.UtcNow.Date;
 
-                var todayBookings = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CreatedAt.Date == today)).ToList();
+                var todayBookingsCount = await _context.Bookings
+                    .Where(b => b.CreatedAt.Date == today)
+                    .CountAsync();
 
-                var checkIns = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckInDate.Date == today)).ToList();
+                var checkInsCount = await _context.Bookings
+                    .Where(b => b.CheckInDate.Date == today)
+                    .CountAsync();
 
-                var checkOuts = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckOutDate.Date == today)).ToList();
+                var checkOutsCount = await _context.Bookings
+                    .Where(b => b.CheckOutDate.Date == today)
+                    .CountAsync();
 
-                var totalRevenue = todayBookings.Sum(b => b.TotalAmount);
+                var todayBookings = await _context.Bookings
+                    .Where(b => b.CreatedAt.Date == today)
+                    .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
 
-                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Paid")).FirstOrDefault();
+                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var paidAmount = paidStatusId.HasValue
+                    ? await _context.Bookings
+                        .Where(b => b.CreatedAt.Date == today && b.PaymentStatusId == paidStatusId.Value)
+                        .SumAsync(b => (decimal?)b.TotalAmount) ?? 0
+                    : 0;
 
-                var paidAmount = todayBookings
-                    .Where(b => paidStatus != null && b.PaymentStatusId == paidStatus.CodeId)
-                    .Sum(b => b.TotalAmount);
-
-                var pendingAmount = totalRevenue - paidAmount;
+                var pendingAmount = todayBookings - paidAmount;
 
                 var todayData = new TodayBookingsDto
                 {
                     Date = today,
-                    TotalBookings = todayBookings.Count,
-                    CheckIns = checkIns.Count,
-                    CheckOuts = checkOuts.Count,
-                    NewBookings = todayBookings.Count,
-                    TotalRevenue = totalRevenue,
+                    TotalBookings = todayBookingsCount,
+                    CheckIns = checkInsCount,
+                    CheckOuts = checkOutsCount,
+                    NewBookings = todayBookingsCount,
+                    TotalRevenue = todayBookings,
                     PaidAmount = paidAmount,
                     PendingAmount = pendingAmount,
                     UpcomingCheckIns = new List<RecentBookingDto>(),
@@ -1021,17 +1125,17 @@ namespace AppBackend.Services.Services.DashboardServices
             {
                 var today = DateTime.UtcNow.Date;
 
-                var pendingCheckIns = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckInDate.Date == today)).Count();
+                var pendingCheckIns = await _context.Bookings
+                    .Where(b => b.CheckInDate.Date == today)
+                    .CountAsync();
 
-                var pendingCheckOuts = (await _unitOfWork.Bookings.FindAsync(b =>
-                    b.CheckOutDate.Date == today)).Count();
+                var pendingCheckOuts = await _context.Bookings
+                    .Where(b => b.CheckOutDate.Date == today)
+                    .CountAsync();
 
-                var unpaidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Unpaid")).FirstOrDefault();
-
-                var pendingPayments = unpaidStatus != null
-                    ? (await _unitOfWork.Transactions.FindAsync(t => t.PaymentStatusId == unpaidStatus.CodeId)).Count()
+                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
+                var pendingPayments = unpaidStatusId.HasValue
+                    ? await _context.Transactions.CountAsync(t => t.PaymentStatusId == unpaidStatusId.Value)
                     : 0;
 
                 var tasks = new PendingTasksDto
@@ -1075,7 +1179,7 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                // Get all data in parallel for better performance
+                // Execute all tasks in parallel for best performance
                 var overviewTask = GetDashboardOverviewAsync(request);
                 var revenueTask = GetRevenueStatisticsAsync(request);
                 var topRoomsTask = GetTopRoomsAsync(new TopListRequest { FromDate = request.FromDate, ToDate = request.ToDate, Limit = 5 });
@@ -1090,14 +1194,14 @@ namespace AppBackend.Services.Services.DashboardServices
 
                 var summary = new DashboardSummaryDto
                 {
-                    Overview = overviewTask.Result.Data as DashboardOverviewDto ?? new(),
-                    RevenueChart = revenueTask.Result.Data as List<RevenueDataPoint> ?? new(),
-                    TopRooms = topRoomsTask.Result.Data as List<TopRoomDto> ?? new(),
-                    TopCustomers = topCustomersTask.Result.Data as List<TopCustomerDto> ?? new(),
-                    RecentBookings = recentBookingsTask.Result.Data as List<RecentBookingDto> ?? new(),
-                    Alerts = alertsTask.Result.Data as List<SystemAlertDto> ?? new(),
-                    LiveOccupancy = liveOccupancyTask.Result.Data as LiveOccupancyDto ?? new(),
-                    TodayStats = todayBookingsTask.Result.Data as TodayBookingsDto ?? new()
+                    Overview = (await overviewTask).Data as DashboardOverviewDto ?? new(),
+                    RevenueChart = (await revenueTask).Data as List<RevenueDataPoint> ?? new(),
+                    TopRooms = (await topRoomsTask).Data as List<TopRoomDto> ?? new(),
+                    TopCustomers = (await topCustomersTask).Data as List<TopCustomerDto> ?? new(),
+                    RecentBookings = (await recentBookingsTask).Data as List<RecentBookingDto> ?? new(),
+                    Alerts = (await alertsTask).Data as List<SystemAlertDto> ?? new(),
+                    LiveOccupancy = (await liveOccupancyTask).Data as LiveOccupancyDto ?? new(),
+                    TodayStats = (await todayBookingsTask).Data as TodayBookingsDto ?? new()
                 };
 
                 return new ResultModel
@@ -1120,26 +1224,6 @@ namespace AppBackend.Services.Services.DashboardServices
                     Message = $"Error retrieving dashboard summary: {ex.Message}"
                 };
             }
-        }
-
-        #endregion
-
-        #region Helper Methods
-
-        private static int GetWeekOfYear(DateTime date)
-        {
-            var culture = System.Globalization.CultureInfo.CurrentCulture;
-            return culture.Calendar.GetWeekOfYear(date,
-                System.Globalization.CalendarWeekRule.FirstDay, DayOfWeek.Monday);
-        }
-
-        private static DateTime FirstDateOfWeek(int year, int weekOfYear)
-        {
-            var jan1 = new DateTime(year, 1, 1);
-            var daysOffset = DayOfWeek.Monday - jan1.DayOfWeek;
-            var firstMonday = jan1.AddDays(daysOffset);
-            var firstWeek = GetWeekOfYear(jan1) == 1 ? firstMonday : firstMonday.AddDays(7);
-            return firstWeek.AddDays((weekOfYear - 1) * 7);
         }
 
         #endregion

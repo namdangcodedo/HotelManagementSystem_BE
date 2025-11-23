@@ -100,6 +100,15 @@ namespace AppBackend.Services.Services.TransactionServices
 
         #endregion
 
+        #region PayOS Payment Link
+
+        /// <summary>
+        /// Create a PayOS payment link for a booking (input: bookingId)
+        /// </summary>
+        Task<ResultModel> CreatePayOSPaymentLinkAsync(CreatePayOSPaymentRequest request);
+
+        #endregion
+
         #region Statistics
 
         /// <summary>

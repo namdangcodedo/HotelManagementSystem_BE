@@ -250,6 +250,25 @@ namespace AppBackend.ApiCore.Controllers
 
         #endregion
 
+        #region PayOS Payment Link
+
+        /// <summary>
+        /// Create a PayOS payment link for a booking
+        /// </summary>
+        [HttpPost("payment/payos/link")]
+        public async Task<IActionResult> CreatePayOSPaymentLink([FromBody] CreatePayOSPaymentRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _transactionService.CreatePayOSPaymentLinkAsync(request);
+            return HandleResult(result);
+        }
+
+        #endregion
+
         #region Statistics
 
         /// <summary>

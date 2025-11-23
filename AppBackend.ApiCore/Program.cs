@@ -1,5 +1,6 @@
 using AppBackend.ApiCore.Extensions;
 using AppBackend.Extensions;
+using AppBackend.ApiCore.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,9 @@ builder.Services.AddRateLimitConfig();
 
 // Memory Cache for room locking
 builder.Services.AddMemoryCache();
+
+// Bind VietQR settings
+builder.Services.Configure<VietQRSettings>(builder.Configuration.GetSection("VietQR"));
 
 // All Application Services (includes Booking, Queue, Cache, etc.)
 builder.Services.AddServicesConfig();

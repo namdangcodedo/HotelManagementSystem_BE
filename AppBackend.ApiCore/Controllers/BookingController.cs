@@ -153,7 +153,7 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize]
         public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var userId = CurrentUserId;
             var result = await _bookingService.CreateBookingAsync(request, userId);
             return StatusCode(result.StatusCode, result);
         }
@@ -309,7 +309,7 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize]
         public async Task<IActionResult> CancelBooking(int bookingId)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var userId = CurrentUserId;
             var result = await _bookingService.CancelBookingAsync(bookingId, userId);
             return StatusCode(result.StatusCode, result);
         }
@@ -321,7 +321,7 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize]
         public async Task<IActionResult> GetMyBookings()
         {
-            var accountId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var accountId = CurrentUserId;
             var result = await _bookingService.GetMyBookingsByAccountIdAsync(accountId);
             return StatusCode(result.StatusCode, result);
         }
