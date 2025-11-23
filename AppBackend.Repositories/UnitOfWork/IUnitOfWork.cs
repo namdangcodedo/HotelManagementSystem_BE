@@ -14,6 +14,7 @@ using AppBackend.Repositories.Repositories.BookingRepo;
 using AppBackend.Repositories.Repositories.BookingRoomRepo;
 using AppBackend.Repositories.Repositories.TransactionRepo;
 using AppBackend.Repositories.Repositories.HolidayPricingRepo;
+using AppBackend.Repositories.Repositories.BankConfigRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -33,6 +34,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IBookingRoomRepository BookingRooms { get; }
         ITransactionRepository Transactions { get; }
         IHolidayPricingRepository HolidayPricings { get; }
+        IBankConfigRepository BankConfigs { get; }
         Task<int> SaveChangesAsync();
     }
 }

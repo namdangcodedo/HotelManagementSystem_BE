@@ -36,6 +36,7 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<BookingRoom> BookingRooms { get; set; }
     public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
     public virtual DbSet<PayrollDisbursement> PayrollDisbursements { get; set; }
+    public virtual DbSet<BankConfig> BankConfigs { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

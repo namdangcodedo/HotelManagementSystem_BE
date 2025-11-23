@@ -1,0 +1,52 @@
+{
+  "defaultModel": "claude-4.5-sonnet",
+  "editor": {
+    "enableInlineCompletion": true,
+    "maxTokens": 4096,
+    "temperature": 0.1
+  },
+  "tools": {
+    "terminal": {
+      "enabled": true,
+      "safeMode": true,
+      "confirmCommands": true
+    },
+    "git": {
+      "enabled": true,
+      "autoStage": false,
+      "autoCommit": false
+    },
+    "filesystem": {
+      "include": [
+        "src",
+        "app",
+        "backend",
+        "frontend",
+        "api",
+        "config",
+        "package.json",
+        "pom.xml",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.java",
+        "**/*.cs",
+        "**/*.csproj",
+        "**/*.sln",
+        "Controllers/",
+        "Services/",
+        "Repositories/"
+      ],
+      "exclude": [
+        "node_modules",
+        "dist",
+        "build",
+        "bin",
+        "obj",
+        ".next",
+        "logs"
+      ]
+    }
+  },
+  "telemetry": false
+}
+

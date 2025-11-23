@@ -106,11 +106,7 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPost("offline-booking")]
         public async Task<IActionResult> CreateOfflineBooking([FromBody] CreateOfflineBookingRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.CreateOfflineBookingAsync(request, employeeId);
             return StatusCode(result.StatusCode, result);
@@ -123,11 +119,7 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPut("offline-booking/{bookingId}")]
         public async Task<IActionResult> UpdateOfflineBooking(int bookingId, [FromBody] UpdateOfflineBookingRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.UpdateOfflineBookingAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
@@ -139,11 +131,7 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPost("offline-booking/{bookingId}/confirm-deposit")]
         public async Task<IActionResult> ConfirmOfflineDeposit(int bookingId, [FromBody] ConfirmOfflineDepositRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.ConfirmOfflineDepositAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
@@ -155,11 +143,7 @@ namespace AppBackend.ApiCore.Controllers
         [HttpPost("offline-booking/{bookingId}/confirm-payment")]
         public async Task<IActionResult> ConfirmOfflinePayment(int bookingId, [FromBody] ConfirmOfflinePaymentRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.ConfirmOfflinePaymentAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
@@ -208,11 +192,7 @@ namespace AppBackend.ApiCore.Controllers
         [HttpDelete("offline-booking/{bookingId}")]
         public async Task<IActionResult> CancelOfflineBooking(int bookingId, [FromBody] CancelBookingRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.CancelOfflineBookingAsync(bookingId, request.Reason ?? "", employeeId);
             return StatusCode(result.StatusCode, result);
@@ -287,11 +267,7 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> UpdateBookingStatus(int bookingId, [FromBody] UpdateBookingStatusRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.UpdateBookingStatusAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
@@ -317,11 +293,7 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> CancelBooking(int bookingId, [FromBody] CancelBookingRequest request)
         {
-            var employeeIdClaim = User.FindFirst("EmployeeId")?.Value;
-            if (string.IsNullOrEmpty(employeeIdClaim) || !int.TryParse(employeeIdClaim, out int employeeId))
-            {
-                return Unauthorized("Không tìm thấy thông tin nhân viên");
-            }
+            var employeeId = CurrentUserId;
 
             var result = await _bookingManagementService.CancelBookingAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
