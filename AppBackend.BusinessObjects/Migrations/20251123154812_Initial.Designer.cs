@@ -12,15 +12,15 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251115175039_update_room_id")]
-    partial class update_room_id
+    [Migration("20251123154812_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.5")
+                .HasAnnotation("ProductVersion", "9.0.0")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -176,6 +176,60 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("EmployeeId");
 
                     b.ToTable("Attendance");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.BankConfig", b =>
+                {
+                    b.Property<int>("BankConfigId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("BankConfigId"));
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("BankBranch")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BankCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.HasKey("BankConfigId");
+
+                    b.ToTable("BankConfig");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Booking", b =>
@@ -354,6 +408,80 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("ServiceId");
 
                     b.ToTable("BookingService");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatMessage", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("TokenCount")
+                        .HasColumnType("int");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("SessionId");
+
+                    b.ToTable("ChatMessage");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatSession", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConversationSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<string>("GuestIdentifier")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSummarized")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastActivityAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("AccountId");
+
+                    b.ToTable("ChatSession");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.CommonCode", b =>
@@ -1449,6 +1577,26 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Service");
                 });
 
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatMessage", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.ChatSession", "ChatSession")
+                        .WithMany("ChatMessages")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatSession");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatSession", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId");
+
+                    b.Navigation("Account");
+                });
+
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
@@ -1769,6 +1917,11 @@ namespace AppBackend.BusinessObjects.Migrations
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoom", b =>
                 {
                     b.Navigation("BookingRoomServices");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatSession", b =>
+                {
+                    b.Navigation("ChatMessages");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
