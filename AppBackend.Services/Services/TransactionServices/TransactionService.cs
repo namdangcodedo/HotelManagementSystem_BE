@@ -1467,10 +1467,13 @@ namespace AppBackend.Services.Services.TransactionServices
                 // Build PayOS payment data
                 long orderCode = long.Parse(DateTimeOffset.Now.ToString("yyMMddHHmmss"));
                 var returnUrl = _configuration["PayOS:ReturnUrl"] ?? _configuration.GetSection("PayOS")["ReturnUrl"] ?? string.Empty;
-                var cancelUrl = _configuration["PayOS:CancelUrl"] ?? _configuration.GetSection("PayOS")["CancelUrl"] ?? string.Empty;
+                var cancelUrl = (_configuration["PayOS:CancelUrl"] ?? _configuration.GetSection("PayOS")["CancelUrl"] ?? string.Empty) + $"?bookingId={booking.BookingId}";
 
                 var description = $"Booking #{booking.BookingId}";
                 if (description.Length > 25) description = description.Substring(0, 25);
+
+                // Set expiration time to 15 minutes from now
+                var expiredAt = (int)DateTimeOffset.Now.AddMinutes(15).ToUnixTimeSeconds();
 
                 var paymentData = new PaymentData(
                     orderCode: orderCode,
@@ -1481,7 +1484,8 @@ namespace AppBackend.Services.Services.TransactionServices
                         new ItemData($"Booking #{booking.BookingId}", 1, (int)amountDecimal)
                     },
                     cancelUrl: cancelUrl,
-                    returnUrl: returnUrl
+                    returnUrl: returnUrl,
+                    expiredAt: expiredAt
                 );
 
                 CreatePaymentResult createPayment = null;
