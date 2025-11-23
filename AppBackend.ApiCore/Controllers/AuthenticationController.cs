@@ -10,6 +10,7 @@ using System.Text.Json;
 using LoginRequest = AppBackend.Services.ApiModels.LoginRequest;
 using RegisterRequest = AppBackend.Services.ApiModels.RegisterRequest;
 using ResetPasswordRequest = AppBackend.Services.ApiModels.ResetPasswordRequest;
+using Microsoft.AspNetCore.Http;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -94,6 +95,93 @@ namespace AppBackend.ApiCore.Controllers
         {
             var googleLoginUrl = _googleLoginService.GetGoogleLoginUrl();
             return Ok(new { url = googleLoginUrl });
+        }
+
+        /// <summary>
+        /// Exchange authorization code sent from frontend to backend (safe flow for SPA)
+        /// Frontend should POST the `code` it received from Google to this endpoint.
+        /// Backend will exchange the code (via IGoogleLoginService), create/login the user and
+        /// return the app tokens. Backend will also set HttpOnly cookies if applicable.
+        /// </summary>
+        [HttpPost("exchange-google")]
+        public async Task<IActionResult> ExchangeGoogle([FromBody] ExchangeGoogleRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request?.Code))
+                    return BadRequest(new { isSuccess = false, message = "Code không hợp lệ" });
+
+                // Use existing GoogleLoginService to exchange code and get user info
+                var userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(request.Code);
+                var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
+
+                if (!result.IsSuccess)
+                    return HandleResult(result);
+
+                // Convert anonymous data to GoogleLoginResponse
+                var jsonData = JsonSerializer.Serialize(result.Data);
+                var loginResponse = JsonSerializer.Deserialize<GoogleLoginResponse>(jsonData, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (loginResponse == null || string.IsNullOrEmpty(loginResponse.Token))
+                    return BadRequest(new { isSuccess = false, message = "Không thể xử lý dữ liệu đăng nhập" });
+
+                // Optionally set HttpOnly cookies for access/refresh tokens (useful if backend/frontend share domain)
+                try
+                {
+                    var accessCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTimeOffset.UtcNow.AddHours(1)
+                    };
+
+                    var refreshCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTimeOffset.UtcNow.AddDays(30)
+                    };
+
+                    Response.Cookies.Append("access_token", loginResponse.Token, accessCookieOptions);
+                    if (!string.IsNullOrEmpty(loginResponse.RefreshToken))
+                        Response.Cookies.Append("refresh_token", loginResponse.RefreshToken, refreshCookieOptions);
+                }
+                catch
+                {
+                    // ignore cookie set failures - still return tokens in response body
+                }
+
+                // Return tokens and user info in response body (frontend can use this when cookies are not viable)
+                return Ok(new
+                {
+                    isSuccess = true,
+                    data = new
+                    {
+                        token = loginResponse.Token,
+                        refreshToken = loginResponse.RefreshToken,
+                        user = new {
+                            email = loginResponse.Email,
+                            name = loginResponse.Name,
+                            picture = loginResponse.Picture,
+                            roles = loginResponse.Roles
+                        }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { isSuccess = false, message = ex.Message });
+            }
+        }
+
+        // DTO for exchange endpoint
+        public class ExchangeGoogleRequest
+        {
+            public string? Code { get; set; }
+            public string? RedirectUri { get; set; }
+            public string? CodeVerifier { get; set; }
         }
 
         /// <summary>
