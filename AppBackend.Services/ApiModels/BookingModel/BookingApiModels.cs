@@ -21,8 +21,6 @@ namespace AppBackend.Services.ApiModels.BookingModel
     /// </summary>
     public class CreateBookingRequest
     {
-        public int CustomerId { get; set; }
-        
         /// <summary>
         /// Danh sách loại phòng và số lượng cần đặt
         /// Ví dụ: [{ "roomTypeId": 1, "quantity": 2 }, { "roomTypeId": 3, "quantity": 1 }]
