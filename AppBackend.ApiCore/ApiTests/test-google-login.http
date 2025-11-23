@@ -1,0 +1,289 @@
+### ========================================
+### GOOGLE LOGIN FLOW - API TESTING
+### ========================================
+### 
+### ⚠️ QUAN TRỌNG: Google sẽ redirect về FRONTEND, không phải Backend
+### RedirectUri trong Google Console phải là: http://localhost:3000/auth/google/callback
+### 
+
+### ========================================
+### API: GET GOOGLE LOGIN URL
+### ========================================
+
+### Lấy Google OAuth URL từ Backend (KHUYẾN NGHỊ)
+GET http://localhost:8080/api/Authentication/google-login-url
+Accept: application/json
+
+### Response:
+### {
+###   "isSuccess": true,
+###   "data": {
+###     "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=166370023031-...&redirect_uri=http://localhost:3000/auth/google/callback&response_type=code&scope=openid%20email%20profile",
+###     "redirectUri": "http://localhost:3000/auth/google/callback",
+###     "scopes": ["openid", "email", "profile"]
+###   }
+### }
+### 
+### Frontend chỉ cần:
+### 1. Gọi API này
+### 2. Lấy data.data.url
+### 3. window.location.href = url
++
+### EXCHANGE FLOW - LUỒNG CHUẨN CHO SPA
+### ========================================
+
+### BƯỚC 1: Lấy Authorization Code từ Google
+### --------------------------------------------
+### Có 2 cách:
+### 
+### CÁCH 1 (KHUYẾN NGHỊ): Dùng API /google-login-url
+### 1. GET http://localhost:8080/api/Authentication/google-login-url
+### 2. Copy URL từ response.data.url
+### 3. Mở URL đó trong browser
+### 
+### CÁCH 2 (Manual): Mở URL sau trong browser:
+### 
+### https://accounts.google.com/o/oauth2/v2/auth?client_id=166370023031-5fb6unqprsf9f020f1n0cvhk333kdbj4.apps.googleusercontent.com&redirect_uri=http://localhost:3000/auth/google/callback&response_type=code&scope=openid%20email%20profile
+### 
+### 1. Đăng nhập Google
+### 2. Cho phép permissions
+### 3. Google sẽ redirect về: http://localhost:3000/auth/google/callback?code=4/0Ab32j906...
+### 4. COPY CODE từ URL (phần sau code=, trước &scope nếu có)
+
+###
+
+### BƯỚC 2: Exchange code lấy token từ Backend
+### --------------------------------------------
+POST http://localhost:8080/api/Authentication/exchange-google
+Content-Type: application/json
+
+{
+  "code": "PASTE_CODE_HERE_FROM_STEP_1",
+  "redirectUri": "http://localhost:3000/auth/google/callback"
+}
+
+### ⚠️ QUAN TRỌNG:
+### - Code chỉ dùng được 1 LẦN DUY NHẤT
+### - Code hết hạn sau ~10 phút
+### - redirectUri phải KHỚP CHÍNH XÁC với URI đã dùng ở bước 1 (http://localhost:3000/auth/google/callback)
+### - Nếu lỗi "invalid_grant", phải lấy code mới (làm lại từ bước 1)
+
+### Response mẫu khi thành công:
+### {
+###   "isSuccess": true,
+###   "message": "Đăng nhập Google thành công",
+###   "data": {
+###     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+###     "refreshToken": "abc123def456...",
+###     "user": {
+###       "email": "user@gmail.com",
+###       "name": "John Doe",
+###       "picture": "https://lh3.googleusercontent.com/a/...",
+###       "roles": ["Customer"]
+###     }
+###   }
+### }
+
+### Response lỗi khi code đã dùng:
+### {
+###   "isSuccess": false,
+###   "message": "Không thể xác thực với Google. Code đã được sử dụng hoặc hết hạn. Vui lòng thử đăng nhập lại."
+### }
+###
+### Response lỗi khi redirect_uri không khớp:
+### {
+###   "isSuccess": false,
+###   "message": "Không thể xác thực với Google. Cấu hình redirect URI không khớp. Vui lòng liên hệ quản trị viên."
+### }
+###
+
+### ========================================
+### HƯỚNG DẪN LẤY CODE CHI TIẾT
+### ========================================
+
+### CÁCH 1: Lấy code trực tiếp từ URL (Khuyến nghị)
+### --------------------------------------------
+### 1. Mở browser Dev Tools (F12)
+### 2. Mở URL authorize của Google (xem BƯỚC 1)
+### 3. Đăng nhập Google
+### 4. Sau khi redirect, xem URL bar:
+###    http://localhost:3000/auth/google/callback?code=4/0Ab32j906Ny14NCGN2Uc7kIdGKZHTLe...&scope=...
+### 5. Copy phần code (từ code= đến & hoặc end of URL)
+### 6. Paste vào request POST phía trên
+### 7. Send request
+
+###
+
+### CÁCH 2: Dùng Frontend thật (Khuyến nghị cho test end-to-end)
+### --------------------------------------------
+### 1. Start Backend: cd AppBackend.ApiCore && dotnet run
+### 2. Start Frontend: cd frontend && npm start
+### 3. Mở http://localhost:3000
+### 4. Click nút "Login with Google"
+### 5. Đăng nhập Google
+### 6. Frontend tự động gửi code lên BE và nhận token
+### 7. Check browser console để xem logs
+
+###
+
+### ========================================
+### FRONTEND CODE EXAMPLE (React/TypeScript)
+### ========================================
+
+### // File: components/GoogleLoginButton.tsx
+### // ==========================================
+### import React from 'react';
+### 
+### const GoogleLoginButton: React.FC = () => {
+###   const handleGoogleLogin = () => {
+###   const CLIENT_ID = '166370023031-5fb6unqprsf9f020f1n0cvhk333kdbj4.apps.googleusercontent.com';
+###   const REDIRECT_URI = window.location.origin + '/auth/google/callback';
+###   const SCOPE = 'openid email profile';
+###   
+###   const googleAuthUrl = 
+###     `https://accounts.google.com/o/oauth2/v2/auth?` +
+###     `client_id=${CLIENT_ID}&` +
+###     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+###     `response_type=code&` +
+###     `scope=${encodeURIComponent(SCOPE)}`;
+###   
+###   window.location.href = googleAuthUrl;
+###   };
+###   
+###   return (
+###     <button onClick={handleGoogleLogin} className="google-login-btn">
+###       <img src="/google-icon.svg" alt="Google" width="20" />
+###       <span>Sign in with Google</span>
+###     </button>
+###   );
+### };
+### 
+### export default GoogleLoginButton;
+### 
+### 
+### // File: pages/auth/google/callback.tsx
+### // ==========================================
+### import React, { useEffect, useState } from 'react';
+### import { useNavigate } from 'react-router-dom';
+### 
+### const GoogleCallbackPage: React.FC = () => {
+###   const navigate = useNavigate();
+###   const [error, setError] = useState<string | null>(null);
+###   const [loading, setLoading] = useState(true);
+###   
+###   useEffect(() => {
+###     const handleCallback = async () => {
+###         const params = new URLSearchParams(window.location.search);
+###         const code = params.get('code');
+###         const errorParam = params.get('error');
+###         
+###         if (errorParam) {
+###           setError('Google login cancelled');
+###           setLoading(false);
+###           return;
+###         }
+###         
+###         if (!code) {
+###           setError('No authorization code received');
+###           setLoading(false);
+###           return;
+###         }
+###         
+###         // Gửi code lên Backend
+###         const response = await fetch('http://localhost:8080/api/Authentication/exchange-google', {
+###           method: 'POST',
+###           headers: { 'Content-Type': 'application/json' },
+###           body: JSON.stringify({
+###             code: code,
+###             redirectUri: window.location.origin + '/auth/google/callback'
+###           })
+###         });
+###         
+###         if (!response.ok) {
+###           const errorData = await response.json();
+###           setError(errorData.message || 'Exchange failed');
+###           setLoading(false);
+###           return;
+###         }
+###         
+###         const data = await response.json();
+###         
+###         if (data.isSuccess) {
+###           // Lưu token
+###           localStorage.setItem('access_token', data.data.token);
+###           localStorage.setItem('refresh_token', data.data.refreshToken);
+###           localStorage.setItem('user', JSON.stringify(data.data.user));
+###           
+###           console.log('✅ Logged in:', data.data.user.email);
+###           
+###           window.location.href = '/dashboard';
+###         } else {
+###           setError(data.message || 'Login failed');
+###           setLoading(false);
+###         }
+###       } catch (error) {
+###         setError('Network error');
+###         setLoading(false);
+###       }
+###     };
+###     
+###     handleCallback();
+###   }, []);
+###   
+###   if (loading) return <div>Processing Google login...</div>;
+###   if (error) return <div>Error: {error}</div>;
+###   return null;
+### };
+### 
+### export default GoogleCallbackPage;
+
+###
+
+### ========================================
+### LỖI THƯỜNG GẶP & GIẢI PHÁP
+### ========================================
+
+### ❌ Error: "redirect_uri_mismatch"
+### ✅ Solution: 
+###    1. Vào Google Console → Credentials → OAuth 2.0 Client
+###    2. Kiểm tra "Authorized redirect URIs" phải có: http://localhost:3000/auth/google/callback
+###    3. redirectUri trong code phải khớp CHÍNH XÁC (case-sensitive, không trailing slash)
+###    4. Đợi vài phút để Google cập nhật
+
+### ❌ Error: "invalid_grant" hoặc "authorization code already used"
+### ✅ Solution:
+###    - Code chỉ dùng được 1 lần
+###    - Phải lấy code mới từ Google (làm lại từ BƯỚC 1)
+
+### ❌ Error: "Code không hợp lệ"
+### ✅ Solution:
+###    - Code có thể đã hết hạn (~10 phút)
+###    - Đảm bảo copy đúng code (không thừa ký tự đặc biệt)
+###    - Lấy code mới nếu cần
+
+### ❌ Error: CORS
+### ✅ Solution:
+###    - Backend phải enable CORS cho origin của frontend
+###    - Kiểm tra Program.cs có: app.UseCors() với AllowOrigin("http://localhost:3000")
++### 
++### ❌ Error: "Không thể xác thực với Google"
++### ✅ Solution:
++###    - Kiểm tra client_secret trong appsettings.json
++###    - Test internet connection từ Backend
++###    - Check firewall settings
+
+###
+
+### ========================================
+### CURL EXAMPLE (Terminal Testing)
+### ========================================
+
+### Exchange code for token:
+# curl -X POST http://localhost:8080/api/Authentication/exchange-google \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "code": "4/0Ab32j906Ny14NCGN...",
+#     "redirectUri": "http://localhost:3000/auth/google/callback"
+#   }'
+
+###
