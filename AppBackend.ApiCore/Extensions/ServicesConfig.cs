@@ -15,6 +15,7 @@ using AppBackend.Services.Services.BookingServices;
 using AppBackend.Services.Services.RoleServices;
 using AppBackend.Services.MessageQueue;
 using AppBackend.Services.Services.TransactionServices;
+using AppBackend.Services.Services.DashboardServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -49,7 +50,8 @@ public static class ServicesConfig
         services.AddScoped<IBookingManagementService, BookingManagementService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<ITransactionService, TransactionService>();
-        
+        services.AddScoped<IDashboardService, DashboardService>();
+
         // Message Queue Service - Singleton for thread-safe queue
         services.AddSingleton<IBookingQueueService, BookingQueueService>();
         
