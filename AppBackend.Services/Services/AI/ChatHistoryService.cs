@@ -6,6 +6,7 @@ using AppBackend.BusinessObjects.AppSettings;
 using AppBackend.Services.ApiModels.ChatModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 
@@ -25,15 +26,18 @@ public class ChatHistoryService : IChatHistoryService
     private readonly HotelManagementContext _context;
     private readonly IGeminiKeyManager _keyManager;
     private readonly FrontendSettings _frontendSettings;
+    private readonly ILogger<ChatHistoryService> _logger;
 
     public ChatHistoryService(
         HotelManagementContext context,
         IGeminiKeyManager keyManager,
-        IOptions<FrontendSettings> frontendSettings)
+        IOptions<FrontendSettings> frontendSettings,
+        ILogger<ChatHistoryService> logger)
     {
         _context = context;
         _keyManager = keyManager;
         _frontendSettings = frontendSettings.Value;
+        _logger = logger;
     }
 
     /// <summary>
@@ -44,27 +48,33 @@ public class ChatHistoryService : IChatHistoryService
         int? accountId,
         string? guestIdentifier)
     {
+        _logger.LogInformation("🔍 GetOrCreateSessionAsync called with SessionId: {SessionId}", sessionId?.ToString() ?? "NULL");
+        
         // Normalize accountId: treat 0 or negative as null (guest user)
         var normalizedAccountId = accountId.HasValue && accountId.Value > 0 ? accountId : null;
 
-        // Try to find existing active session
-        if (sessionId.HasValue)
-        {
-            var existingSession = await _context.ChatSessions
-                .FirstOrDefaultAsync(s => s.SessionId == sessionId.Value && s.IsActive);
+        // Determine the session ID to use (provided or generate new)
+        var targetSessionId = sessionId ?? Guid.NewGuid();
+        
+        _logger.LogInformation("🎯 Target SessionId to use/find: {TargetSessionId}", targetSessionId);
 
-            if (existingSession != null)
-            {
-                existingSession.LastActivityAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
-                return existingSession;
-            }
+        // Try to find existing active session
+        var existingSession = await _context.ChatSessions
+            .FirstOrDefaultAsync(s => s.SessionId == targetSessionId && s.IsActive);
+
+        if (existingSession != null)
+        {
+            _logger.LogInformation("✅ Found existing session: {SessionId}", targetSessionId);
+            existingSession.LastActivityAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return existingSession;
         }
 
-        // Create new session - let DB handle CreatedAt default value
+        // Create new session with the target session ID (either provided or new)
+        _logger.LogInformation("🆕 Creating new session with ID: {SessionId}", targetSessionId);
         var newSession = new ChatSession
         {
-            SessionId = Guid.NewGuid(),
+            SessionId = targetSessionId,  // Use the target ID, not a random new one
             AccountId = normalizedAccountId,
             GuestIdentifier = guestIdentifier ?? Guid.NewGuid().ToString(),
             LastActivityAt = DateTime.UtcNow,
@@ -74,6 +84,8 @@ public class ChatHistoryService : IChatHistoryService
 
         _context.ChatSessions.Add(newSession);
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("✅ New session created successfully with ID: {SessionId}", targetSessionId);
 
         return newSession;
     }
@@ -103,24 +115,30 @@ public class ChatHistoryService : IChatHistoryService
 - Current time: {DateTime.Now:HH:mm}
 - Booking website: {_frontendSettings.BaseUrl}
 
+**CRITICAL: CONVERSATION MEMORY**
+You MUST remember information from previous messages in this conversation:
+- If user mentioned number of guests, remember it
+- If user mentioned dates, remember them
+- If user asked about specific room type, remember it
+- Build upon previous context, don't ask for information already provided
+
+**Example Conversation:**
+User: ""Tôi muốn tìm phòng cho 2 người""
+You: Remember ""2 người"" → Ask for dates
+
+User: ""12/12 đến 14/12""
+You: Remember ""2 người"" from before → Call search_available_rooms(guests=2, checkIn=2025-12-12, checkOut=2025-12-14)
+
 **CRITICAL: When to Use Functions**
 1. **When user asks about rooms/availability** → ALWAYS call search_available_rooms
    - Extract dates from user message (support formats: DD/MM/YYYY, YYYY-MM-DD, ""ngày 1/12"", ""1 tháng 12"")
    - If year not mentioned, assume current year ({DateTime.Now.Year})
    - If dates unclear, ask for clarification
+   - **REMEMBER guest count from previous messages!**
    
 2. **When user asks for room details** → Call get_room_details with roomTypeId
 
 3. **When user mentions dates** → Call get_current_date first to verify
-
-**Function Calling Examples:**
-- ""Tôi muốn phòng 2 vào ngày 1/12/2027 đến 5/12/2027""
-  → Call: search_available_rooms(checkInDate=""2027-12-01"", checkOutDate=""2027-12-05"", guestCount=2)
-  → Then respond with available rooms in Vietnamese
-
-- ""Show me deluxe rooms for next weekend""
-  → Call: get_current_date() first
-  → Then: search_available_rooms with calculated dates
 
 **Response Format After Getting Search Results:**
 When you receive room search results, ALWAYS present them in this detailed format:
@@ -140,27 +158,8 @@ For Vietnamese:
 
 Bạn muốn biết thêm chi tiết về phòng nào không?""
 
-For English:
-""We have [count] room types available from [date] to [date]:
-
-🏨 **[Room Name 1]**
-   💰 Price: [price]/night
-   👥 Capacity: [guests]
-   📐 Size: [size]m²
-   🛏️ Bed type: [type]
-   🔗 [Book Now]({_frontendSettings.BaseUrl}/rooms/[roomTypeId])
-
-Would you like more details about any room?""
-
 **When Guest Wants to Book:**
-- If they say ""tôi muốn đặt"", ""book"", ""đặt phòng này"", ""I want this room""
 - Provide direct booking link: ""Để đặt phòng [tên phòng], vui lòng truy cập: {_frontendSettings.BaseUrl}/rooms/[roomTypeId]""
-- Add: ""Nếu cần hỗ trợ trong quá trình đặt phòng, hãy cho tôi biết nhé!""
-
-**Getting More Details:**
-- When user asks about specific room, call get_room_details(roomTypeId, checkInDate, checkOutDate)
-- Present amenities, full description, images info
-- Always end with booking link
 
 **Language:**
 - Respond in the same language as the user's question
@@ -169,10 +168,9 @@ Would you like more details about any room?""
 - Use emojis to make responses more engaging
 
 **Important Notes:**
-- ALWAYS include direct booking links in format: {_frontendSettings.BaseUrl}/rooms/[roomTypeId]
-- Replace [roomTypeId] with actual RoomTypeId from search results
-- When presenting multiple rooms, give links for each room
-- Encourage booking when guest shows interest";
+- ALWAYS remember context from previous messages in conversation
+- Don't ask for information user already provided
+- ALWAYS include direct booking links: {_frontendSettings.BaseUrl}/rooms/[roomTypeId]";
 
         chatHistory.AddSystemMessage(systemPrompt);
 
@@ -181,6 +179,20 @@ Would you like more details about any room?""
             .Where(m => m.SessionId == sessionId)
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
+
+        _logger.LogInformation("📨 Loading chat history for session: {SessionId}", sessionId);
+        _logger.LogInformation("📊 Found {Count} messages in database", messages.Count);
+        
+        if (messages.Any())
+        {
+            _logger.LogInformation("📜 Messages preview:");
+            foreach (var msg in messages.Take(5))
+            {
+                _logger.LogInformation("  [{Role}] {Content}", 
+                    msg.Role, 
+                    msg.Content.Length > 50 ? msg.Content.Substring(0, 50) + "..." : msg.Content);
+            }
+        }
 
         var messageCount = messages.Count;
         var threshold = settings.SummarizationThreshold;
@@ -228,6 +240,7 @@ Would you like more details about any room?""
         else
         {
             // Load all messages if under threshold
+            _logger.LogInformation("✅ Loading all {Count} messages (under threshold)", messageCount);
             foreach (var msg in messages)
             {
                 if (msg.Role == "user")
@@ -236,6 +249,8 @@ Would you like more details about any room?""
                     chatHistory.AddAssistantMessage(msg.Content);
             }
         }
+
+        _logger.LogInformation("📝 Final chat history size: {Count} messages", chatHistory.Count);
 
         return chatHistory;
     }

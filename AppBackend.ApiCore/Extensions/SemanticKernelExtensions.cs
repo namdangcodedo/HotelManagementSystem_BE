@@ -2,6 +2,7 @@ using AppBackend.BusinessObjects.AppSettings;
 using AppBackend.Services.ApiModels.ChatModel;
 using AppBackend.Services.Services.AI;
 using AppBackend.Services.Services.RoomServices;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -23,8 +24,14 @@ public static class SemanticKernelExtensions
         Console.WriteLine("✅ Configured GeminiSettings from appsettings.json");
 
         // Register AI Services
-        services.AddSingleton<IGeminiKeyManager, GeminiKeyManager>();
-        Console.WriteLine("✅ Registered IGeminiKeyManager as Singleton");
+        services.AddSingleton<IGeminiKeyManager>(sp =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var cache = sp.GetRequiredService<IMemoryCache>();
+            var logger = sp.GetRequiredService<ILogger<GeminiKeyManager>>();
+            return new GeminiKeyManager(configuration, cache, logger);
+        });
+        Console.WriteLine("✅ Registered IGeminiKeyManager as Singleton with Cache");
         
         services.AddScoped<IChatHistoryService, ChatHistoryService>();
         Console.WriteLine("✅ Registered IChatHistoryService as Scoped");
