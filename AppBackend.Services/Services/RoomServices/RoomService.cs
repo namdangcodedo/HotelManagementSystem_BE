@@ -8,6 +8,7 @@ using AppBackend.Services.ApiModels.RoomModel;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using RoomTypeModel = AppBackend.BusinessObjects.Models.RoomType;
 
 namespace AppBackend.Services.Services.RoomServices
@@ -16,11 +17,13 @@ namespace AppBackend.Services.Services.RoomServices
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly ILogger<RoomService> _logger;
 
-        public RoomService(IUnitOfWork unitOfWork, IMapper mapper)
+        public RoomService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<RoomService> logger)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _logger = logger;
         }
 
         #region ROOM TYPE SEARCH - FOR CUSTOMER
@@ -30,6 +33,13 @@ namespace AppBackend.Services.Services.RoomServices
         /// </summary>
         public async Task<ResultModel> SearchRoomTypesAsync(SearchRoomTypeRequest request)
         {
+            _logger.LogInformation("=== SearchRoomTypesAsync CALLED ===");
+            _logger.LogInformation("CheckInDate: {CheckIn}, CheckOutDate: {CheckOut}", request.CheckInDate, request.CheckOutDate);
+            _logger.LogInformation("NumberOfGuests: {Guests}, MinPrice: {MinPrice}, MaxPrice: {MaxPrice}", 
+                request.NumberOfGuests, request.MinPrice, request.MaxPrice);
+            _logger.LogInformation("OnlyActive: {OnlyActive}, PageIndex: {PageIndex}, PageSize: {PageSize}", 
+                request.OnlyActive, request.PageIndex, request.PageSize);
+
             var query = _unitOfWork.RoomTypes.FindAsync(rt => true);
             var roomTypes = (await query).AsQueryable();
 

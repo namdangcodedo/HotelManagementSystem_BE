@@ -50,10 +50,9 @@ public class ChatMessageDto
 public class GeminiSettings
 {
     public List<string> ApiKeys { get; set; } = new();
-    public string ModelId { get; set; } = "gemini-2.0-flash-exp";
-    public int MaxTokens { get; set; } = 2048;
+    public string ModelId { get; set; } = "gemini-2.5-flash";
+    public int MaxTokens { get; set; } = 8000;
     public double Temperature { get; set; } = 0.7;
-    public int MaxConversationMessages { get; set; } = 10;
+    public int MaxConversationMessages { get; set; } = 20;
     public int SummarizationThreshold { get; set; } = 10;
 }
-

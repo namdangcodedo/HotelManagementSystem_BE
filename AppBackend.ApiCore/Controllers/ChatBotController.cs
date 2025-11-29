@@ -27,27 +27,61 @@ public class ChatBotController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("╔══════════════════════════════════════════╗");
+            _logger.LogInformation("║   CHATBOT API REQUEST RECEIVED           ║");
+            _logger.LogInformation("╚══════════════════════════════════════════╝");
+            _logger.LogInformation("📨 Request received at: {Time}", DateTime.UtcNow);
+            _logger.LogInformation("📝 Message: {Message}", request.Message);
+            _logger.LogInformation("🆔 SessionId: {SessionId}", request.SessionId?.ToString() ?? "null (new session)");
+            _logger.LogInformation("👤 AccountId: {AccountId}", request.AccountId?.ToString() ?? "null (guest)");
+            _logger.LogInformation("🎫 GuestIdentifier: {GuestId}", request.GuestIdentifier ?? "null");
+            
             if (string.IsNullOrWhiteSpace(request.Message))
             {
+                _logger.LogWarning("⚠️ Empty message rejected");
                 return BadRequest(new { message = "Message cannot be empty" });
             }
 
             // Limit message length to prevent abuse
             if (request.Message.Length > 2000)
             {
+                _logger.LogWarning("⚠️ Message too long: {Length} characters", request.Message.Length);
                 return BadRequest(new { message = "Message too long. Maximum 2000 characters." });
             }
 
+            _logger.LogInformation("✅ Validation passed. Calling ChatService...");
+            _logger.LogInformation("🔄 About to call _chatService.SendMessageAsync()");
+            
             var result = await _chatService.SendMessageAsync(request);
-
+            
+            _logger.LogInformation("✅ ChatService returned. Success: {Success}", result.IsSuccess);
+            _logger.LogInformation("📊 Status Code: {StatusCode}", result.StatusCode);
+            
             if (result.IsSuccess)
+            {
+                _logger.LogInformation("✅ Returning success response to client");
                 return Ok(result);
+            }
             else
+            {
+                _logger.LogError("❌ ChatService returned error: {Message}", result.Message);
                 return StatusCode(result.StatusCode, result);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in SendMessage endpoint");
+            _logger.LogError(ex, "❌❌❌ EXCEPTION in ChatBotController.SendMessage ❌❌❌");
+            _logger.LogError("Exception Type: {Type}", ex.GetType().Name);
+            _logger.LogError("Exception Message: {Message}", ex.Message);
+            _logger.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
+            
+            if (ex.InnerException != null)
+            {
+                _logger.LogError("Inner Exception: {InnerType} - {InnerMessage}", 
+                    ex.InnerException.GetType().Name, 
+                    ex.InnerException.Message);
+            }
+            
             return StatusCode(500, new { message = "Internal server error", error = ex.Message });
         }
     }

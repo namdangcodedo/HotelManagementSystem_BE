@@ -5,6 +5,7 @@ using System.Text.Json;
 using AppBackend.Services.ApiModels.RoomModel;
 using AppBackend.Services.Services.RoomServices;
 using Microsoft.SemanticKernel;
+using Microsoft.Extensions.Logging;
 
 namespace AppBackend.Services.Services.AI;
 
@@ -15,10 +16,12 @@ namespace AppBackend.Services.Services.AI;
 public class HotelBookingPlugin
 {
     private readonly IRoomService _roomService;
+    private readonly ILogger<HotelBookingPlugin> _logger;
 
-    public HotelBookingPlugin(IRoomService roomService)
+    public HotelBookingPlugin(IRoomService roomService, ILogger<HotelBookingPlugin> logger)
     {
         _roomService = roomService;
+        _logger = logger;
     }
 
     [KernelFunction("search_available_rooms")]
@@ -33,19 +36,29 @@ public class HotelBookingPlugin
     {
         try
         {
+            _logger.LogInformation("🔧 FUNCTION CALLED: search_available_rooms");
+            _logger.LogInformation("  CheckIn: {CheckIn}, CheckOut: {CheckOut}", checkInDate, checkOutDate);
+            _logger.LogInformation("  Location: {Location}, Guests: {Guests}, PriceRange: {Min}-{Max}", 
+                location ?? "N/A", guestCount?.ToString() ?? "N/A", minPrice, maxPrice);
+
             var request = new SearchRoomTypeRequest
             {
                 CheckInDate = DateTime.Parse(checkInDate),
                 CheckOutDate = DateTime.Parse(checkOutDate),
                 NumberOfGuests = guestCount,
                 MinPrice = minPrice,
-                MaxPrice = maxPrice
+                MaxPrice = maxPrice,
+                PageIndex = 0,  // ← QUAN TRỌNG: Luôn lấy trang đầu tiên cho chatbot
+                PageSize = 20   // ← Tăng lên 20 để AI có nhiều options hơn
             };
 
             var result = await _roomService.SearchRoomTypesAsync(request);
 
             if (result.IsSuccess)
             {
+                _logger.LogInformation("✅ Function returned {Count} rooms", 
+                    result.Data is System.Collections.IEnumerable enumerable ? enumerable.Cast<object>().Count() : 0);
+                    
                 return JsonSerializer.Serialize(new
                 {
                     success = true,
@@ -54,6 +67,7 @@ public class HotelBookingPlugin
                 });
             }
 
+            _logger.LogWarning("⚠️ Function found no rooms: {Message}", result.Message);
             return JsonSerializer.Serialize(new
             {
                 success = false,
@@ -62,6 +76,7 @@ public class HotelBookingPlugin
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "❌ Error in search_available_rooms function");
             return JsonSerializer.Serialize(new
             {
                 success = false,
@@ -79,6 +94,10 @@ public class HotelBookingPlugin
     {
         try
         {
+            _logger.LogInformation("🔧 FUNCTION CALLED: get_room_details");
+            _logger.LogInformation("  RoomTypeId: {RoomTypeId}, CheckIn: {CheckIn}, CheckOut: {CheckOut}", 
+                roomTypeId, checkInDate ?? "N/A", checkOutDate ?? "N/A");
+
             DateTime? checkIn = string.IsNullOrEmpty(checkInDate) ? null : DateTime.Parse(checkInDate);
             DateTime? checkOut = string.IsNullOrEmpty(checkOutDate) ? null : DateTime.Parse(checkOutDate);
 
@@ -86,6 +105,7 @@ public class HotelBookingPlugin
 
             if (result.IsSuccess)
             {
+                _logger.LogInformation("✅ Function returned room details successfully");
                 return JsonSerializer.Serialize(new
                 {
                     success = true,
@@ -93,6 +113,7 @@ public class HotelBookingPlugin
                 });
             }
 
+            _logger.LogWarning("⚠️ Function failed: {Message}", result.Message);
             return JsonSerializer.Serialize(new
             {
                 success = false,
@@ -101,6 +122,7 @@ public class HotelBookingPlugin
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "❌ Error in get_room_details function");
             return JsonSerializer.Serialize(new
             {
                 success = false,
@@ -113,12 +135,17 @@ public class HotelBookingPlugin
     [Description("Get the current date and time - useful for checking availability")]
     public string GetCurrentDate()
     {
-        return JsonSerializer.Serialize(new
+        _logger.LogInformation("🔧 FUNCTION CALLED: get_current_date");
+        
+        var result = JsonSerializer.Serialize(new
         {
             currentDate = DateTime.Now.ToString("yyyy-MM-dd"),
             currentDateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             dayOfWeek = DateTime.Now.DayOfWeek.ToString()
         });
+        
+        _logger.LogInformation("✅ Returning: {Result}", result);
+        return result;
     }
 }
 

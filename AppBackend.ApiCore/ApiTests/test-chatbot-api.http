@@ -1,0 +1,193 @@
+### ========================================
+### CHATBOT API TESTING
+### Test conversation flow with session management
+### ========================================
+
+@baseUrl = http://localhost:8080
+@sessionId = 
+
+### 1. First Message - Create New Session
+# @name newChat
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Xin chào, tôi muốn tìm phòng",
+  "sessionId": null,
+  "accountId": null,
+  "guestIdentifier": "guest-test-conversation-001"
+}
+
+### Extract SessionId from response
+@sessionId = {{newChat.response.body.$.data.sessionId}}
+
+###
+
+### 2. Second Message - Use Existing Session (Test Conversation Context)
+# IMPORTANT: Copy sessionId from response above and paste here
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Tôi muốn phòng cho 2 người vào ngày 1/12/2027 đến ngày 5/12/2027",
+  "sessionId": "PASTE_SESSION_ID_HERE",
+  "accountId": null,
+  "guestIdentifier": "guest-test-conversation-001"
+}
+
+###
+
+### 3. Third Message - Continue Conversation
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Phòng nào có giá dưới 1000000?",
+  "sessionId": "PASTE_SESSION_ID_HERE",
+  "accountId": null,
+  "guestIdentifier": "guest-test-conversation-001"
+}
+
+###
+
+### 4. Get Chat History
+GET {{baseUrl}}/api/ChatBot/history/PASTE_SESSION_ID_HERE
+
+###
+
+### ========================================
+### AUTOMATED CONVERSATION FLOW TEST
+### ========================================
+
+### Step 1: Start new conversation
+# @name step1
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Hello, I need a room",
+  "sessionId": null,
+  "guestIdentifier": "auto-test-001"
+}
+
+### Step 2: Provide details (should use session from step1)
+# @name step2
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "I need it for 2 guests from December 1, 2027 to December 5, 2027",
+  "sessionId": "{{step1.response.body.$.data.sessionId}}",
+  "guestIdentifier": "auto-test-001"
+}
+
+### Step 3: Ask for cheaper options
+# @name step3
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Do you have anything cheaper?",
+  "sessionId": "{{step2.response.body.$.data.sessionId}}",
+  "guestIdentifier": "auto-test-001"
+}
+
+### Step 4: Get full conversation history
+GET {{baseUrl}}/api/ChatBot/history/{{step1.response.body.$.data.sessionId}}
+
+###
+
+### ========================================
+### VIETNAMESE CONVERSATION TEST
+### ========================================
+
+### Bước 1: Bắt đầu hội thoại mới
+# @name vnChat1
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Chào bạn, tôi muốn đặt phòng khách sạn",
+  "sessionId": null,
+  "guestIdentifier": "guest-vn-test-001"
+}
+
+### Bước 2: Cung cấp thông tin cụ thể
+# @name vnChat2
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Tôi cần phòng cho 2 người từ ngày 1/12/2027 đến 5/12/2027",
+  "sessionId": "{{vnChat1.response.body.$.data.sessionId}}",
+  "guestIdentifier": "guest-vn-test-001"
+}
+
+### Bước 3: Hỏi thêm chi tiết
+# @name vnChat3
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Phòng nào có view đẹp và giá hợp lý?",
+  "sessionId": "{{vnChat2.response.body.$.data.sessionId}}",
+  "guestIdentifier": "guest-vn-test-001"
+}
+
+### Bước 4: Hỏi về tiện nghi
+# @name vnChat4
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Phòng có wifi và điều hòa không?",
+  "sessionId": "{{vnChat3.response.body.$.data.sessionId}}",
+  "guestIdentifier": "guest-vn-test-001"
+}
+
+###
+
+### ========================================
+### FUNCTION CALLING TEST
+### ========================================
+
+### Test search_available_rooms function
+# @name funcTest1
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Show me available rooms from 2027-12-01 to 2027-12-05 for 2 guests",
+  "sessionId": null,
+  "guestIdentifier": "func-test-001"
+}
+
+### Test with Vietnamese date format
+# @name funcTest2
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Tìm phòng trống từ ngày 1 tháng 12 năm 2027 đến ngày 5 tháng 12 năm 2027",
+  "sessionId": null,
+  "guestIdentifier": "func-test-002"
+}
+
+### Test get_room_details function
+# @name funcTest3
+POST {{baseUrl}}/api/ChatBot/chat
+Content-Type: application/json
+
+{
+  "message": "Tell me more about room type 1",
+  "sessionId": null,
+  "guestIdentifier": "func-test-003"
+}
+
+###
+
+### Clear session (mark as inactive)
+POST {{baseUrl}}/api/ChatBot/clear/{{step1.response.body.$.data.sessionId}}
+
+###
+
