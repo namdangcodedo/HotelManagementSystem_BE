@@ -1,0 +1,109 @@
+Task: Module chấm công & xuất lương theo nhân viên (PDF) — server-only
+
+Mục tiêu
+- Xây dựng module server thực hiện: import dữ liệu chấm công từ file máy chấm công, xử lý bảng công theo tháng, tính lương theo nhân viên, và xuất phiếu lương (PDF) cho từng nhân viên.
+- Toàn bộ xử lý chạy trên VPS/production; không áp migration trên môi trường local. Nếu cần migration, chỉ tạo script và apply trên VPS sau khi được chấp thuận.
+
+Checklist công việc
+1. Phân tích schema DB hiện có và xác định thiếu/đủ.
+2. Viết parser import file (CSV/Excel) theo mẫu thiết bị (sẽ được cung cấp).
+3. Implement API endpoints: import attendance, xem bảng công theo tháng, xem chi tiết employee theo tháng, trigger generate payroll, download PDF.
+4. Implement services: AttendanceImportService, PayrollCalculatorService, PayrollPdfGenerator, Persistence (ghi Salary / PayrollDisbursement hoặc lưu JSON + PDF nếu không migrate).
+5. Tạo background job/endpoint an toàn để chạy generate payroll theo lịch.
+6. Lưu audit: import logs, payroll run logs, và file JSON detail + PDF file per employee.
+7. Viết unit tests (import parser, payroll calc basic, overnight shift case).
+8. Hướng dẫn deploy & apply migrations (nếu có) trên VPS.
+
+Yêu cầu chức năng (chi tiết)
+- Input file: CSV/Excel export từ máy chấm công (mỗi record tối thiểu có: mã nhân viên, timestamp, type(optional) IN/OUT, terminalId optional).
+- Mapping: device_employee_id -> Employee tại DB (dùng DeviceEmployeeId trong `Attendance` hoặc map theo AccountId/FullName nếu cần).
+- Import behavior: deduplicate (không chèn bản ghi trùng timestamp + employee), unresolved rows -> log để admin xử lý.
+- Bảng công (monthly summary) cho 1 tháng: tổng giờ làm, tổng OT, số ngày công, số ngày vắng, số lần trễ/về sớm, total gross, total net.
+- Chi tiết employee: list theo ngày với checkin/checkout, giờ làm, OT, ghi chú.
+- Generate payroll: persist tổng vào `Salary` và `PayrollDisbursement` (nếu dùng schema hiện có) và lưu PDF + JSON chi tiết vào filesystem.
+
+DB schema hiện có (từ repo) — tóm tắt
+- Có: `Employee` (EmployeeId, FullName, BaseSalary, liên kết Attendances/EmployeeSchedules).
+- Có: `Attendance` (AttendanceId, EmployeeId, DeviceEmployeeId, CheckIn (DateTime), CheckOut (DateTime?)).
+- Có: `EmployeeSchedule` (ScheduleId, EmployeeId, ShiftDate (DateOnly), StartTime (TimeOnly), EndTime (TimeOnly)).
+- Có: `Salary` và `PayrollDisbursement` để lưu tổng lương/tình trạng thanh toán.
+- Thiếu (khuyến nghị thêm): `PayrollRun`, `PayrollLineItem`, `LeaveRecord`, `OvertimeRecord`, `PayrollFile` (để lưu metadata file PDF). Nếu không migrate, sẽ lưu JSON detail + PDF trên filesystem và chỉ cập nhật `Salary` / `PayrollDisbursement`.
+
+API endpoints (đề xuất)
+- POST /api/attendance/import
+  - Form-data: file (CSV/Excel), templateId optional
+  - Response: { importedCount, updatedCount, unresolvedRows: [ ... ] }
+
+- GET /api/attendance?month=YYYY-MM&employeeId? -> raw attendance or processed per-day
+
+- GET /api/payroll?month=YYYY-MM&page=&pageSize=&employeeTypeId? -> list summary per employee
+
+- GET /api/payroll/{employeeId}?month=YYYY-MM -> full detail per day + link PDF if available
+
+- POST /api/payroll/generate
+  - Body: { month:"YYYY-MM", employees?: [id,...], force?: bool }
+  - Action: compute, persist summary to `Salary`/`PayrollDisbursement`, write JSON detail + PDF files, return paths
+
+- GET /api/payroll/files/{year}/{month}/{filename} (serve file with authorization)
+
+Quy tắc xử lý & business rules (cần xác nhận)
+- Pairing IN/OUT: default use earliest IN and latest OUT per day; nếu nhiều cặp, ghép theo thứ tự (first IN -> first OUT, second IN -> second OUT).
+- Ca đêm / overnight: nếu Shift Start > Shift End, shift kéo sang ngày tiếp theo (cần handle khi tính overlap).
+- Lateness/Early: configurable grace minutes (ví dụ 10 phút).
+- OT: tính khi giờ thực tế > scheduled hours. OT rate configurable (1.5x, 2.0x); ngày lễ/Chủ nhật có rate khác.
+- Rounding: làm tròn theo 15 phút (configurable).
+- Absent: không có attendance và không có leave -> vắng.
+
+Lưu file & audit (không migration)
+- Output path configurable via `appsettings.Production.json`: Payroll:OutputPath = "/var/appdata/payroll"
+- Lưu: /var/appdata/payroll/{year}/{month}/employee_{employeeId}_{timestamp}.json
+- Lưu PDF: /var/appdata/payroll/{year}/{month}/employee_{employeeId}_{timestamp}.pdf
+- Ghi log import: /var/appdata/payroll/import_logs/{filename}_{timestamp}.json
+
+Migrations & cách apply (chỉ trên VPS)
+- Nếu đồng ý thêm bảng: tạo EF Core migrations nhưng KHÔNG chạy local.
+- On VPS: publish app, chạy EF Core update:
+  dotnet publish AppBackend.ApiCore -c Release -o /var/www/app
+  cd /var/www/app
+  dotnet ef database update --project /path/to/AppBackend.BusinessObjects --startup-project /path/to/AppBackend.ApiCore
+- Hoặc export migration SQL và apply bằng admin DB tools trên VPS.
+
+Bảo mật & vận hành
+- Các endpoint tạo/generate payroll và download file cần role Payroll/Admin.
+- Đặt giới hạn kích thước file upload và validate file type.
+- Dùng Background Worker (Hangfire hoặc HostedService) để chạy tạo payroll theo batch.
+- Đặt quota/retention cho các file PDF (xóa theo chính sách sau X năm).
+
+Các file / classes cần implement (tối thiểu)
+- Services:
+  - IAttendanceImportService, AttendanceImportService
+  - IPayrollCalculatorService, PayrollCalculatorService
+  - IPayrollPdfGenerator (sử dụng QuestPDF)
+  - IPayrollStorageService (tương tác filesystem + optional DB metadata)
+- Controllers:
+  - AttendanceController (import, list)
+  - PayrollController (summary, detail, generate, files)
+- Background:
+  - PayrollWorker (HostedService hoặc Hangfire job)
+- Tests:
+  - AttendanceImportTests (parse sample file)
+  - PayrollCalculatorTests (happy path + overnight + missing checkout)
+
+Test data & validation SQL (ví dụ)
+- Kiểm tra attendance trong tháng:
+  SELECT COUNT(*) FROM Attendance WHERE CheckIn >= '2025-11-01' AND CheckIn < '2025-12-01';
+- Kiểm tra schedule:
+  SELECT * FROM EmployeeSchedule WHERE ShiftDate BETWEEN '2025-11-01' AND '2025-11-30' AND EmployeeId = @id;
+
+Next steps tôi sẽ làm sau khi bạn xác nhận
+1. Bạn gửi file mẫu export từ máy chấm công (CSV/Excel).
+2. Bạn xác nhận policy tính OT/rounding/grace minutes/standard monthly hours.
+3. Chọn 1 trong 2 hướng: (A) Không migrate (lưu JSON + PDF và persist tổng vào `Salary`), (B) Migrate (tôi tạo migration scripts cho các bảng đề xuất).
+4. Sau khi nhận file mẫu và policy, tôi sẽ: viết parser, implement import endpoint + unit tests; viết payroll calculation service + tests; tạo PDF generator và endpoint generate + storage; cuối cùng chạy build/tests.
+
+Ghi chú
+- File này là tài liệu task cho developer (tiếng Việt). Bạn có thể chỉnh sửa chi tiết để phù hợp chính sách của công ty.
+- Khi bạn gửi mẫu file chấm công, tôi sẽ tiến hành tạo parser cụ thể và code changes (các file dịch vụ và controller) và chạy build/tests để đảm bảo không lỗi.
+
+End of task file
+

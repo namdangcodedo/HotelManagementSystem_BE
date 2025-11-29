@@ -27,6 +27,9 @@ builder.Services.Configure<VietQRSettings>(builder.Configuration.GetSection("Vie
 // All Application Services (includes Booking, Queue, Cache, etc.)
 builder.Services.AddServicesConfig();
 
+// Semantic Kernel for AI Chatbot with Gemini
+builder.Services.AddSemanticKernelServices(builder.Configuration);
+
 builder.Services.AddControllers()   
     .AddJsonOptions(options =>
     {

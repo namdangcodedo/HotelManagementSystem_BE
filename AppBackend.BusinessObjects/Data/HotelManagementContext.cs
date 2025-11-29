@@ -37,6 +37,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<BookingRoomService> BookingRoomServices { get; set; }
     public virtual DbSet<PayrollDisbursement> PayrollDisbursements { get; set; }
     public virtual DbSet<BankConfig> BankConfigs { get; set; }
+    public virtual DbSet<ChatSession> ChatSessions { get; set; }
+    public virtual DbSet<ChatMessage> ChatMessages { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -198,4 +200,3 @@ public class HotelManagementContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
-
