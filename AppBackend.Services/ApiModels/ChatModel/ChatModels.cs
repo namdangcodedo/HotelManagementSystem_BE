@@ -45,6 +45,19 @@ public class ChatMessageDto
 }
 
 /// <summary>
+/// DTO for chat session
+/// </summary>
+public class ChatSessionDto
+{
+    public Guid SessionId { get; set; }
+    public int? AccountId { get; set; }
+    public string? GuestIdentifier { get; set; }
+    public DateTime LastActivityAt { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsSummarized { get; set; }
+}
+
+/// <summary>
 /// Settings for Gemini API
 /// </summary>
 public class GeminiSettings

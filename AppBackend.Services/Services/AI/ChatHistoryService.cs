@@ -18,6 +18,7 @@ public interface IChatHistoryService
     Task<ChatHistory> GetSmartHistoryAsync(Guid sessionId, Kernel kernel);
     Task AddMessageAsync(Guid sessionId, string role, string content, string? metadata = null);
     Task<List<ChatMessageDto>> GetSessionMessagesAsync(Guid sessionId, int limit = 50);
+    Task<List<ChatSessionDto>> GetSessionsByAccountAsync(int accountId, int limit = 20);
     Task CleanupOldSessionsAsync(int daysOld = 30);
 }
 
@@ -361,6 +362,28 @@ Keep it concise and factual.");
             .ToListAsync();
 
         return messages;
+    }
+
+    /// <summary>
+    /// Get sessions by account ID
+    /// </summary>
+    public async Task<List<ChatSessionDto>> GetSessionsByAccountAsync(int accountId, int limit = 20)
+    {
+        var sessions = await _context.ChatSessions
+            .Where(s => s.AccountId == accountId && s.IsActive)
+            .OrderByDescending(s => s.LastActivityAt)
+            .Take(limit)
+            .ToListAsync();
+
+        return sessions.Select(s => new ChatSessionDto
+        {
+            SessionId = s.SessionId,
+            AccountId = s.AccountId,
+            GuestIdentifier = s.GuestIdentifier,
+            LastActivityAt = s.LastActivityAt ?? DateTime.UtcNow,
+            IsActive = s.IsActive,
+            IsSummarized = s.IsSummarized
+        }).ToList();
     }
 
     /// <summary>

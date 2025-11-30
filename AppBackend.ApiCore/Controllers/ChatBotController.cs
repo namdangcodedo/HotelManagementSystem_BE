@@ -10,11 +10,16 @@ namespace AppBackend.ApiCore.Controllers;
 public class ChatBotController : ControllerBase
 {
     private readonly IChatService _chatService;
+    private readonly IChatHistoryService _historyService;
     private readonly ILogger<ChatBotController> _logger;
 
-    public ChatBotController(IChatService chatService, ILogger<ChatBotController> logger)
+    public ChatBotController(
+        IChatService chatService, 
+        IChatHistoryService historyService,
+        ILogger<ChatBotController> logger)
     {
         _chatService = chatService;
+        _historyService = historyService;
         _logger = logger;
     }
 
@@ -145,5 +150,35 @@ public class ChatBotController : ControllerBase
             service = "ChatBot",
             timestamp = DateTime.UtcNow
         });
+    }
+
+    /// <summary>
+    /// Get all sessions for an account ID
+    /// </summary>
+    [HttpGet("account/{accountId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetSessionsByAccount(int accountId, [FromQuery] int limit = 20)
+    {
+        try
+        {
+            _logger.LogInformation("📋 Fetching sessions for AccountId: {AccountId}", accountId);
+
+            var sessions = await _historyService.GetSessionsByAccountAsync(accountId, limit);
+
+            _logger.LogInformation("✅ Successfully retrieved {Count} sessions", sessions.Count);
+            
+            return Ok(new
+            {
+                isSuccess = true,
+                statusCode = 200,
+                message = $"Found {sessions.Count} session(s)",
+                data = sessions
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error in GetSessionsByAccount endpoint");
+            return StatusCode(500, new { message = "Internal server error", error = ex.Message });
+        }
     }
 }
