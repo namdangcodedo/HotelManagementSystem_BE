@@ -10,7 +10,7 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Receptionist,Admin,Manager")]
     public class RoomAmenityController : BaseApiController
     {
         private readonly IRoomAmenityService _roomAmenityService;
