@@ -85,47 +85,250 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Lấy URL để đăng nhập bằng Google
+        /// Lấy URL để đăng nhập Google (cho Frontend)
         /// </summary>
-        /// <returns>URL đăng nhập Google</returns>
-        /// <response code="200">Lấy URL thành công</response>
-        [HttpGet("login-google")]
-        public IActionResult LoginGoogle()
-        {
-            var googleLoginUrl = _googleLoginService.GetGoogleLoginUrl();
-            return Ok(new { url = googleLoginUrl });
-        }
-
-        /// <summary>
-        /// Xử lý callback từ Google sau khi đăng nhập
-        /// </summary>
-        /// <param name="code">Authorization code từ Google</param>
-        /// <returns>Redirect về frontend với access token và refresh token</returns>
-        /// <response code="302">Redirect về frontend thành công</response>
-        /// <response code="400">Mã xác thực không hợp lệ</response>
-        [HttpGet("callback-google")]
-        public async Task<IActionResult> GoogleCallback(string code)
+        /// <param name="redirectUri">Redirect URI của frontend (optional, mặc định lấy từ config)</param>
+        /// <returns>Google OAuth URL đầy đủ để redirect user</returns>
+        /// <response code="200">Trả về Google login URL thành công</response>
+        /// <remarks>
+        /// API này trả về Google OAuth URL đầy đủ để Frontend redirect user.
+        /// Frontend không cần biết Client ID, chỉ cần gọi API này và redirect.
+        /// 
+        /// === USAGE ===
+        /// ```javascript
+        /// // Frontend code
+        /// const response = await fetch('http://localhost:8080/api/Authentication/google-login-url');
+        /// const data = await response.json();
+        /// 
+        /// if (data.isSuccess) {
+        ///   // Redirect user to Google
+        ///   window.location.href = data.data.url;
+        /// }
+        /// ```
+        /// 
+        /// === RESPONSE ===
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "data": {
+        ///     "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&response_type=code&scope=openid%20email%20profile",
+        ///     "redirectUri": "http://localhost:3000/auth/google/callback"
+        ///   }
+        /// }
+        /// ```
+        /// 
+        /// === ADVANCED USAGE (Custom Redirect URI) ===
+        /// Nếu muốn dùng redirect URI khác (ví dụ cho mobile app):
+        /// ```
+        /// GET /api/Authentication/google-login-url?redirectUri=myapp://auth/callback
+        /// ```
+        /// </remarks>
+        [HttpGet("google-login-url")]
+        public IActionResult GetGoogleLoginUrl([FromQuery] string? redirectUri = null)
         {
             try
             {
-                if (string.IsNullOrEmpty(code))
+                // Sử dụng GoogleLoginService để tạo URL
+                var googleLoginUrl = _googleLoginService.GetGoogleLoginUrl();
+                
+                // Lấy redirect URI từ service hoặc config
+                var finalRedirectUri = redirectUri ?? _frontendSettings.BaseUrl + "/auth/google/callback";
+                
+                return Ok(new
                 {
-                    // Redirect về frontend với error
-                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_code&message={Uri.EscapeDataString("Mã xác thực không hợp lệ")}";
-                    return Redirect(errorUrl);
+                    isSuccess = true,
+                    data = new
+                    {
+                        url = googleLoginUrl,
+                        redirectUri = finalRedirectUri,
+                        // Thêm thông tin hữu ích cho frontend
+                        scopes = new[] { "openid", "email", "profile" }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetGoogleLoginUrl] Error: {ex.Message}");
+                return BadRequest(new
+                {
+                    isSuccess = false,
+                    message = $"Không thể tạo Google login URL: {ex.Message}"
+                });
+            }
+        }
+
+        /// <summary>
+        /// Exchange authorization code sent from frontend to backend (safe flow for SPA)
+        /// Frontend should POST the `code` it received from Google to this endpoint.
+        /// Backend will exchange the code (via IGoogleLoginService), create/login the user and
+        /// return the app tokens. Backend will also set HttpOnly cookies if applicable.
+        /// </summary>
+        /// <param name="request">Object chứa authorization code và redirect URI từ Google</param>
+        /// <returns>JWT tokens và thông tin user</returns>
+        /// <response code="200">Exchange thành công, trả về token và user info</response>
+        /// <response code="400">Code không hợp lệ hoặc đã hết hạn</response>
+        /// <remarks>
+        /// **LUỒNG 2 - Exchange Flow (Khuyến nghị cho SPA/Frontend)**
+        /// 
+        /// === FLOW ===
+        /// 1. Frontend tự tạo Google Auth URL và redirect user đến Google
+        /// 2. User đăng nhập Google
+        /// 3. Google redirect về Frontend với code trong URL
+        /// 4. Frontend POST code lên API này
+        /// 5. Backend exchange code → access_token → user info → tạo JWT
+        /// 6. Frontend nhận token và lưu vào localStorage/cookie
+        /// 
+        /// === FRONTEND EXAMPLE ===
+        /// ```javascript
+        /// // Step 1: Redirect to Google
+        /// const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        ///   `client_id=${CLIENT_ID}&` +
+        ///   `redirect_uri=${encodeURIComponent('http://localhost:3000/auth/callback')}&` +
+        ///   `response_type=code&` +
+        ///   `scope=openid%20email%20profile`;
+        /// window.location.href = googleAuthUrl;
+        /// 
+        /// // Step 2: In callback page, extract code from URL
+        /// const params = new URLSearchParams(window.location.search);
+        /// const code = params.get('code');
+        /// 
+        /// // Step 3: Send code to backend
+        /// const response = await fetch('/api/Authentication/exchange-google', {
+        ///   method: 'POST',
+        ///   headers: { 'Content-Type': 'application/json' },
+        ///   body: JSON.stringify({
+        ///     code: code,
+        ///     redirectUri: 'http://localhost:3000/auth/callback'
+        ///   })
+        /// });
+        /// 
+        /// const data = await response.json();
+        /// if (data.isSuccess) {
+        ///   localStorage.setItem('access_token', data.data.token);
+        ///   localStorage.setItem('refresh_token', data.data.refreshToken);
+        ///   // Redirect to dashboard
+        /// }
+        /// ```
+        /// 
+        /// === IMPORTANT NOTES ===
+        /// - `redirectUri` trong request body PHẢI KHỚP CHÍNH XÁC với redirect_uri đã dùng khi lấy code từ Google
+        /// - Authorization code chỉ sử dụng được 1 lần và hết hạn sau ~10 phút
+        /// - Client secret được giữ bí mật trên backend, không bao giờ gửi về frontend
+        /// - Nếu backend/frontend cùng domain, HttpOnly cookies sẽ được set tự động
+        /// 
+        /// === REQUEST ===
+        /// POST /api/Authentication/exchange-google
+        /// ```json
+        /// {
+        ///   "code": "4/0Ab32j906Ny14NCGN2Uc7kIdGKZHTLe...",
+        ///   "redirectUri": "http://localhost:3000/auth/callback"
+        /// }
+        /// ```
+        /// 
+        /// === RESPONSE SUCCESS ===
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "data": {
+        ///     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        ///     "refreshToken": "abc123def456...",
+        ///     "user": {
+        ///       "email": "user@gmail.com",
+        ///       "name": "John Doe",
+        ///       "picture": "https://lh3.googleusercontent.com/a/...",
+        ///       "roles": ["Customer"]
+        ///     }
+        ///   }
+        /// }
+        /// ```
+        /// 
+        /// === RESPONSE ERROR ===
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "message": "Code không hợp lệ hoặc đã được sử dụng"
+        /// }
+        /// ```
+        /// 
+        /// === TROUBLESHOOTING ===
+        /// - **"redirect_uri_mismatch"**: redirectUri phải khớp chính xác với URI đã đăng ký trong Google Console
+        /// - **"invalid_grant"**: Code đã được sử dụng hoặc hết hạn, cần lấy code mới
+        /// - **"Code không hợp lệ"**: Code format sai hoặc không tồn tại
+        /// </remarks>
+        [HttpPost("exchange-google")]
+        public async Task<IActionResult> ExchangeGoogle([FromBody] ExchangeGoogleRequest? request)
+        {
+            try
+            {
+                // Validate input
+                if (request == null || string.IsNullOrWhiteSpace(request.Code))
+                {
+                    return BadRequest(new 
+                    { 
+                        isSuccess = false, 
+                        message = "Code không hợp lệ. Vui lòng thử đăng nhập lại." 
+                    });
                 }
 
-                var userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(code);
+                // Log for debugging (remove in production or use proper logger)
+                Console.WriteLine($"[GoogleLogin] Received code exchange request. Code length: {request.Code.Length}");
+
+                // Exchange code for user info via GoogleLoginService
+                // This service will:
+                // 1. Call Google OAuth2 token endpoint with code + client_secret
+                // 2. Get access_token from Google
+                // 3. Call Google userinfo endpoint to get user details
+                GoogleUserInfo userInfo;
+                try
+                {
+                    userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(request.Code);
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"[GoogleLogin] Google API error: {ex.Message}");
+                    
+                    // Parse error message for better user feedback
+                    var errorMessage = "Không thể xác thực với Google. ";
+                    if (ex.Message.Contains("invalid_grant"))
+                        errorMessage += "Code đã được sử dụng hoặc hết hạn. Vui lòng thử đăng nhập lại.";
+                    else if (ex.Message.Contains("redirect_uri_mismatch"))
+                        errorMessage += "Cấu hình redirect URI không khớp. Vui lòng liên hệ quản trị viên.";
+                    else
+                        errorMessage += "Vui lòng thử lại sau.";
+                    
+                    return BadRequest(new { isSuccess = false, message = errorMessage });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GoogleLogin] Unexpected error during code exchange: {ex.Message}");
+                    return BadRequest(new 
+                    { 
+                        isSuccess = false, 
+                        message = $"Lỗi khi xử lý thông tin từ Google: {ex.Message}" 
+                    });
+                }
+
+                if (userInfo == null || string.IsNullOrEmpty(userInfo.Email))
+                {
+                    return BadRequest(new 
+                    { 
+                        isSuccess = false, 
+                        message = "Không thể lấy thông tin user từ Google. Vui lòng kiểm tra quyền truy cập email." 
+                    });
+                }
+
+                Console.WriteLine($"[GoogleLogin] Successfully got user info from Google: {userInfo.Email}");
+
+                // Login or create user in our system
                 var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
 
                 if (!result.IsSuccess)
                 {
-                    // Redirect về frontend với error
-                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=login_failed&message={Uri.EscapeDataString(result.Message ?? "Đăng nhập thất bại")}";
-                    return Redirect(errorUrl);
+                    Console.WriteLine($"[GoogleLogin] Login failed: {result.Message}");
+                    return HandleResult(result);
                 }
 
-                // Serialize và deserialize để chuyển đổi anonymous object sang GoogleLoginResponse
+                // Convert anonymous data to GoogleLoginResponse
                 var jsonData = JsonSerializer.Serialize(result.Data);
                 var loginResponse = JsonSerializer.Deserialize<GoogleLoginResponse>(jsonData, new JsonSerializerOptions 
                 { 
@@ -134,17 +337,256 @@ namespace AppBackend.ApiCore.Controllers
 
                 if (loginResponse == null || string.IsNullOrEmpty(loginResponse.Token))
                 {
+                    Console.WriteLine("[GoogleLogin] Failed to generate JWT token");
+                    return BadRequest(new 
+                    { 
+                        isSuccess = false, 
+                        message = "Không thể tạo token đăng nhập. Vui lòng thử lại." 
+                    });
+                }
+
+                Console.WriteLine($"[GoogleLogin] Successfully logged in user: {loginResponse.Email}");
+
+                // Optionally set HttpOnly cookies for access/refresh tokens
+                // This works if backend and frontend share the same domain
+                try
+                {
+                    var accessCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true, // Requires HTTPS in production
+                        SameSite = SameSiteMode.Lax, // Changed from Strict to Lax for better compatibility
+                        Expires = DateTimeOffset.UtcNow.AddHours(1)
+                    };
+
+                    var refreshCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = DateTimeOffset.UtcNow.AddDays(30)
+                    };
+
+                    Response.Cookies.Append("access_token", loginResponse.Token, accessCookieOptions);
+                    if (!string.IsNullOrEmpty(loginResponse.RefreshToken))
+                        Response.Cookies.Append("refresh_token", loginResponse.RefreshToken, refreshCookieOptions);
+                    
+                    Console.WriteLine("[GoogleLogin] HttpOnly cookies set successfully");
+                }
+                catch (Exception ex)
+                {
+                    // Don't fail the request if cookie setting fails
+                    // Frontend can still use tokens from response body
+                    Console.WriteLine($"[GoogleLogin] Warning: Could not set cookies: {ex.Message}");
+                }
+
+                // Return tokens and user info in response body
+                // Frontend can use this when cookies are not viable (e.g., different domains)
+                return Ok(new
+                {
+                    isSuccess = true,
+                    message = "Đăng nhập Google thành công",
+                    data = new
+                    {
+                        token = loginResponse.Token,
+                        refreshToken = loginResponse.RefreshToken,
+                        user = new 
+                        {
+                            email = loginResponse.Email,
+                            name = loginResponse.Name,
+                            picture = loginResponse.Picture,
+                            roles = loginResponse.Roles
+                        }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GoogleLogin] Unhandled exception: {ex.Message}\n{ex.StackTrace}");
+                return BadRequest(new 
+                { 
+                    isSuccess = false, 
+                    message = $"Lỗi không xác định: {ex.Message}" 
+                });
+            }
+        }
+
+        /// <summary>
+        /// DTO for exchange-google endpoint
+        /// </summary>
+        public class ExchangeGoogleRequest
+        {
+            /// <summary>
+            /// Authorization code nhận được từ Google OAuth2
+            /// </summary>
+            public string? Code { get; set; }
+            
+            /// <summary>
+            /// Redirect URI đã sử dụng khi lấy code (phải khớp chính xác)
+            /// </summary>
+            public string? RedirectUri { get; set; }
+            
+            /// <summary>
+            /// Code verifier cho PKCE flow (optional, dành cho public clients)
+            /// </summary>
+            public string? CodeVerifier { get; set; }
+        }
+
+        /// <summary>
+        /// Xử lý callback từ Google sau khi đăng nhập (redirect flow)
+        /// </summary>
+        /// <param name="code">Authorization code từ Google</param>
+        /// <param name="state">State parameter để verify CSRF (optional)</param>
+        /// <returns>Redirect về frontend với access token và refresh token</returns>
+        /// <response code="302">Redirect về frontend thành công</response>
+        /// <response code="400">Mã xác thực không hợp lệ</response>
+        /// <remarks>
+        /// **LUỒNG 1 - Redirect Flow (cho server-side hoặc mobile app)**
+        /// 
+        /// === FLOW ===
+        /// 1. Frontend gọi GET /login-google để lấy Google Auth URL
+        /// 2. Frontend redirect user đến URL đó
+        /// 3. User đăng nhập Google
+        /// 4. **Google redirect TRỰC TIẾP về endpoint này** (Backend)
+        /// 5. Backend tự động exchange code, tạo JWT, và redirect về Frontend với token trong URL
+        /// 6. Frontend parse token từ URL query params
+        /// 
+        /// === GOOGLE CONSOLE CONFIG ===
+        /// Authorized redirect URIs phải chứa:
+        /// - http://localhost:8080/api/Authentication/callback-google (development)
+        /// - https://your-api-domain.com/api/Authentication/callback-google (production)
+        /// 
+        /// === FRONTEND EXAMPLE ===
+        /// ```javascript
+        /// // Step 1: Get Google login URL
+        /// const response = await fetch('/api/Authentication/login-google');
+        /// const { url } = await response.json();
+        /// 
+        /// // Step 2: Redirect to Google
+        /// window.location.href = url;
+        /// 
+        /// // Step 3: Create callback page to handle redirect from backend
+        /// // URL will be: http://localhost:3000/auth/google/callback?token=...&refreshToken=...
+        /// const params = new URLSearchParams(window.location.search);
+        /// const token = params.get('token');
+        /// const refreshToken = params.get('refreshToken');
+        /// const error = params.get('error');
+        /// 
+        /// if (error) {
+        ///   console.error('Login failed:', params.get('message'));
+        /// } else if (token) {
+        ///   localStorage.setItem('access_token', token);
+        ///   localStorage.setItem('refresh_token', refreshToken);
+        ///   window.location.href = '/dashboard';
+        /// }
+        /// ```
+        /// 
+        /// === SECURITY NOTE ===
+        /// ⚠️ Token trong URL có thể bị lộ qua browser history/logs.
+        /// Khuyến nghị dùng LUỒNG 2 (exchange-google) cho SPA để tránh vấn đề này.
+        /// </remarks>
+        [HttpGet("callback-google")]
+        public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? state)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(code))
+                {
+                    Console.WriteLine("[GoogleCallback] No code provided");
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_code&message={Uri.EscapeDataString("Mã xác thực không hợp lệ")}";
+                    return Redirect(errorUrl);
+                }
+
+                Console.WriteLine($"[GoogleCallback] Received callback with code length: {code.Length}");
+
+                // Exchange code for user info
+                GoogleUserInfo userInfo;
+                try
+                {
+                    userInfo = await _googleLoginService.GetUserInfoFromCodeAsync(code);
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.WriteLine($"[GoogleCallback] Google API error: {ex.Message}");
+                    var errorMessage = ex.Message.Contains("invalid_grant") 
+                        ? "Code đã được sử dụng hoặc hết hạn" 
+                        : "Không thể xác thực với Google";
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=google_error&message={Uri.EscapeDataString(errorMessage)}";
+                    return Redirect(errorUrl);
+                }
+
+                if (userInfo == null || string.IsNullOrEmpty(userInfo.Email))
+                {
+                    Console.WriteLine("[GoogleCallback] Invalid user info from Google");
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=invalid_user&message={Uri.EscapeDataString("Không thể lấy thông tin user từ Google")}";
+                    return Redirect(errorUrl);
+                }
+
+                Console.WriteLine($"[GoogleCallback] Got user info: {userInfo.Email}");
+
+                // Login or create user
+                var result = await _authService.LoginWithGoogleCallbackAsync(userInfo);
+
+                if (!result.IsSuccess)
+                {
+                    Console.WriteLine($"[GoogleCallback] Login failed: {result.Message}");
+                    var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=login_failed&message={Uri.EscapeDataString(result.Message ?? "Đăng nhập thất bại")}";
+                    return Redirect(errorUrl);
+                }
+
+                // Serialize and deserialize to convert anonymous object to GoogleLoginResponse
+                var jsonData = JsonSerializer.Serialize(result.Data);
+                var loginResponse = JsonSerializer.Deserialize<GoogleLoginResponse>(jsonData, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+
+                if (loginResponse == null || string.IsNullOrEmpty(loginResponse.Token))
+                {
+                    Console.WriteLine("[GoogleCallback] Failed to generate token");
                     var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=server_error&message={Uri.EscapeDataString("Không thể xử lý dữ liệu đăng nhập")}";
                     return Redirect(errorUrl);
                 }
 
-                // Redirect về frontend với token và refreshToken
+                Console.WriteLine($"[GoogleCallback] Login successful for: {loginResponse.Email}");
+
+                // Try to set HttpOnly cookies before redirect
+                try
+                {
+                    var accessCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = DateTimeOffset.UtcNow.AddHours(1)
+                    };
+
+                    var refreshCookieOptions = new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = DateTimeOffset.UtcNow.AddDays(30)
+                    };
+
+                    Response.Cookies.Append("access_token", loginResponse.Token, accessCookieOptions);
+                    if (!string.IsNullOrEmpty(loginResponse.RefreshToken))
+                        Response.Cookies.Append("refresh_token", loginResponse.RefreshToken, refreshCookieOptions);
+                    
+                    Console.WriteLine("[GoogleCallback] Cookies set successfully");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[GoogleCallback] Could not set cookies: {ex.Message}");
+                }
+
+                // Redirect to frontend with tokens in URL (as fallback if cookies don't work)
                 var successUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?token={Uri.EscapeDataString(loginResponse.Token)}&refreshToken={Uri.EscapeDataString(loginResponse.RefreshToken)}";
                 return Redirect(successUrl);
             }
             catch (Exception ex)
             {
-                // Redirect về frontend với error
+                Console.WriteLine($"[GoogleCallback] Unhandled exception: {ex.Message}\n{ex.StackTrace}");
                 var errorUrl = $"{_frontendSettings.BaseUrl}/auth/google/callback?error=server_error&message={Uri.EscapeDataString(ex.Message)}";
                 return Redirect(errorUrl);
             }
@@ -164,7 +606,10 @@ namespace AppBackend.ApiCore.Controllers
             if (!ModelState.IsValid)
                 return ValidationError("Dữ liệu không hợp lệ");
 
-            var result = await _authService.ResetPasswordAsync(request.Email, request.Password);
+            if (string.IsNullOrWhiteSpace(request.Password))
+                return ValidationError("Mật khẩu mới không được để trống");
+
+            var result = await _authService.ResetPasswordAsync(request.Email, request.Password!);
             return HandleResult(result);
         }
         
