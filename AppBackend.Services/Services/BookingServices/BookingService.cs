@@ -245,6 +245,7 @@ namespace AppBackend.Services.Services.BookingServices
             decimal totalPrice = 0;
             var currentDate = checkInDate;
             var numberOfNights = (checkOutDate - checkInDate).Days;
+            numberOfNights = numberOfNights == 0 ? 1 : numberOfNights;
 
             for (int night = 0; night < numberOfNights; night++)
             {
@@ -389,6 +390,7 @@ namespace AppBackend.Services.Services.BookingServices
             // 5. Calculate total amount and prepare booking rooms
             decimal totalAmount = 0;
             var numberOfNights = (request.CheckOutDate - request.CheckInDate).Days;
+            numberOfNights = numberOfNights == 0 ? 1 : numberOfNights;
             var bookingRoomsToAdd = new List<BookingRoom>();
 
             foreach (var room in selectedRooms)

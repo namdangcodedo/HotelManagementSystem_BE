@@ -1,10 +1,11 @@
+using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.BookingModel;
+using AppBackend.Services.Helpers;
 using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
-using AppBackend.BusinessObjects.Models;
-using AppBackend.Services.Helpers;
+using System;
 
 namespace AppBackend.Services.Services.BookingServices
 {
@@ -765,7 +766,7 @@ namespace AppBackend.Services.Services.BookingServices
                 if (!string.IsNullOrEmpty(request.BookingStatus))
                 {
                     var statusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "BookingStatus" && c.CodeValue == request.BookingStatus)).FirstOrDefault();
+                        c.CodeType.Equals("BookingStatus") && c.CodeName.Equals(request.BookingStatus))).FirstOrDefault();
                     if (statusCode != null)
                         query = query.Where(b => b.PaymentStatusId == statusCode.CodeId);
                 }
@@ -773,7 +774,7 @@ namespace AppBackend.Services.Services.BookingServices
                 if (!string.IsNullOrEmpty(request.PaymentStatus))
                 {
                     var paymentCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "PaymentStatus" && c.CodeValue == request.PaymentStatus)).FirstOrDefault();
+                        c.CodeType.Equals("PaymentStatus") && c.CodeName.Equals(request.PaymentStatus))).FirstOrDefault();
                     if (paymentCode != null)
                         query = query.Where(b => b.PaymentStatusId == paymentCode.CodeId);
                 }
@@ -781,7 +782,7 @@ namespace AppBackend.Services.Services.BookingServices
                 if (!string.IsNullOrEmpty(request.DepositStatus))
                 {
                     var depositCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "DepositStatus" && c.CodeValue == request.DepositStatus)).FirstOrDefault();
+                        c.CodeType.Equals("DepositStatus") && c.CodeName.Equals(request.DepositStatus))).FirstOrDefault();
                     if (depositCode != null)
                         query = query.Where(b => b.DepositStatusId == depositCode.CodeId);
                 }
@@ -789,7 +790,7 @@ namespace AppBackend.Services.Services.BookingServices
                 if (!string.IsNullOrEmpty(request.BookingType))
                 {
                     var typeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "BookingType" && c.CodeValue == request.BookingType)).FirstOrDefault();
+                        c.CodeType.Equals("BookingType") && c.CodeName.Equals(request.BookingType))).FirstOrDefault();
                     if (typeCode != null)
                         query = query.Where(b => b.BookingTypeId == typeCode.CodeId);
                 }
@@ -939,7 +940,7 @@ namespace AppBackend.Services.Services.BookingServices
 
                 // Lấy status code từ CommonCode
                 var statusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingStatus" && c.CodeValue == request.Status)).FirstOrDefault();
+                    c.CodeType.Equals("BookingStatus") && c.CodeName.Equals(request.Status))).FirstOrDefault();
 
                 if (statusCode == null)
                 {
