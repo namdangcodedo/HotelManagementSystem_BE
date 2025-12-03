@@ -46,7 +46,8 @@ namespace AppBackend.Services.Services.Email
         }
         public async Task SendOtpEmail(string email, string otp)
         {
-            var templatePath = "/Users/tungld/Documents/Code/sp/HotelManagement/Backend/HotelManagementSystem_BE/AppBackend.Services/TemplateEmail/OtpEmailTemplate.html";
+            var directPath = Directory.GetCurrentDirectory();
+            var templatePath = directPath + "/TemplateEmail/OtpEmailTemplate.html";
             string template;
             using (var reader = new System.IO.StreamReader(templatePath))
             {

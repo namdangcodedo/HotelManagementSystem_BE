@@ -39,6 +39,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<BankConfig> BankConfigs { get; set; }
     public virtual DbSet<ChatSession> ChatSessions { get; set; }
     public virtual DbSet<ChatMessage> ChatMessages { get; set; }
+    public virtual DbSet<RoomType> RoomTypes { get; set; }
+
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -198,5 +200,7 @@ public class HotelManagementContext : DbContext
             .WithMany()
             .HasForeignKey(n => n.NotificationTypeId)
             .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RoomType>()
+               .HasMany(d => d.Rooms);
     }
 }

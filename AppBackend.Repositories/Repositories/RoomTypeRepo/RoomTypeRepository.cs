@@ -1,6 +1,7 @@
 using AppBackend.BusinessObjects.Data;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.Generic;
+using Microsoft.EntityFrameworkCore;
 
 namespace AppBackend.Repositories.Repositories.RoomTypeRepo
 {
@@ -14,5 +15,10 @@ namespace AppBackend.Repositories.Repositories.RoomTypeRepo
         }
         
         // Thêm các phương thức đặc thù nếu cần
+
+        public async Task<List<RoomType>> getRoomTypeWithRoom()
+        {
+            return _context.RoomTypes.Include(rt => rt.Rooms).ToList();
+        }
     }
 }

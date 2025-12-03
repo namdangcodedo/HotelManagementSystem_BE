@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác nhận đặt phòng - StayHub Hotel</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 30px;
+        }
+        .success-badge {
+            background: #10b981;
+            color: white;
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 35px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .info-box {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏨 StayHub Hotel</h1>
+            <p>Xác nhận đặt phòng thành công</p>
+        </div>
+        
+        <div class="content">
+            <div class="success-badge">✓ Đặt phòng thành công</div>
+            
+            <p style="font-size: 15px;">Kính chào <strong>{{CustomerName}}</strong>,</p>
+            
+            <p style="font-size: 14px; color: #4b5563;">
+                Cảm ơn bạn đã tin tưởng và lựa chọn <strong>StayHub Hotel</strong>. 
+                Đơn đặt phòng của bạn đã được tạo thành công!
+            </p>
+            
+            <p style="font-size: 14px; color: #4b5563;">
+                📅 <strong>Check-in:</strong> {{CheckInDate}}<br>
+                📅 <strong>Check-out:</strong> {{CheckOutDate}}<br>
+                🏨 <strong>Số đêm:</strong> {{NumberOfNights}} đêm
+            </p>
+            
+            {{AccountInfo}}
+            
+            <div style="text-align: center; background: #f3f4f6; padding: 25px; border-radius: 8px; margin: 25px 0;">
+                <p style="font-size: 16px; color: #1f2937; margin-bottom: 15px; font-weight: 600;">
+                    📱 Xem chi tiết đặt phòng của bạn
+                </p>
+                <a href="{{BookingDetailUrl}}" 
+                   class="cta-button" 
+                   style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                    Xem chi tiết đặt phòng
+                </a>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 15px;">
+                    Nhấn vào nút trên để xem chi tiết và quản lý đặt phòng
+                </p>
+            </div>
+            
+            <div class="info-box">
+                <strong>📌 Lưu ý:</strong>
+                <ul style="margin: 10px 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+                    <li>Vui lòng mang theo CMND/CCCD khi nhận phòng</li>
+                    <li><strong>Giờ nhận phòng:</strong> 14:00 | <strong>Giờ trả phòng:</strong> 12:00</li>
+                </ul>
+            </div>
+            
+            <p style="margin-top: 25px; color: #4b5563; font-size: 14px;">
+                Nếu có thắc mắc, vui lòng liên hệ:<br>
+                📞 Hotline: <strong>1900-xxxx</strong><br>
+                📧 Email: <strong>support@stayhub.com</strong>
+            </p>
+            
+            <p style="margin-top: 20px; color: #1f2937; font-size: 14px;">
+                Chúc bạn có kỳ nghỉ vui vẻ! 🌟<br><br>
+                Trân trọng,<br>
+                <strong style="color: #667eea;">StayHub Hotel</strong>
+            </p>
+        </div>
+        
+        <div class="footer">
+            <p style="margin: 5px 0;">© 2025 StayHub Hotel. Tất cả quyền được bảo lưu.</p>
+        </div>
+    </div>
+</body>
+</html>

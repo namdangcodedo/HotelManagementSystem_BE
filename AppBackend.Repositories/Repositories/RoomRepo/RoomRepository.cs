@@ -20,6 +20,17 @@ namespace AppBackend.Repositories.Repositories.RoomRepo
         {
             return await _context.Rooms.Where(r => r.StatusId == statusId).ToListAsync();
         }
+
+        public async Task<IEnumerable<Room>> getRoomByType(string typeNameStr, int? statusId)
+        {
+            var rooms = await _context.Rooms.Include(r => r.RoomType).Where(r => typeNameStr.Contains('%' + r.RoomType.TypeName + '%')).ToListAsync();
+
+            if(statusId != null)
+            {
+                rooms = rooms.Where(r => r.StatusId == statusId).ToList();
+            }
+            return rooms;
+        }
         // Thêm các phương thức đặc thù nếu cần
     }
 }
