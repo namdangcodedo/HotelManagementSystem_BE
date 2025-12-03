@@ -102,7 +102,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRoomTypes = roomTypes
-                .Skip(request.PageIndex * request.PageSize)
+                .Skip((request.PageIndex-1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -186,6 +186,163 @@ namespace AppBackend.Services.Services.RoomServices
             };
         }
 
+
+        public async Task<ResultModel> SearchRoomTypesWithRoomAsync(SearchRoomTypeRequest request)
+        {
+            _logger.LogInformation("=== SearchRoomTypesAsync CALLED ===");
+            _logger.LogInformation("CheckInDate: {CheckIn}, CheckOutDate: {CheckOut}", request.CheckInDate, request.CheckOutDate);
+            _logger.LogInformation("NumberOfGuests: {Guests}, MinPrice: {MinPrice}, MaxPrice: {MaxPrice}",
+                request.NumberOfGuests, request.MinPrice, request.MaxPrice);
+            _logger.LogInformation("OnlyActive: {OnlyActive}, PageIndex: {PageIndex}, PageSize: {PageSize}",
+                request.OnlyActive, request.PageIndex, request.PageSize);
+
+            var query = _unitOfWork.RoomTypes.FindAsync(rt => true);
+            var roomTypes = (await query).AsQueryable();
+
+            // Chỉ hiển thị RoomType active
+            if (request.OnlyActive)
+            {
+                roomTypes = roomTypes.Where(rt => rt.IsActive);
+            }
+
+            // Lọc theo số lượng khách
+            if (request.NumberOfGuests.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.MaxOccupancy >= request.NumberOfGuests.Value);
+            }
+
+            // Lọc theo giá
+            if (request.MinPrice.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.BasePriceNight >= request.MinPrice.Value);
+            }
+            if (request.MaxPrice.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.BasePriceNight <= request.MaxPrice.Value);
+            }
+
+            // Lọc theo loại giường
+            if (!string.IsNullOrWhiteSpace(request.BedType))
+            {
+                roomTypes = roomTypes.Where(rt => rt.BedType != null && rt.BedType.Contains(request.BedType));
+            }
+
+            // Lọc theo diện tích
+            if (request.MinRoomSize.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.RoomSize != null && rt.RoomSize >= request.MinRoomSize.Value);
+            }
+
+            // Tìm kiếm theo tên hoặc mô tả
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                roomTypes = roomTypes.Where(rt =>
+                    rt.TypeName.Contains(request.Search) ||
+                    rt.TypeCode.Contains(request.Search) ||
+                    (rt.Description != null && rt.Description.Contains(request.Search)));
+            }
+
+            // Sắp xếp
+            if (!string.IsNullOrWhiteSpace(request.SortBy))
+            {
+                roomTypes = request.SortDesc
+                    ? roomTypes.OrderByDescending(rt => EF.Property<object>(rt, request.SortBy))
+                    : roomTypes.OrderBy(rt => EF.Property<object>(rt, request.SortBy));
+            }
+            else
+            {
+                roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight); // Mặc định sắp xếp theo giá
+            }
+
+            var typeString = roomTypes.Select(rt => '%'+ rt.TypeName+'%').ToList();
+
+            var totalRecords = roomTypes.Count();
+
+            // Phân trang
+            var pagedRoomTypes = roomTypes
+                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .ToList();
+
+            // Map sang DTO với images, amenities và availability
+            var roomTypeResults = new List<RoomTypeSearchResultDto>();
+            foreach (var rt in pagedRoomTypes)
+            {
+                // Lấy images
+                var images = (await _unitOfWork.Mediums.FindAsync(m =>
+                    m.ReferenceTable == "RoomType" && m.ReferenceKey == rt.RoomTypeId.ToString()))
+                    .OrderBy(m => m.DisplayOrder)
+                    .ToList();
+
+                // Lấy tất cả phòng thuộc loại này
+                var allRoomsOfType = (await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == rt.RoomTypeId)).ToList();
+                var totalRoomCount = allRoomsOfType.Count;
+
+                // Tính số phòng available nếu có CheckIn/Out date
+                int? availableRoomCount = null;
+                if (request.CheckInDate.HasValue && request.CheckOutDate.HasValue)
+                {
+                    availableRoomCount = await CountAvailableRoomsAsync(rt.RoomTypeId, request.CheckInDate.Value, request.CheckOutDate.Value);
+                }
+
+                // Lấy amenities (có thể lấy từ một phòng mẫu hoặc định nghĩa riêng cho RoomType)
+                // Tạm thời lấy amenities từ phòng đầu tiên của loại này
+                var amenities = new List<AmenityDto>();
+                var sampleRoom = allRoomsOfType.FirstOrDefault();
+                if (sampleRoom != null)
+                {
+                    var roomAmenities = await _unitOfWork.RoomAmenities.GetAmenitiesByRoomIdAsync(sampleRoom.RoomId);
+                    amenities = roomAmenities
+                        .Where(ra => ra.Amenity.IsActive)
+                        .Select(ra => new AmenityDto
+                        {
+                            AmenityId = ra.Amenity.AmenityId,
+                            AmenityName = ra.Amenity.AmenityName,
+                            Description = ra.Amenity.Description,
+                            AmenityType = ra.Amenity.AmenityType,
+                            IsActive = ra.Amenity.IsActive
+                        }).ToList();
+                }
+
+                var dto = new RoomTypeSearchResultDto
+                {
+                    RoomTypeId = rt.RoomTypeId,
+                    TypeName = rt.TypeName,
+                    TypeCode = rt.TypeCode,
+                    Description = rt.Description,
+                    BasePriceNight = rt.BasePriceNight,
+                    MaxOccupancy = rt.MaxOccupancy,
+                    RoomSize = rt.RoomSize,
+                    NumberOfBeds = rt.NumberOfBeds,
+                    BedType = rt.BedType,
+                    IsActive = rt.IsActive,
+                    Images = _mapper.Map<List<MediumDto>>(images),
+                    Amenities = amenities,
+                    TotalRoomCount = totalRoomCount,
+                    AvailableRoomCount = availableRoomCount
+                };
+
+                roomTypeResults.Add(dto);
+            }
+
+            var pagedResponse = new PagedResponseDto<RoomTypeSearchResultDto>
+            {
+                Items = roomTypeResults,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = CommonMessageConstants.GET_SUCCESS,
+                Data = pagedResponse,
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
         /// <summary>
         /// Lấy chi tiết loại phòng cho customer
         /// </summary>
@@ -679,7 +836,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRooms = rooms
-                .Skip(request.PageIndex * request.PageSize)
+                .Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
