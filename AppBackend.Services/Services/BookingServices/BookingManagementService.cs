@@ -1000,13 +1000,13 @@ namespace AppBackend.Services.Services.BookingServices
                 var bookings = query.ToList();
 
                 var onlineType = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingType" && c.CodeValue == "Online")).FirstOrDefault();
+                    c.CodeType == "BookingType" && c.CodeName == "Online")).FirstOrDefault();
                 var walkinType = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingType" && c.CodeValue == "Walkin")).FirstOrDefault();
+                    c.CodeType == "BookingType" && c.CodeName == "Walkin")).FirstOrDefault();
                 var confirmedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingStatus" && c.CodeValue == "Confirmed")).FirstOrDefault();
+                    c.CodeType == "BookingStatus" && c.CodeName == "Confirmed")).FirstOrDefault();
                 var cancelledStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingStatus" && c.CodeValue == "Cancelled")).FirstOrDefault();
+                    c.CodeType == "BookingStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
 
                 var statistics = new BookingStatisticsResponse
                 {

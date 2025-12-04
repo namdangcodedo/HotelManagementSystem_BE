@@ -61,7 +61,7 @@ namespace AppBackend.Services.Services.TransactionServices
 
                 // Get payment method from CommonCode
                 var paymentMethod = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentMethod" && c.CodeValue == request.PaymentMethod))
+                    c.CodeType == "PaymentMethod" && c.CodeName == request.PaymentMethod))
                     .FirstOrDefault();
 
                 if (paymentMethod == null)
@@ -77,12 +77,12 @@ namespace AppBackend.Services.Services.TransactionServices
 
                 // Get payment status - default to Unpaid
                 var paymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeValue == "Unpaid"))
+                    c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid"))
                     .FirstOrDefault();
 
                 // Get transaction status - default to Pending
                 var transactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "TransactionStatus" && c.CodeValue == "Pending"))
+                    c.CodeType == "TransactionStatus" && c.CodeName == "Pending"))
                     .FirstOrDefault();
 
                 if (paymentStatus == null || transactionStatus == null)

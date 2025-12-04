@@ -15,14 +15,9 @@ public static class SemanticKernelExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        Console.WriteLine("╔══════════════════════════════════════════╗");
-        Console.WriteLine("║  REGISTERING SEMANTIC KERNEL SERVICES    ║");
-        Console.WriteLine("╚══════════════════════════════════════════╝");
         
         // Register Gemini Settings
         services.Configure<GeminiSettings>(configuration.GetSection("GeminiSettings"));
-        Console.WriteLine("✅ Configured GeminiSettings from appsettings.json");
-
         // Register AI Services
         services.AddSingleton<IGeminiKeyManager>(sp =>
         {
@@ -31,13 +26,8 @@ public static class SemanticKernelExtensions
             var logger = sp.GetRequiredService<ILogger<GeminiKeyManager>>();
             return new GeminiKeyManager(configuration, cache, logger);
         });
-        Console.WriteLine("✅ Registered IGeminiKeyManager as Singleton with Cache");
-        
         services.AddScoped<IChatHistoryService, ChatHistoryService>();
-        Console.WriteLine("✅ Registered IChatHistoryService as Scoped");
-        
         services.AddScoped<IChatService, ChatService>();
-        Console.WriteLine("✅ Registered IChatService as Scoped");
 
         // Register Hotel Booking Plugin (needs IRoomService from existing DI)
         services.AddScoped<HotelBookingPlugin>(sp =>
@@ -46,11 +36,6 @@ public static class SemanticKernelExtensions
             var logger = sp.GetRequiredService<ILogger<HotelBookingPlugin>>();
             return new HotelBookingPlugin(roomService, logger);
         });
-        Console.WriteLine("✅ Registered HotelBookingPlugin as Scoped with Logger");
-        
-        Console.WriteLine("✅ All Semantic Kernel services registered successfully");
-        Console.WriteLine("");
-
         return services;
     }
 }
