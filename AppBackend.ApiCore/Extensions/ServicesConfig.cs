@@ -66,6 +66,7 @@ public static class ServicesConfig
         #region Helpers
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
+        services.AddScoped<CommonCodeHelper>();
         services.AddScoped<BookingTokenHelper>();
         services.AddScoped<AccountTokenHelper>();
         services.AddScoped<QRPaymentHelper>();
