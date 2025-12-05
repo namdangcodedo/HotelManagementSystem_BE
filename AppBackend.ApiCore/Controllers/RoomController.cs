@@ -78,7 +78,6 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="200">Lấy thông tin thành công</response>
         /// <response code="404">Không tìm thấy loại phòng</response>
         [HttpGet("types/{id}")]
-        [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> GetRoomTypeDetail(int id)
         {
             var result = await _roomService.GetRoomTypeDetailAsync(id);
