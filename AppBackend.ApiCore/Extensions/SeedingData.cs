@@ -54,6 +54,14 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Đầu bếp", CodeName = "Chef" , Description = "Đầu bếp nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 7 },
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Nhân viên phục vụ", CodeName = "Waiter" , Description = "Nhân viên phục vụ nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 8 },
                     
+                    // BookingStatus - QUAN TRỌNG cho Booking
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Chờ xử lý", CodeName = "Pending" , Description = "Đặt phòng đang chờ xác nhận", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã xác nhận", CodeName = "Confirmed" , Description = "Đặt phòng đã được xác nhận", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã nhận phòng", CodeName = "CheckedIn" , Description = "Khách đã check-in", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã trả phòng", CodeName = "CheckedOut" , Description = "Khách đã check-out", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Đặt phòng đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Không đến", CodeName = "NoShow" , Description = "Khách không đến", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
+                    
                     // TaskType
                     new CommonCode { CodeType = "TaskType", CodeValue = "Dọn phòng", CodeName = "Cleaning" , Description = "Nhiệm vụ dọn dẹp vệ sinh phòng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "TaskType", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Nhiệm vụ bảo trì sửa chữa", IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -86,6 +94,7 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentStatus", CodeValue = "Thanh toán một phần", CodeName = "PartiallyPaid" , Description = "Đã thanh toán một phần", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Thanh toán đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // DepositStatus
                     new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã đặt cọc", CodeName = "Paid" , Description = "Đã thanh toán tiền đặt cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -98,6 +107,11 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , Description = "Ví điện tử (Momo, ZaloPay, VNPay)", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "PayOS", CodeName = "PayOS" , Description = "Cổng thanh toán PayOS", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    
+                    // TransactionType - QUAN TRỌNG
+                    new CommonCode { CodeType = "TransactionType", CodeValue = "Đặt cọc", CodeName = "Deposit" , Description = "Giao dịch đặt cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "TransactionType", CodeValue = "Thanh toán", CodeName = "Payment" , Description = "Giao dịch thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "TransactionType", CodeValue = "Hoàn tiền", CodeName = "Refund" , Description = "Giao dịch hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
                     
                     // TransactionStatus
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , Description = "Giao dịch đang được xử lý", IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -113,12 +127,53 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , Description = "Phòng đang được dọn dẹp", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Phòng đang bảo trì, không cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Chờ kiểm tra", CodeName = "PendingInspection" , Description = "Phòng chờ kiểm tra chất lượng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Ngừng hoạt động", CodeName = "OutOfService" , Description = "Phòng tạm ngừng hoạt động", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    
+                    // EmployeeStatus - QUAN TRỌNG cho quản lý nhân viên
+                    new CommonCode { CodeType = "EmployeeStatus", CodeValue = "Đang làm việc", CodeName = "Active" , Description = "Nhân viên đang làm việc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "EmployeeStatus", CodeValue = "Đang nghỉ phép", CodeName = "OnLeave" , Description = "Nhân viên đang nghỉ phép", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "EmployeeStatus", CodeValue = "Tạm ngưng", CodeName = "Suspended" , Description = "Nhân viên bị tạm ngưng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "EmployeeStatus", CodeValue = "Đã nghỉ việc", CodeName = "Terminated" , Description = "Nhân viên đã nghỉ việc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    
+                    // AttendanceStatus - QUAN TRỌNG cho chấm công
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Có mặt", CodeName = "Present" , Description = "Nhân viên có mặt đúng giờ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Vắng mặt", CodeName = "Absent" , Description = "Nhân viên vắng mặt", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Đi muộn", CodeName = "Late" , Description = "Nhân viên đi làm muộn", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Về sớm", CodeName = "EarlyLeave" , Description = "Nhân viên về sớm", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Nghỉ phép", CodeName = "OnLeave" , Description = "Nhân viên nghỉ phép có lý do", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
+                    new CommonCode { CodeType = "AttendanceStatus", CodeValue = "Nghỉ không phép", CodeName = "AbsentWithoutLeave" , Description = "Vắng mặt không xin phép", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
+                    
+                    // HousekeepingStatus
+                    new CommonCode { CodeType = "HousekeepingStatus", CodeValue = "Chờ xử lý", CodeName = "Pending" , Description = "Chờ bắt đầu công việc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "HousekeepingStatus", CodeValue = "Đang thực hiện", CodeName = "InProgress" , Description = "Đang dọn phòng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "HousekeepingStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Đã dọn xong", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "HousekeepingStatus", CodeValue = "Đã kiểm tra", CodeName = "Inspected" , Description = "Đã kiểm tra chất lượng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    
+                    // ServiceType - QUAN TRỌNG cho dịch vụ
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Dịch vụ phòng", CodeName = "RoomService" , Description = "Dịch vụ phục vụ tại phòng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Giặt ủi", CodeName = "Laundry" , Description = "Dịch vụ giặt ủi quần áo", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Spa & Massage", CodeName = "Spa" , Description = "Dịch vụ spa và massage", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Đưa đón", CodeName = "Transport" , Description = "Dịch vụ đưa đón sân bay", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Ăn uống", CodeName = "Food" , Description = "Dịch vụ ẩm thực", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
+                    new CommonCode { CodeType = "ServiceType", CodeValue = "Hội nghị", CodeName = "Conference" , Description = "Dịch vụ hội nghị sự kiện", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
+                    
+                    // VoucherType - QUAN TRỌNG cho khuyến mãi
+                    new CommonCode { CodeType = "VoucherType", CodeValue = "Giảm theo phần trăm", CodeName = "Percentage" , Description = "Giảm giá theo phần trăm", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "VoucherType", CodeValue = "Giảm cố định", CodeName = "FixedAmount" , Description = "Giảm một số tiền cố định", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "VoucherType", CodeValue = "Miễn phí dịch vụ", CodeName = "FreeService" , Description = "Tặng dịch vụ miễn phí", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    
+                    // SalaryType - QUAN TRỌNG cho tính lương
+                    new CommonCode { CodeType = "SalaryType", CodeValue = "Lương cơ bản", CodeName = "Basic" , Description = "Lương cơ bản theo hợp đồng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "SalaryType", CodeValue = "Làm thêm giờ", CodeName = "Overtime" , Description = "Tiền làm thêm giờ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "SalaryType", CodeValue = "Thưởng", CodeName = "Bonus" , Description = "Tiền thưởng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "SalaryType", CodeValue = "Khấu trừ", CodeName = "Deduction" , Description = "Các khoản khấu trừ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    new CommonCode { CodeType = "SalaryType", CodeValue = "Phụ cấp", CodeName = "Allowance" , Description = "Các khoản phụ cấp", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
                     
                     // Priority Level (cho Task, Feedback)
-                    new CommonCode { CodeType = "Priority", CodeValue = "Thấp", CodeName = "Low" , Description = "Mức ưu tiên thấp", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "Priority", CodeValue = "Trung bình", CodeName = "Medium" , Description = "Mức ưu tiên trung bình", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "Priority", CodeValue = "Cao", CodeName = "High" , Description = "Mức ưu tiên cao", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "Priority", CodeValue = "Khẩn cấp", CodeName = "Urgent" , Description = "Mức ưu tiên khẩn cấp", IsActive = true, CreatedAt = DateTime.UtcNow }
+                    new CommonCode { CodeType = "Priority", CodeValue = "Thấp", CodeName = "Low" , Description = "Mức ưu tiên thấp", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Trung bình", CodeName = "Medium" , Description = "Mức ưu tiên trung bình", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Cao", CodeName = "High" , Description = "Mức ưu tiên cao", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "Priority", CodeValue = "Khẩn cấp", CodeName = "Urgent" , Description = "Mức ưu tiên khẩn cấp", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 }
                 });
                 await context.SaveChangesAsync();
             }
@@ -562,7 +617,7 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomName = $"Standard-10{i}",
+                            RoomName = $"{100 + i}",
                             RoomTypeId = standardRoomType.RoomTypeId,
                             StatusId = statusId,
                             Description = $"Phòng Standard tầng 1 số {100 + i}, view sân vườn",
@@ -579,7 +634,7 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomName = $"Deluxe-20{i}",
+                            RoomName = $"{200 + i}",
                             RoomTypeId = deluxeRoomType.RoomTypeId,
                             StatusId = statusId,
                             Description = $"Phòng Deluxe tầng 2 số {200 + i}, view thành phố",
@@ -596,7 +651,7 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomName = $"VIP-30{i}",
+                            RoomName = $"{300 + i}",
                             RoomTypeId = vipRoomType.RoomTypeId,
                             StatusId = statusId,
                             Description = $"Phòng VIP tầng 3 số {300 + i}, view biển, ban công riêng",
@@ -613,7 +668,7 @@ namespace AppBackend.ApiCore.Extension
 
                         rooms.Add(new Room
                         {
-                            RoomName = $"Suite-40{i}",
+                            RoomName = $"{400 + i}",
                             RoomTypeId = suiteRoomType.RoomTypeId,
                             StatusId = statusId,
                             Description = $"Suite tầng 4 số {400 + i}, phòng khách riêng, view biển panorama",

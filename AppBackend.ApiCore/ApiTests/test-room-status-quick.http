@@ -1,0 +1,186 @@
+### QUICK TEST - Room Status Change
+### Fix 404 Error - Bạn cần login trước để lấy token
+
+@baseUrl = http://localhost:8080
+
+###############################################
+# BƯỚC 1: LOGIN ĐỂ LẤY TOKEN (BẮT BUỘC!)
+###############################################
+
+### 1. Login Admin để lấy token
+# @name login
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+### ⚠️ SAU KHI CHẠY REQUEST TRÊN:
+# - Copy giá trị "token" từ response
+# - Paste vào biến @token bên dưới
+# - HOẶC sử dụng {{login.response.body.data.token}} (tự động)
+
+###############################################
+# BƯỚC 2: SỬ DỤNG TOKEN ĐỂ THAY ĐỔI TRẠNG THÁI
+###############################################
+
+### 2. Test thay đổi trạng thái phòng (Available → Maintenance)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{login.response.body.data.token}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 5,
+  "reason": "Test maintenance"
+}
+
+### EXPECTED SUCCESS RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã chuyển trạng thái phòng 101 thành 'Bảo trì'"
+# }
+
+###############################################
+# TROUBLESHOOTING - Nếu vẫn bị lỗi
+###############################################
+
+### ❌ LỖI 404 - Nguyên nhân và cách fix:
+
+# 1. API chưa chạy
+#    → Chạy: dotnet run --project AppBackend.ApiCore
+#    → Kiểm tra console có message: "Now listening on: http://localhost:8080"
+
+# 2. Port khác (không phải 8080)
+#    → Kiểm tra file appsettings.json hoặc launchSettings.json
+#    → Thay đổi @baseUrl ở đầu file
+
+# 3. Token không hợp lệ hoặc hết hạn
+#    → Chạy lại request login (Bước 1)
+#    → Copy token mới
+
+# 4. Database chưa có dữ liệu
+#    → Chạy migration: dotnet ef database update
+#    → Seed data nếu cần
+
+### ❌ LỖI 401 Unauthorized:
+# → Token sai hoặc hết hạn
+# → Chạy lại login để lấy token mới
+
+### ❌ LỖI 403 Forbidden:
+# → User không có quyền thay đổi trạng thái này
+# → Login bằng Admin hoặc Manager
+
+### ❌ LỖI 400 Bad Request:
+# → StatusId không hợp lệ (phải từ 1-7)
+# → RoomId không tồn tại
+
+###############################################
+# ALTERNATIVE - Dùng token cố định (nếu cần)
+###############################################
+
+### Nếu bạn đã có token từ request khác:
+@myToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+### Thì có thể dùng trực tiếp:
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{myToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 5
+}
+
+###############################################
+# VERIFY - Kiểm tra trạng thái đã thay đổi
+###############################################
+
+### 3. Kiểm tra chi tiết phòng sau khi thay đổi
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{login.response.body.data.token}}
+
+### EXPECTED RESPONSE:
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "roomId": 1,
+#     "roomName": "101",
+#     "statusId": 5,
+#     "statusCode": "Maintenance",
+#     "status": "Bảo trì"
+#   }
+# }
+
+###############################################
+# COMPLETE WORKFLOW - Test từng bước
+###############################################
+
+### 4. Đổi về Available
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{login.response.body.data.token}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 1,
+  "reason": "Reset to available"
+}
+
+### 5. Kiểm tra lại
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{login.response.body.data.token}}
+
+###############################################
+# DEBUG - Kiểm tra API có đang chạy không
+###############################################
+
+### Test endpoint không cần authentication
+GET {{baseUrl}}/api/commoncode?codeType=RoomStatus
+
+### Nếu request này trả về 404:
+# → API chưa chạy HOẶC port sai
+# → Kiểm tra lại baseUrl
+
+### Nếu trả về 200:
+# → API đang chạy OK
+# → Vấn đề là ở authentication token
+
+###############################################
+# STATUS CODE REFERENCE
+###############################################
+
+# CommonCodeId cho RoomStatus:
+# 1 = Available (Trống)
+# 2 = Booked (Đã đặt)
+# 3 = Occupied (Đang sử dụng)
+# 4 = Cleaning (Đang dọn dẹp)
+# 5 = Maintenance (Bảo trì)
+# 6 = PendingInspection (Chờ kiểm tra)
+# 7 = OutOfService (Ngừng hoạt động)
+
+###############################################
+# NOTES
+###############################################
+
+# ✅ Request phải có:
+# 1. Authorization header với Bearer token hợp lệ
+# 2. Content-Type: application/json
+# 3. Body với roomId và newStatusId hợp lệ
+
+# ✅ Token hết hạn sau:
+# - Thường là 24 giờ (tùy config)
+# - Nếu hết hạn → chạy lại login
+
+# ✅ Role permissions:
+# - Admin/Manager: Có thể thay đổi tất cả trạng thái
+# - Receptionist: Chỉ Available ↔ Booked ↔ Occupied
+# - Housekeeper: Chỉ Cleaning related
+# - Technician: Chỉ Maintenance related
+
+### END ###
+

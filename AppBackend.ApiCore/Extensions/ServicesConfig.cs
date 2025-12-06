@@ -16,7 +16,11 @@ using AppBackend.Services.Services.RoleServices;
 using AppBackend.Services.MessageQueue;
 using AppBackend.Services.Services.TransactionServices;
 using AppBackend.Services.Services.DashboardServices;
+<<<<<<< HEAD
 using AppBackend.Services.Services.AttendanceServices;
+=======
+using AppBackend.Services.Services.RoomManagement;
+>>>>>>> 640d7f761a8169e5803f5879aea721295dffed57
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -52,12 +56,16 @@ public static class ServicesConfig
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IDashboardService, DashboardService>();
+<<<<<<< HEAD
         services.AddScoped<IAttendaceService, AttendanceService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
 
 
+=======
+        services.AddScoped<IRoomManagementService, RoomManagementService>();
+>>>>>>> 640d7f761a8169e5803f5879aea721295dffed57
 
         // Message Queue Service - Singleton for thread-safe queue
         services.AddSingleton<IBookingQueueService, BookingQueueService>();
@@ -71,6 +79,7 @@ public static class ServicesConfig
         #region Helpers
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
+        services.AddScoped<CommonCodeHelper>();
         services.AddScoped<BookingTokenHelper>();
         services.AddScoped<AccountTokenHelper>();
         services.AddScoped<QRPaymentHelper>();

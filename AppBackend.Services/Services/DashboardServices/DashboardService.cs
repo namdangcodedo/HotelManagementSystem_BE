@@ -12,66 +12,22 @@ namespace AppBackend.Services.Services.DashboardServices
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly HotelManagementContext _context;
-        private readonly CacheHelper _cacheHelper;
+        private readonly CommonCodeHelper _commonCodeHelper;
         private readonly ILogger<DashboardService> _logger;
-
-        // Cache keys
-        private const string CACHE_KEY_COMMON_CODES = "dashboard_common_codes";
-        private readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(10);
 
         public DashboardService(
             IUnitOfWork unitOfWork,
             HotelManagementContext context,
-            CacheHelper cacheHelper,
+            CommonCodeHelper commonCodeHelper,
             ILogger<DashboardService> logger)
         {
             _unitOfWork = unitOfWork;
             _context = context;
-            _cacheHelper = cacheHelper;
+            _commonCodeHelper = commonCodeHelper;
             _logger = logger;
         }
 
         #region Helper Methods
-
-        /// <summary>
-        /// Get CommonCode ID by type and value with caching
-        /// </summary>
-        private async Task<int?> GetCommonCodeIdAsync(string codeType, string codeValue)
-        {
-            try
-            {
-                var commonCodes = await GetCachedCommonCodesAsync();
-                var code = commonCodes.FirstOrDefault(c => c.CodeType == codeType && c.CodeValue == codeValue);
-                // FirstOrDefault on a value-tuple will return default tuple when not found.
-                // We treat CodeId == 0 as not found (CodeId usually starts from 1 in DB).
-                return code.CodeId != 0 ? (int?)code.CodeId : null;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error getting CommonCode: {codeType} - {codeValue}");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Get all CommonCodes with caching
-        /// </summary>
-        private async Task<List<(int CodeId, string CodeType, string CodeValue, string CodeName)>> GetCachedCommonCodesAsync()
-        {
-            var cached = _cacheHelper.Get<List<(int, string, string, string)>>(CachePrefix.UserSession, CACHE_KEY_COMMON_CODES);
-            if (cached != null)
-            {
-                return cached;
-            }
-
-            var commonCodes = await _context.CommonCodes
-                .Where(c => c.IsActive)
-                .Select(c => ValueTuple.Create(c.CodeId, c.CodeType, c.CodeValue, c.CodeName))
-                .ToListAsync();
-
-            _cacheHelper.Set(CachePrefix.UserSession, CACHE_KEY_COMMON_CODES, commonCodes, _cacheExpiration);
-            return commonCodes;
-        }
 
         /// <summary>
         /// Get week of year
@@ -106,9 +62,9 @@ namespace AppBackend.Services.Services.DashboardServices
                 var fromDate = request.FromDate ?? DateTime.UtcNow.AddMonths(-1);
                 var toDate = request.ToDate ?? DateTime.UtcNow;
 
-                // Get CommonCode IDs
-                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
-                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
+                // Get CommonCode IDs using CommonCodeHelper
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var unpaidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
 
                 // Optimized queries - execute in parallel
                 var totalBookingsTask = _context.Bookings
@@ -222,7 +178,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 var toDate = request.ToDate ?? DateTime.UtcNow;
                 var groupBy = request.GroupBy?.ToLower() ?? "day";
 
-                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
                 if (!paidStatusId.HasValue)
                 {
                     return new ResultModel
@@ -333,8 +289,8 @@ namespace AppBackend.Services.Services.DashboardServices
                 var toDate = request.ToDate ?? DateTime.UtcNow.AddMonths(-1);
                 var groupBy = request.GroupBy?.ToLower() ?? "day";
 
-                var onlineTypeId = await GetCommonCodeIdAsync("BookingType", "Online");
-                var walkinTypeId = await GetCommonCodeIdAsync("BookingType", "WalkIn");
+                var onlineTypeId = await _commonCodeHelper.GetCommonCodeIdAsync("BookingType", "Online");
+                var walkinTypeId = await _commonCodeHelper.GetCommonCodeIdAsync("BookingType", "WalkIn");
 
                 var bookings = await _context.Bookings
                     .Where(b => b.CreatedAt >= fromDate && b.CreatedAt <= toDate)
@@ -583,7 +539,7 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var commonCodes = await GetCachedCommonCodesAsync();
+                var commonCodes = await _commonCodeHelper.GetCachedCommonCodesAsync();
 
                 var bookings = await _context.Bookings
                     .Include(b => b.Customer)
@@ -633,7 +589,7 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var commonCodes = await GetCachedCommonCodesAsync();
+                var commonCodes = await _commonCodeHelper.GetCachedCommonCodesAsync();
 
                 var payments = await _context.Transactions
                     .Include(t => t.Booking)
@@ -715,7 +671,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 }
 
                 // Pending payments
-                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
+                var unpaidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
                 if (unpaidStatusId.HasValue)
                 {
                     var pendingPayments = await _context.Transactions
@@ -764,8 +720,8 @@ namespace AppBackend.Services.Services.DashboardServices
         {
             try
             {
-                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
-                var refundedStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Refunded");
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var refundedStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Refunded");
 
                 if (!paidStatusId.HasValue)
                 {
@@ -787,7 +743,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 var totalRevenue = paidTransactions.Sum(t => t.PaidAmount);
 
                 // Revenue by payment method
-                var commonCodes = await GetCachedCommonCodesAsync();
+                var commonCodes = await _commonCodeHelper.GetCachedCommonCodesAsync();
                 var revenueByMethod = paidTransactions
                     .GroupBy(t => t.PaymentMethodId)
                     .ToDictionary(
@@ -1011,7 +967,7 @@ namespace AppBackend.Services.Services.DashboardServices
                 var occupiedRooms = occupiedRoomIds.Count;
 
                 // Maintenance rooms
-                var maintenanceStatusId = await GetCommonCodeIdAsync("RoomStatus", "Maintenance");
+                var maintenanceStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("RoomStatus", "Maintenance");
                 var maintenanceRooms = maintenanceStatusId.HasValue
                     ? await _context.Rooms.CountAsync(r => r.StatusId == maintenanceStatusId.Value)
                     : 0;
@@ -1074,7 +1030,7 @@ namespace AppBackend.Services.Services.DashboardServices
                     .Where(b => b.CreatedAt.Date == today)
                     .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
 
-                var paidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
                 var paidAmount = paidStatusId.HasValue
                     ? await _context.Bookings
                         .Where(b => b.CreatedAt.Date == today && b.PaymentStatusId == paidStatusId.Value)
@@ -1133,7 +1089,7 @@ namespace AppBackend.Services.Services.DashboardServices
                     .Where(b => b.CheckOutDate.Date == today)
                     .CountAsync();
 
-                var unpaidStatusId = await GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
+                var unpaidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
                 var pendingPayments = unpaidStatusId.HasValue
                     ? await _context.Transactions.CountAsync(t => t.PaymentStatusId == unpaidStatusId.Value)
                     : 0;

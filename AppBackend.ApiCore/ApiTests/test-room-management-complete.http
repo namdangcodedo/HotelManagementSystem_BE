@@ -1,0 +1,1441 @@
+### ROOM MANAGEMENT API - COMPLETE TEST SUITE
+### Kiểm tra toàn bộ chức năng quản lý phòng với Request & Response Validation
+### Bao gồm: Search, Map, Status Transitions, Role-based Permissions
+
+@baseUrl = http://localhost:8080
+@adminToken = {{login-admin.response.body.data.token}}
+@managerToken = {{login-manager.response.body.data.token}}
+@receptionistToken = {{login-receptionist.response.body.data.token}}
+@housekeeperToken = {{login-housekeeper.response.body.data.token}}
+@technicianToken = {{login-technician.response.body.data.token}}
+
+###############################################
+# 0. SETUP - Login với các role khác nhau
+###############################################
+
+### 0.1. Login Admin
+# @name login-admin
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "admin@hotel.com",
+  "password": "Admin@123"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# Content-Type: application/json
+# 
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đăng nhập thành công",
+#   "data": {
+#     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+#     "userId": 1,
+#     "email": "admin@hotel.com",
+#     "fullName": "Admin User",
+#     "roles": ["Admin"]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess must be true
+# - statusCode must be 200
+# - data.token must be present (JWT format)
+# - data.roles must contain "Admin"
+
+### 0.2. Login Manager
+# @name login-manager
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "manager@hotel.com",
+  "password": "Manager@123"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "token": "...",
+#     "roles": ["Manager"]
+#   }
+# }
+
+### 0.3. Login Receptionist
+# @name login-receptionist
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "receptionist@hotel.com",
+  "password": "Staff@123"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "token": "...",
+#     "roles": ["Receptionist"]
+#   }
+# }
+
+### 0.4. Login Housekeeper
+# @name login-housekeeper
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "housekeeper@hotel.com",
+  "password": "Staff@123"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "token": "...",
+#     "roles": ["Housekeeper"]
+#   }
+# }
+
+### 0.5. Login Technician
+# @name login-technician
+POST {{baseUrl}}/api/Authentication/login
+Content-Type: application/json
+
+{
+  "email": "technician@hotel.com",
+  "password": "Staff@123"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "token": "...",
+#     "roles": ["Technician"]
+#   }
+# }
+
+###############################################
+# 1. ROOM SEARCH & FILTERING (All roles)
+###############################################
+
+### 1.1. Tìm kiếm tất cả phòng (có phân trang)
+GET {{baseUrl}}/api/rooms/search?pageNumber=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# Content-Type: application/json
+# 
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "responseCode": "SUCCESS",
+#   "message": "Lấy danh sách phòng thành công",
+#   "data": {
+#     "rooms": [
+#       {
+#         "roomId": 1,
+#         "roomName": "101",
+#         "roomTypeId": 1,
+#         "roomTypeName": "Standard",
+#         "roomTypeCode": "STD",
+#         "basePriceNight": 500000,
+#         "statusId": 1,
+#         "status": "Trống",
+#         "statusCode": "Available",
+#         "description": "Standard Room",
+#         "maxOccupancy": 2,
+#         "roomSize": null,
+#         "numberOfBeds": null,
+#         "bedType": null,
+#         "images": [],
+#         "createdAt": "2024-12-04T10:00:00Z",
+#         "updatedAt": null
+#       }
+#     ],
+#     "totalRecords": 33,
+#     "pageNumber": 1,
+#     "pageSize": 10,
+#     "totalPages": 4
+#   }
+# }
+# 
+# ✅ VALIDATION CHECKLIST:
+# - HTTP Status: 200 OK
+# - isSuccess: true
+# - statusCode: 200
+# - data.rooms: array (not empty)
+# - data.totalRecords: integer > 0
+# - data.pageNumber: 1 (matches request)
+# - data.pageSize: 10 (matches request)
+# - data.totalPages: Math.ceil(totalRecords / pageSize)
+# - Each room object must have:
+#   * roomId (integer)
+#   * roomName (string)
+#   * roomTypeId (integer)
+#   * roomTypeName (string)
+#   * roomTypeCode (string)
+#   * basePriceNight (decimal > 0)
+#   * statusId (integer)
+#   * status (string - Vietnamese)
+#   * statusCode (string - English enum)
+#   * maxOccupancy (integer > 0)
+
+### 1.2. Tìm kiếm theo tên phòng
+GET {{baseUrl}}/api/rooms/search?roomName=101&pageNumber=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy danh sách phòng thành công",
+#   "data": {
+#     "rooms": [
+#       {
+#         "roomId": 1,
+#         "roomName": "101",
+#         ...
+#       }
+#     ],
+#     "totalRecords": 1,
+#     "totalPages": 1
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - All returned rooms must have roomName containing "101"
+# - totalRecords should match filtered count
+# - rooms.length should be ≤ pageSize
+
+### 1.3. Lọc theo RoomTypeId (1 = Standard)
+GET {{baseUrl}}/api/rooms/search?roomTypeId=1&pageNumber=1&pageSize=20
+Authorization: Bearer {{receptionistToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "rooms": [
+#       {
+#         "roomTypeId": 1,
+#         "roomTypeName": "Standard",
+#         "roomTypeCode": "STD",
+#         ...
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - All rooms must have roomTypeId = 1
+# - All rooms must have roomTypeName = "Standard"
+# - All rooms must have roomTypeCode = "STD"
+
+### 1.4. Lọc theo StatusId (1 = Available)
+GET {{baseUrl}}/api/rooms/search?statusId=1&pageNumber=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "rooms": [
+#       {
+#         "statusId": 1,
+#         "status": "Trống",
+#         "statusCode": "Available",
+#         ...
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - All rooms must have statusId = 1
+# - All rooms must have statusCode = "Available"
+# - All rooms must have status = "Trống"
+
+### 1.5. Lọc theo tầng (Floor = 2)
+GET {{baseUrl}}/api/rooms/search?floor=2&pageNumber=1&pageSize=20
+Authorization: Bearer {{managerToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "rooms": [
+#       { "roomName": "201", ... },
+#       { "roomName": "202", ... }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - All rooms must have roomName starting with "2"
+# - Should return rooms 201-210 (if seeded)
+
+### 1.6. Lọc kết hợp: Floor 1, RoomTypeId 1, StatusId 1
+GET {{baseUrl}}/api/rooms/search?floor=1&roomTypeId=1&statusId=1&pageNumber=1&pageSize=10
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "rooms": [
+#       {
+#         "roomName": "101",  // starts with "1"
+#         "roomTypeId": 1,    // Standard
+#         "statusId": 1,      // Available
+#         ...
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - All rooms must match ALL filter criteria
+# - roomName starts with "1"
+# - roomTypeId = 1
+# - statusId = 1
+
+### 1.7. Pagination test - Page 2
+GET {{baseUrl}}/api/rooms/search?pageNumber=2&pageSize=5
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "rooms": [...], // 5 items
+#     "totalRecords": 33,
+#     "pageNumber": 2,
+#     "pageSize": 5,
+#     "totalPages": 7
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - pageNumber = 2 (matches request)
+# - rooms.length ≤ 5
+# - totalPages = Math.ceil(33 / 5) = 7
+
+###############################################
+# 2. ROOM MAP & VISUALIZATION (All roles)
+###############################################
+
+### 2.1. Lấy sơ đồ tất cả tầng
+GET {{baseUrl}}/api/rooms/map
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy sơ đồ phòng thành công",
+#   "data": [
+#     {
+#       "floor": 1,
+#       "rooms": [
+#         {
+#           "roomId": 1,
+#           "roomName": "101",
+#           "roomTypeCode": "STD",
+#           "roomTypeName": "Standard",
+#           "status": "Trống",
+#           "statusCode": "Available",
+#           "floor": 1,
+#           "basePriceNight": 500000
+#         }
+#       ],
+#       "statusSummary": {
+#         "Trống": 6,
+#         "Đã đặt": 2,
+#         "Đang sử dụng": 1,
+#         "Đang dọn dẹp": 1
+#       }
+#     },
+#     {
+#       "floor": 2,
+#       "rooms": [...],
+#       "statusSummary": {...}
+#     }
+#   ]
+# }
+# 
+# ✅ VALIDATION:
+# - data must be an array of floor objects
+# - Each floor object must have:
+#   * floor (integer)
+#   * rooms (array of RoomMapDto)
+#   * statusSummary (dictionary<string, int>)
+# - Sum of statusSummary values = rooms.length
+# - Rooms should be ordered by roomName
+# - Each room must have: roomId, roomName, status, statusCode, floor
+
+### 2.2. Sơ đồ tầng 1
+GET {{baseUrl}}/api/rooms/map?floor=1
+Authorization: Bearer {{receptionistToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy sơ đồ tầng 1 thành công",
+#   "data": {
+#     "floor": 1,
+#     "rooms": [
+#       { "roomName": "101", "floor": 1, ... },
+#       { "roomName": "102", "floor": 1, ... },
+#       { "roomName": "103", "floor": 1, ... }
+#     ],
+#     "statusSummary": {
+#       "Trống": 6,
+#       "Đã đặt": 2
+#     }
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - data must be a single RoomMapResponse object (not array)
+# - data.floor = 1
+# - All rooms must have floor = 1
+# - All rooms must have roomName starting with "1"
+# - statusSummary must match room statuses
+
+### 2.3. Sơ đồ tầng không tồn tại
+GET {{baseUrl}}/api/rooms/map?floor=99
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy sơ đồ tầng 99 thành công",
+#   "data": {
+#     "floor": 99,
+#     "rooms": [],
+#     "statusSummary": {}
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - Should return success with empty rooms array
+# - Not a 404 error
+
+###############################################
+# 3. ROOM DETAILS (All roles)
+###############################################
+
+### 3.1. Lấy chi tiết phòng tồn tại
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy thông tin phòng thành công",
+#   "data": {
+#     "roomId": 1,
+#     "roomName": "101",
+#     "roomTypeId": 1,
+#     "roomTypeName": "Standard",
+#     "roomTypeCode": "STD",
+#     "basePriceNight": 500000,
+#     "statusId": 1,
+#     "status": "Trống",
+#     "statusCode": "Available",
+#     "description": "Standard Room",
+#     "maxOccupancy": 2,
+#     "roomSize": null,
+#     "numberOfBeds": null,
+#     "bedType": null,
+#     "images": [],
+#     "createdAt": "2024-12-04T10:00:00Z",
+#     "updatedAt": null
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - statusCode: 200
+# - data must be RoomDetailDto object
+# - All required fields must be present
+# - basePriceNight > 0
+# - maxOccupancy > 0
+# - images must be array (can be empty)
+# - createdAt must be valid ISO 8601 date
+
+### 3.2. Lấy chi tiết phòng không tồn tại
+GET {{baseUrl}}/api/rooms/99999
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 404 Not Found
+# {
+#   "isSuccess": false,
+#   "statusCode": 404,
+#   "responseCode": "NOT_FOUND",
+#   "message": "Không tìm thấy phòng",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - HTTP Status: 404
+# - isSuccess: false
+# - statusCode: 404
+# - responseCode: "NOT_FOUND"
+# - message contains "Không tìm thấy"
+# - data: null
+
+###############################################
+# 4. ROOM STATUS STATISTICS (All roles)
+###############################################
+
+### 4.1. Lấy thống kê trạng thái phòng
+GET {{baseUrl}}/api/rooms/stats
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy thống kê trạng thái phòng thành công",
+#   "data": {
+#     "totalRooms": 33,
+#     "statusSummary": [
+#       {
+#         "status": "Trống",
+#         "statusCode": "Available",
+#         "count": 17,
+#         "percentage": 51.52
+#       },
+#       {
+#         "status": "Đã đặt",
+#         "statusCode": "Booked",
+#         "count": 10,
+#         "percentage": 30.30
+#       },
+#       {
+#         "status": "Đang sử dụng",
+#         "statusCode": "Occupied",
+#         "count": 5,
+#         "percentage": 15.15
+#       },
+#       {
+#         "status": "Đang dọn dẹp",
+#         "statusCode": "Cleaning",
+#         "count": 1,
+#         "percentage": 3.03
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - data.totalRooms must be integer > 0
+# - data.statusSummary must be array
+# - Sum of all count values = totalRooms
+# - Sum of all percentage values ≈ 100 (with rounding)
+# - Each status must have: status, statusCode, count, percentage
+# - percentage = (count / totalRooms) * 100
+
+###############################################
+# 5. AVAILABLE STATUS TRANSITIONS (All roles)
+###############################################
+
+### 5.1. [Admin] Xem trạng thái có thể chuyển
+GET {{baseUrl}}/api/rooms/1/available-status
+Authorization: Bearer {{adminToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Lấy danh sách trạng thái có thể chuyển đổi",
+#   "data": {
+#     "currentStatus": {
+#       "statusCode": "Available",
+#       "statusName": "Trống"
+#     },
+#     "availableTransitions": [
+#       {
+#         "statusCode": "Booked",
+#         "statusName": "Đã đặt",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "Occupied",
+#         "statusName": "Đang sử dụng",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "Cleaning",
+#         "statusName": "Đang dọn dẹp",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "Maintenance",
+#         "statusName": "Bảo trì",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "PendingInspection",
+#         "statusName": "Chờ kiểm tra",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "OutOfService",
+#         "statusName": "Ngừng hoạt động",
+#         "description": null
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - Admin should see ALL statuses except current one (6 transitions)
+# - currentStatus must match room's actual status
+# - availableTransitions must not include currentStatus
+# - Each transition must have: statusCode, statusName
+
+### 5.2. [Receptionist] Xem trạng thái có thể chuyển (Limited)
+GET {{baseUrl}}/api/rooms/1/available-status
+Authorization: Bearer {{receptionistToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "currentStatus": {
+#       "statusCode": "Available",
+#       "statusName": "Trống"
+#     },
+#     "availableTransitions": [
+#       {
+#         "statusCode": "Booked",
+#         "statusName": "Đã đặt",
+#         "description": null
+#       },
+#       {
+#         "statusCode": "Occupied",
+#         "statusName": "Đang sử dụng",
+#         "description": null
+#       }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - Receptionist from Available should ONLY see: Booked, Occupied
+# - availableTransitions.length = 2
+# - Should NOT include: Cleaning, Maintenance, PendingInspection, OutOfService
+
+### 5.3. [Housekeeper] Xem trạng thái có thể chuyển
+GET {{baseUrl}}/api/rooms/1/available-status
+Authorization: Bearer {{housekeeperToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "data": {
+#     "currentStatus": { "statusCode": "Available", ... },
+#     "availableTransitions": [
+#       { "statusCode": "Cleaning", ... }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - Housekeeper from Available should ONLY see: Cleaning
+# - availableTransitions.length = 1
+
+### 5.4. [Technician] Xem trạng thái có thể chuyển
+GET {{baseUrl}}/api/rooms/1/available-status
+Authorization: Bearer {{technicianToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "data": {
+#     "currentStatus": { "statusCode": "Available", ... },
+#     "availableTransitions": [
+#       { "statusCode": "Maintenance", ... }
+#     ]
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - Technician from any status can go to Maintenance
+# - availableTransitions should include "Maintenance"
+
+###############################################
+# 6. CHANGE ROOM STATUS - ADMIN (Full Control)
+###############################################
+
+### 6.1. [Admin] Available → Maintenance
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 5,
+  "reason": "Admin maintenance"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "responseCode": "SUCCESS",
+#   "message": "Đã chuyển trạng thái phòng 101 thành 'Bảo trì'",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - statusCode: 200
+# - message contains room name "101" and new status "Bảo trì"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{adminToken}}
+# Verify: statusId = 5, statusCode = "Maintenance"
+
+### 6.2. [Admin] Maintenance → Available (Cleanup for next test)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 1
+}
+
+###############################################
+# 7. CHANGE ROOM STATUS - RECEPTIONIST
+###############################################
+
+### 7.1. [Receptionist] Available → Booked (✅ ALLOWED)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 2
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã chuyển trạng thái phòng 101 thành 'Đã đặt'",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - statusCode: 200
+# - message contains "Đã đặt"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{receptionistToken}}
+# Verify: statusId = 2, status = "Đã đặt", statusCode = "Booked"
+
+### 7.2. [Receptionist] Booked → Occupied (✅ ALLOWED)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 3
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã chuyển trạng thái phòng 101 thành 'Đang sử dụng'",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - message contains "Đang sử dụng"
+
+### 7.3. [Receptionist] Occupied → Available (✅ ALLOWED - Check-out)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 1
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã chuyển trạng thái phòng 101 thành 'Trống'",
+#   "data": null
+# }
+
+### 7.4. [Receptionist] Available → Cleaning (❌ FORBIDDEN)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 4
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 403 Forbidden
+# {
+#   "isSuccess": false,
+#   "statusCode": 403,
+#   "responseCode": "FORBIDDEN",
+#   "message": "Role Receptionist không có quyền chuyển đổi trạng thái này",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: false
+# - statusCode: 403
+# - responseCode: "FORBIDDEN"
+# - message contains "không có quyền"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{receptionistToken}}
+# Verify: statusId still = 1 (unchanged)
+
+### 7.5. [Receptionist] Available → Maintenance (❌ FORBIDDEN)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 5
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 403 Forbidden
+# {
+#   "isSuccess": false,
+#   "statusCode": 403,
+#   "responseCode": "FORBIDDEN",
+#   "message": "Role Receptionist không có quyền chuyển đổi trạng thái này",
+#   "data": null
+# }
+
+###############################################
+# 8. HOUSEKEEPER - CLEANING WORKFLOW
+###############################################
+
+### 8.1. [Housekeeper] Available → Cleaning (Start Cleaning)
+POST {{baseUrl}}/api/rooms/1/start-cleaning
+Authorization: Bearer {{housekeeperToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Phòng 101 đã được đánh dấu đang dọn dẹp",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - statusCode: 200
+# - message contains room name and "đang dọn dẹp"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{housekeeperToken}}
+# Verify: statusId = 4, statusCode = "Cleaning"
+
+### 8.2. [Housekeeper] Cleaning → Available (Complete Cleaning)
+POST {{baseUrl}}/api/rooms/1/complete-cleaning
+Authorization: Bearer {{housekeeperToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Phòng 101 đã dọn dẹp xong và sẵn sàng cho thuê",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - message contains "dọn dẹp xong"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{housekeeperToken}}
+# Verify: statusId = 1, statusCode = "Available"
+
+### 8.3. [Housekeeper] Start cleaning phòng không tồn tại
+POST {{baseUrl}}/api/rooms/99999/start-cleaning
+Authorization: Bearer {{housekeeperToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 404 Not Found
+# {
+#   "isSuccess": false,
+#   "statusCode": 404,
+#   "responseCode": "NOT_FOUND",
+#   "message": "Không tìm thấy phòng",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - HTTP Status: 404
+# - isSuccess: false
+# - responseCode: "NOT_FOUND"
+
+### 8.4. [Housekeeper] Available → Maintenance (❌ FORBIDDEN)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{housekeeperToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 5
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 403 Forbidden
+# {
+#   "isSuccess": false,
+#   "statusCode": 403,
+#   "responseCode": "FORBIDDEN",
+#   "message": "Role Housekeeper không có quyền chuyển đổi trạng thái này",
+#   "data": null
+# }
+
+###############################################
+# 9. TECHNICIAN - MAINTENANCE WORKFLOW
+###############################################
+
+### 9.1. [Technician] Available → Maintenance (Start Maintenance)
+POST {{baseUrl}}/api/rooms/2/start-maintenance
+Authorization: Bearer {{technicianToken}}
+Content-Type: application/json
+
+"Sửa điều hòa bị hỏng"
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Phòng 102 đã được chuyển sang trạng thái bảo trì",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - message contains room name and "bảo trì"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/2
+Authorization: Bearer {{technicianToken}}
+# Verify: statusId = 5, statusCode = "Maintenance"
+
+### 9.2. [Technician] Maintenance → Available (Complete Maintenance)
+POST {{baseUrl}}/api/rooms/2/complete-maintenance
+Authorization: Bearer {{technicianToken}}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Phòng 102 đã hoàn tất bảo trì và sẵn sàng",
+#   "data": null
+# }
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/2
+Authorization: Bearer {{technicianToken}}
+# Verify: statusId = 1, statusCode = "Available"
+
+### 9.3. [Technician] Start maintenance phòng không tồn tại
+POST {{baseUrl}}/api/rooms/99999/start-maintenance
+Authorization: Bearer {{technicianToken}}
+Content-Type: application/json
+
+"Test"
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 404 Not Found
+# {
+#   "isSuccess": false,
+#   "statusCode": 404,
+#   "responseCode": "NOT_FOUND",
+#   "message": "Không tìm thấy phòng"
+# }
+
+### 9.4. [Technician] Available → Cleaning (❌ FORBIDDEN)
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{technicianToken}}
+Content-Type: application/json
+
+{
+  "roomId": 2,
+  "newStatusId": 4
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 403 Forbidden
+# {
+#   "isSuccess": false,
+#   "statusCode": 403,
+#   "responseCode": "FORBIDDEN",
+#   "message": "Role Technician không có quyền chuyển đổi trạng thái này"
+# }
+
+###############################################
+# 10. MANAGER - FULL CONTROL
+###############################################
+
+### 10.1. [Manager] Complete workflow - All transitions
+# Available → Booked → Occupied → Cleaning → Maintenance → Available
+
+### Step 1: Available → Booked
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 3,
+  "newStatusId": 2
+}
+
+### EXPECTED: HTTP 200, isSuccess: true
+
+### Step 2: Booked → Occupied
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 3,
+  "newStatusId": 3
+}
+
+### EXPECTED: HTTP 200, isSuccess: true
+
+### Step 3: Occupied → Cleaning
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 3,
+  "newStatusId": 4
+}
+
+### EXPECTED: HTTP 200, isSuccess: true
+
+### Step 4: Cleaning → Maintenance
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 3,
+  "newStatusId": 5
+}
+
+### EXPECTED: HTTP 200, isSuccess: true
+
+### Step 5: Maintenance → Available
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 3,
+  "newStatusId": 1
+}
+
+### EXPECTED: HTTP 200, isSuccess: true
+# 
+# ✅ VALIDATION FOR ALL STEPS:
+# - Each transition should return isSuccess: true
+# - Manager should have permission for all transitions
+# - No 403 Forbidden errors
+# 
+# ✅ FINAL VERIFICATION:
+GET {{baseUrl}}/api/rooms/3
+Authorization: Bearer {{managerToken}}
+# Should be back to: statusId = 1, statusCode = "Available"
+
+###############################################
+# 11. BULK STATUS CHANGE (Manager/Admin only)
+###############################################
+
+### 11.1. [Manager] Bulk change multiple rooms to Cleaning
+PATCH {{baseUrl}}/api/rooms/bulk-status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomIds": [4, 5],
+  "newStatusId": 4,
+  "reason": "Bulk cleaning after event"
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã cập nhật trạng thái 2/2 phòng",
+#   "data": {
+#     "successCount": 2,
+#     "failedCount": 0
+#   }
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: true
+# - data.successCount: 2
+# - data.failedCount: 0
+# - message contains "2/2"
+# 
+# ✅ FOLLOW-UP CHECK:
+GET {{baseUrl}}/api/rooms/4
+GET {{baseUrl}}/api/rooms/5
+Authorization: Bearer {{managerToken}}
+# Both should have: statusId = 4, statusCode = "Cleaning"
+
+### 11.2. [Manager] Bulk change back to Available
+PATCH {{baseUrl}}/api/rooms/bulk-status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomIds": [4, 5],
+  "newStatusId": 1
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 200 OK
+# {
+#   "isSuccess": true,
+#   "data": {
+#     "successCount": 2,
+#     "failedCount": 0
+#   }
+# }
+
+### 11.3. [Manager] Bulk change with invalid status
+PATCH {{baseUrl}}/api/rooms/bulk-status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomIds": [4, 5],
+  "newStatusId": 999
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 400 Bad Request
+# {
+#   "isSuccess": false,
+#   "statusCode": 400,
+#   "responseCode": "INVALID_STATUS",
+#   "message": "Trạng thái không hợp lệ hoặc không phải là RoomStatus",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: false
+# - statusCode: 400
+# - responseCode: "INVALID_STATUS"
+
+### 11.4. [Manager] Bulk change with empty roomIds
+PATCH {{baseUrl}}/api/rooms/bulk-status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomIds": [],
+  "newStatusId": 4
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 400 Bad Request
+# {
+#   "isSuccess": false,
+#   "statusCode": 400,
+#   "responseCode": "INVALID_REQUEST",
+#   "message": "Danh sách phòng không được trống",
+#   "data": null
+# }
+# 
+# ✅ VALIDATION:
+# - isSuccess: false
+# - statusCode: 400
+# - responseCode: "INVALID_REQUEST"
+
+### 11.5. [Receptionist] Bulk change (❌ FORBIDDEN by Authorization)
+PATCH {{baseUrl}}/api/rooms/bulk-status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomIds": [4, 5],
+  "newStatusId": 2
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 403 Forbidden
+# {
+#   "isSuccess": false,
+#   "statusCode": 403,
+#   "message": "Bạn không có quyền thực hiện thao tác này"
+# }
+# 
+# ✅ VALIDATION:
+# - This fails at [Authorize(Roles = "Admin,Manager")] level
+# - Before reaching service logic
+
+###############################################
+# 12. ERROR HANDLING & EDGE CASES
+###############################################
+
+### 12.1. Change status - Invalid RoomId
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 99999,
+  "newStatusId": 1
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 404 Not Found
+# {
+#   "isSuccess": false,
+#   "statusCode": 404,
+#   "responseCode": "NOT_FOUND",
+#   "message": "Không tìm thấy phòng"
+# }
+
+### 12.2. Change status - Invalid StatusId
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 999
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 400 Bad Request
+# {
+#   "isSuccess": false,
+#   "statusCode": 400,
+#   "responseCode": "INVALID_STATUS",
+#   "message": "Trạng thái không hợp lệ hoặc không phải là RoomStatus"
+# }
+
+### 12.3. Missing Authorization header
+GET {{baseUrl}}/api/rooms/search
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 401 Unauthorized
+# {
+#   "isSuccess": false,
+#   "statusCode": 401,
+#   "message": "Unauthorized"
+# }
+
+### 12.4. Invalid token
+GET {{baseUrl}}/api/rooms/search
+Authorization: Bearer invalid_token_12345
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 401 Unauthorized
+
+### 12.5. Missing required fields in request
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1
+}
+
+### EXPECTED RESPONSE:
+# HTTP/1.1 400 Bad Request
+# {
+#   "isSuccess": false,
+#   "statusCode": 400,
+#   "errors": {
+#     "NewStatusId": ["The NewStatusId field is required."]
+#   }
+# }
+
+###############################################
+# 13. COMPLETE WORKFLOW SCENARIOS
+###############################################
+
+### Scenario 1: Complete Booking & Cleaning Flow
+# 1. Receptionist books room (Available → Booked)
+# 2. Guest checks in (Booked → Occupied)
+# 3. Guest checks out (Occupied → Available)
+# 4. Housekeeper cleans (Available → Cleaning)
+# 5. Cleaning complete (Cleaning → Available)
+
+### Step 1: Book room
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 2
+}
+### Expected: 200 OK
+
+### Step 2: Check-in
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 3
+}
+### Expected: 200 OK
+
+### Step 3: Check-out
+PATCH {{baseUrl}}/api/rooms/status
+Authorization: Bearer {{receptionistToken}}
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "newStatusId": 1
+}
+### Expected: 200 OK
+
+### Step 4: Start cleaning
+POST {{baseUrl}}/api/rooms/1/start-cleaning
+Authorization: Bearer {{housekeeperToken}}
+### Expected: 200 OK
+
+### Step 5: Complete cleaning
+POST {{baseUrl}}/api/rooms/1/complete-cleaning
+Authorization: Bearer {{housekeeperToken}}
+### Expected: 200 OK
+
+### Final verification: Room should be Available
+GET {{baseUrl}}/api/rooms/1
+Authorization: Bearer {{adminToken}}
+### Expected: statusCode = "Available"
+
+###############################################
+# 14. VALIDATION SUMMARY
+###############################################
+
+### ✅ TEST COVERAGE CHECKLIST:
+# 
+# SEARCH & FILTERING:
+# ✓ Search all rooms with pagination
+# ✓ Filter by room name
+# ✓ Filter by room type
+# ✓ Filter by status
+# ✓ Filter by floor
+# ✓ Combined filters
+# ✓ Pagination validation
+# 
+# ROOM MAP:
+# ✓ Get all floors map
+# ✓ Get specific floor map
+# ✓ Empty floor handling
+# 
+# ROOM DETAILS:
+# ✓ Get existing room details
+# ✓ Get non-existent room (404)
+# 
+# STATISTICS:
+# ✓ Get room status summary
+# 
+# STATUS TRANSITIONS:
+# ✓ Get available transitions per role
+# ✓ Admin full permissions
+# ✓ Manager full permissions
+# ✓ Receptionist limited (Available ↔ Booked ↔ Occupied)
+# ✓ Housekeeper limited (Cleaning flow)
+# ✓ Technician limited (Maintenance flow)
+# 
+# BULK OPERATIONS:
+# ✓ Bulk status change (Manager/Admin)
+# ✓ Invalid status handling
+# ✓ Empty room list handling
+# ✓ Authorization check
+# 
+# ERROR HANDLING:
+# ✓ Invalid room ID (404)
+# ✓ Invalid status ID (400)
+# ✓ Missing authorization (401)
+# ✓ Invalid token (401)
+# ✓ Missing required fields (400)
+# ✓ Forbidden transitions (403)
+# 
+# WORKFLOWS:
+# ✓ Complete booking flow
+# ✓ Complete cleaning flow
+# ✓ Complete maintenance flow
+
+### END OF TEST SUITE ###
+
