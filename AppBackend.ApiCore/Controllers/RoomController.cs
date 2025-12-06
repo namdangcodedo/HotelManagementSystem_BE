@@ -150,7 +150,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <returns>Danh sách phòng với hình ảnh</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet("rooms")]
-        [Authorize(Roles = "Admin,Manager")]
+        [Authorize(Roles = "Admin,Manager,Receptionist")]
         public async Task<IActionResult> GetRoomList([FromQuery] GetRoomListRequest request)
         {
             var result = await _roomService.GetRoomListAsync(request);
@@ -165,7 +165,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="200">Lấy thông tin thành công</response>
         /// <response code="404">Không tìm thấy phòng</response>
         [HttpGet("rooms/{id}")]
-        [Authorize(Roles = "Admin,Manager")]
+        [Authorize(Roles = "Admin,Manager,Receptionist")]
         public async Task<IActionResult> GetRoomDetail(int id)
         {
             var result = await _roomService.GetRoomDetailAsync(id);
