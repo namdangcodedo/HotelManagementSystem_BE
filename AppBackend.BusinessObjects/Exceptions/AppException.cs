@@ -22,13 +22,13 @@ namespace AppBackend.BusinessObjects.Exceptions
 
         public int StatusCode { get; set; }
 
-        [Newtonsoft.Json.JsonExtensionData] public Dictionary<string, object> AdditionalData { get; set; }
+        [Newtonsoft.Json.JsonExtensionData] public Dictionary<string, object> AdditionalData { get; set; } = new();
     }
 
 
     public class BadRequestException : ErrorException
     {
-        public BadRequestException(string errorCode, string message = null)
+        public BadRequestException(string errorCode, string message = "")
             : base(400, errorCode, message)
         {
         }
@@ -49,7 +49,7 @@ namespace AppBackend.BusinessObjects.Exceptions
 
         public ErrorDetail ErrorDetail { get; }
 
-        public ErrorException(int statusCode, string errorCode, string message = null)
+        public ErrorException(int statusCode, string errorCode, string message = "")
         {
             StatusCode = statusCode;
             ErrorDetail = new ErrorDetail
