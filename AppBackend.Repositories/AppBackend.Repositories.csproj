@@ -17,8 +17,4 @@
     <ProjectReference Include="..\AppBackend.BusinessObjects\AppBackend.BusinessObjects.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Repositories\" />
-  </ItemGroup>
-
 </Project>

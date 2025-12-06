@@ -54,7 +54,7 @@ namespace AppBackend.Services.Services.EmployeeServices
             };
         }
 
-        public async Task<ResultModel> GetEmployeeListAsync(GetEmployeeListRequest request)
+        public async Task<ResultModel> GetEmployeeListAsync(GetEmployeeRequest request)
         {
             var query = _unitOfWork.Employees.FindAsync(e => true);
             var employees = (await query).AsQueryable();

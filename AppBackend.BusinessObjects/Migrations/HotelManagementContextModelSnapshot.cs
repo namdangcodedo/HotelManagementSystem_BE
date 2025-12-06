@@ -167,6 +167,13 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
+                    b.Property<string>("IsApproved")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.HasKey("AttendanceId");
 
@@ -174,6 +181,33 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.ToTable("Attendance");
                 });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.EmpAttendInfo", b =>
+            {
+                b.Property<int>("AttendInfoId")
+                       .ValueGeneratedOnAdd()
+                       .HasColumnType("int");
+
+                SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AttendInfoId"));
+
+                b.Property<int>("EmployeeId")
+                       .HasColumnType("int");
+
+                b.Property<int>("UsedLeaveRequest")
+                       .HasColumnType("int");
+
+                b.Property<int>("Year")
+                       .HasColumnType("int");
+
+                b.Property<int>("TotalLeaveRequest")
+                       .HasColumnType("int");
+
+                b.Property<int>("RemainLeaveRequest")
+                       .HasColumnType("int");
+
+                b.Property<int>("OverLeaveDay")
+                       .HasColumnType("int");
+            });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BankConfig", b =>
                 {
@@ -1979,6 +2013,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Navigation("Media");
                 });
+
 #pragma warning restore 612, 618
         }
     }
