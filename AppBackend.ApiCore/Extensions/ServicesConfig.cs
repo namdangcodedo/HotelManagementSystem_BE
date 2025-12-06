@@ -16,6 +16,7 @@ using AppBackend.Services.Services.RoleServices;
 using AppBackend.Services.MessageQueue;
 using AppBackend.Services.Services.TransactionServices;
 using AppBackend.Services.Services.DashboardServices;
+using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.Services.RoomManagement;
 
 namespace AppBackend.ApiCore.Extensions;
@@ -43,7 +44,7 @@ public static class ServicesConfig
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IGoogleLoginService, GoogleLoginService>();
         services.AddScoped<IAmenityService, AmenityService>();
-        services.AddScoped<IAttendaceService, AttendanceService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<ICommonCodeService, CommonCodeService>();
         services.AddScoped<IRoomService, RoomService>();
         services.AddScoped<IRoomAmenityService, RoomAmenityService>();
@@ -52,7 +53,13 @@ public static class ServicesConfig
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<IRoomManagementService, RoomManagementService>();
+
+        //Encrypt Helper
+        services.AddScoped<EncryptHelper>();
+
+
 
         // Message Queue Service - Singleton for thread-safe queue
         services.AddSingleton<IBookingQueueService, BookingQueueService>();

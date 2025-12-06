@@ -42,7 +42,7 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         
-        [HttpPost("{attendanceId}")]
+        [HttpPost("Attendance")]
         [Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpsertAttendance([FromBody] PostAttendanceRequest request)
         {
