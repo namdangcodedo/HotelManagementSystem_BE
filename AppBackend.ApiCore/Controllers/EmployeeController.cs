@@ -13,9 +13,9 @@ namespace AppBackend.ApiCore.Controllers
     [Authorize]
     public class EmployeeController : BaseApiController
     {
-        private readonly IEmployeeService _employeeService;
+        private readonly IAttendaceService _employeeService;
 
-        public EmployeeController(IEmployeeService employeeService)
+        public EmployeeController(IAttendaceService employeeService)
         {
             _employeeService = employeeService;
         }
@@ -43,7 +43,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet]
         [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> GetEmployeeList([FromQuery] GetEmployeeListRequest request)
+        public async Task<IActionResult> GetEmployeeList([FromQuery] GetAttendanceRequest request)
         {
             var result = await _employeeService.GetEmployeeListAsync(request);
             return Ok(result);

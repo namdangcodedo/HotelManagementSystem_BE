@@ -1,7 +1,8 @@
-using AppBackend.BusinessObjects.Models;
+﻿using AppBackend.BusinessObjects.Models;
 using AppBackend.BusinessObjects.Dtos;
 using AutoMapper;
 using AppBackend.Services.ApiModels;
+using AppBackend.Services.ApiModels.AttendanceModel;
 
 namespace AppBackend.Services.Mappings
 {
@@ -56,6 +57,12 @@ namespace AppBackend.Services.Mappings
             CreateMap<Amenity, AmenityWithMediumDto>()
                 .ForMember(dest => dest.Images, opt => opt.Ignore());
             CreateMap<Medium, MediumDto>();
+            #endregion
+            #region Ảttendance
+            CreateMap<Attendance, AttendanceDTO>().ReverseMap();
+            CreateMap<Attendance, PostAttendanceRequest>().ReverseMap();
+            CreateMap<EmpAttendInfo, EmpAttendInfoDTO>().ReverseMap();
+            CreateMap<EmpAttendInfo, PostAttendInfosRequest>().ReverseMap();
             #endregion
         }
     }

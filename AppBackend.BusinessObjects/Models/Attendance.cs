@@ -36,5 +36,11 @@ public partial class Attendance
 
     public int? UpdatedBy { get; set; }
 
+    [StringLength(255)]
+    public string? Status { get; set; }
+
+    [StringLength(255)]
+    public string? IsApproved { get; set; }
+
     public virtual Employee Employee { get; set; } = null!;
 }

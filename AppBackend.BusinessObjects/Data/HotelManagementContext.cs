@@ -40,6 +40,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<ChatSession> ChatSessions { get; set; }
     public virtual DbSet<ChatMessage> ChatMessages { get; set; }
     public virtual DbSet<RoomType> RoomTypes { get; set; }
+    public virtual DbSet<EmpAttendInfo> EmpAttendInfo { get; set; }
+
 
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

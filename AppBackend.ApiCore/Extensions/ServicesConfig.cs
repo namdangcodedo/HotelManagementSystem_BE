@@ -42,7 +42,7 @@ public static class ServicesConfig
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IGoogleLoginService, GoogleLoginService>();
         services.AddScoped<IAmenityService, AmenityService>();
-        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<ICommonCodeService, CommonCodeService>();
         services.AddScoped<IRoomService, RoomService>();
         services.AddScoped<IRoomAmenityService, RoomAmenityService>();
