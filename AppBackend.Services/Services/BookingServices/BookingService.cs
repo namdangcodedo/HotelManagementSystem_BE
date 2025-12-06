@@ -477,8 +477,8 @@ namespace AppBackend.Services.Services.BookingServices
                     description = description.Substring(0, 25);
                 }
 
-                // Set expiration time to 15 minutes from now
-                var expiredAt = (int)DateTimeOffset.Now.AddMinutes(15).ToUnixTimeSeconds();
+                // Set expiration time to 30 minutes from now (use UTC to avoid timezone issues)
+                var expiredAt = (int)DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
 
                 var paymentData = new PaymentData(
                     orderCode: orderCode,
@@ -961,8 +961,8 @@ namespace AppBackend.Services.Services.BookingServices
                     description = description.Substring(0, 25);
                 }
 
-                // Set expiration time to 15 minutes from now
-                var expiredAt = (int)DateTimeOffset.Now.AddMinutes(15).ToUnixTimeSeconds();
+                // Set expiration time to 30 minutes from now (use UTC to avoid timezone issues)
+                var expiredAt = (int)DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
 
                 var paymentData = new PaymentData(
                     orderCode: orderCode,

@@ -420,16 +420,6 @@ namespace AppBackend.ApiCore.Controllers
             /// Authorization code nhận được từ Google OAuth2
             /// </summary>
             public string? Code { get; set; }
-            
-            /// <summary>
-            /// Redirect URI đã sử dụng khi lấy code (phải khớp chính xác)
-            /// </summary>
-            public string? RedirectUri { get; set; }
-            
-            /// <summary>
-            /// Code verifier cho PKCE flow (optional, dành cho public clients)
-            /// </summary>
-            public string? CodeVerifier { get; set; }
         }
 
         /// <summary>
