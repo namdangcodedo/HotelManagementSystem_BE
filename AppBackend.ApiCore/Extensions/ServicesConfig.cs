@@ -16,8 +16,8 @@ using AppBackend.Services.Services.RoleServices;
 using AppBackend.Services.MessageQueue;
 using AppBackend.Services.Services.TransactionServices;
 using AppBackend.Services.Services.DashboardServices;
-using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.Services.RoomManagement;
+using AppBackend.Services.Services.AttendanceServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -56,10 +56,8 @@ public static class ServicesConfig
         services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<IRoomManagementService, RoomManagementService>();
 
-        //Encrypt Helper
+        //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
-
-
 
         // Message Queue Service - Singleton for thread-safe queue
         services.AddSingleton<IBookingQueueService, BookingQueueService>();
