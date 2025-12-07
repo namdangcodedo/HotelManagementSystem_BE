@@ -329,6 +329,22 @@ namespace AppBackend.Services.ApiModels.TransactionModel
         public int? VerifiedBy { get; set; }
     }
 
+    /// <summary>
+    /// Request from customer to confirm payment
+    /// </summary>
+    public class ConfirmPaymentByCustomerRequest
+    {
+        [Required(ErrorMessage = "BookingId is required")]
+        public int BookingId { get; set; }
+
+        [Required(ErrorMessage = "OrderCode is required")]
+        [StringLength(100)]
+        public string OrderCode { get; set; } = string.Empty;
+
+        [StringLength(500)]
+        public string? Note { get; set; }
+    }
+
     #endregion
 
     #region Transaction Statistics DTOs

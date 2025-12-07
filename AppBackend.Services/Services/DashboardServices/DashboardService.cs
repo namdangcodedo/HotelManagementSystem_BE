@@ -557,7 +557,7 @@ namespace AppBackend.Services.Services.DashboardServices
                         CheckInDate = b.CheckInDate,
                         CheckOutDate = b.CheckOutDate,
                         TotalAmount = b.TotalAmount,
-                        PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == b.PaymentStatusId).CodeValue ?? "",
+                        BookingStatus = commonCodes.FirstOrDefault(c => c.CodeId == b.BookingId).CodeValue ?? "",
                         BookingType = commonCodes.FirstOrDefault(c => c.CodeId == b.BookingTypeId).CodeValue ?? "",
                         CreatedAt = b.CreatedAt
                     })
@@ -1030,10 +1030,10 @@ namespace AppBackend.Services.Services.DashboardServices
                     .Where(b => b.CreatedAt.Date == today)
                     .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
 
-                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("BookingStatus", "Completed");
                 var paidAmount = paidStatusId.HasValue
                     ? await _context.Bookings
-                        .Where(b => b.CreatedAt.Date == today && b.PaymentStatusId == paidStatusId.Value)
+                        .Where(b => b.CreatedAt.Date == today && b.BookingId == paidStatusId.Value)
                         .SumAsync(b => (decimal?)b.TotalAmount) ?? 0
                     : 0;
 

@@ -4,6 +4,7 @@ using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.TransactionModel;
 using AppBackend.Services.Helpers;
+using AppBackend.Services.Services.Email;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Net.payOS;
@@ -21,6 +22,7 @@ namespace AppBackend.Services.Services.TransactionServices
         private readonly IConfiguration _configuration;
         private readonly PayOS _payOSClient;
         private readonly PayOSHelper _payOSHelper;
+        private readonly IEmailService _emailService;
 
         public TransactionService(
             IUnitOfWork unitOfWork,
@@ -29,7 +31,8 @@ namespace AppBackend.Services.Services.TransactionServices
             ILogger<TransactionService> logger,
             IConfiguration configuration,
             PayOS payOSClient,
-            PayOSHelper payOSHelper)
+            PayOSHelper payOSHelper,
+            IEmailService emailService)
         {
             _unitOfWork = unitOfWork;
             _qrPaymentHelper = qrPaymentHelper;
@@ -38,6 +41,7 @@ namespace AppBackend.Services.Services.TransactionServices
             _configuration = configuration;
             _payOSClient = payOSClient;
             _payOSHelper = payOSHelper;
+            _emailService = emailService;
         }
 
         #region Payment Management
@@ -975,6 +979,60 @@ namespace AppBackend.Services.Services.TransactionServices
         {
             try
             {
+                // ✅ VALIDATE: BookingId is required to ensure room is already locked
+                if (!request.BookingId.HasValue || request.BookingId.Value <= 0)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "BOOKING_REQUIRED",
+                        StatusCode = 400,
+                        Message = "BookingId is required. Please create a booking first to lock the rooms."
+                    };
+                }
+
+                // ✅ VALIDATE: Booking exists
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId.Value);
+                if (booking == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "BOOKING_NOT_FOUND",
+                        StatusCode = 404,
+                        Message = $"Booking with ID {request.BookingId.Value} not found"
+                    };
+                }
+
+                // ✅ VALIDATE: Booking must have rooms locked
+                var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId);
+                if (!bookingRooms.Any())
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "NO_ROOMS_BOOKED",
+                        StatusCode = 400,
+                        Message = "Booking has no rooms associated. Cannot generate QR code."
+                    };
+                }
+
+                // ✅ CHECK: If payment already exists and completed
+                var existingTransactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == booking.BookingId);
+                var completedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
+                
+                if (completedStatus != null && existingTransactions.Any(t => t.TransactionStatusId == completedStatus.CodeId))
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "ALREADY_PAID",
+                        StatusCode = 400,
+                        Message = "Booking has already been paid"
+                    };
+                }
+
                 // Try get active bank config from DB. If the table doesn't exist or DB access fails
                 // fall back to reading VietQR configuration from appsettings.json.
                 BankConfig? bankConfig = null;
@@ -1034,12 +1092,21 @@ namespace AppBackend.Services.Services.TransactionServices
                     };
                 }
 
+                // ✅ Use booking information for QR code
+                var amount = request.Amount > 0 ? request.Amount : booking.DepositAmount;
+                var description = !string.IsNullOrEmpty(request.Description) 
+                    ? request.Description 
+                    : $"Booking #{booking.BookingId}";
+                var orderCode = !string.IsNullOrEmpty(request.OrderCode)
+                    ? request.OrderCode
+                    : $"BK{booking.BookingId:D6}";
+
                 // Generate QR code URL (image link) only, do not upload image to API
                 var qrUrl = _qrPaymentHelper.GenerateVietQRUrl(
                     bankConfig,
-                    request.Amount,
-                    request.Description,
-                    request.OrderCode
+                    amount,
+                    description,
+                    orderCode
                 );
 
                 var qrCodeDto = new QRCodeDto
@@ -1049,12 +1116,44 @@ namespace AppBackend.Services.Services.TransactionServices
                     BankName = bankConfig.BankName,
                     AccountNumber = bankConfig.AccountNumber,
                     AccountName = bankConfig.AccountName,
-                    Amount = request.Amount,
-                    Description = request.Description,
+                    Amount = amount,
+                    Description = description,
                     ExpiresAt = DateTime.UtcNow.AddMinutes(15) // QR code expires in 15 minutes
                 };
 
-                _logger.LogInformation($"QR code link generated for amount: {request.Amount}");
+                // ✅ Create transaction record to track this QR payment
+                var pendingStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "TransactionStatus" && c.CodeName == "Pending")).FirstOrDefault();
+
+                if (pendingStatus != null)
+                {
+                    var bankTransferMethod = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "PaymentMethod" && c.CodeName == "BankTransfer")).FirstOrDefault();
+                    
+                    var unpaidPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                        c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
+
+                    var transaction = new Transaction
+                    {
+                        BookingId = booking.BookingId,
+                        PaymentMethodId = bankTransferMethod?.CodeId ?? 0,
+                        PaymentStatusId = unpaidPaymentStatus?.CodeId ?? 0,
+                        TransactionStatusId = pendingStatus.CodeId,
+                        TotalAmount = amount,
+                        PaidAmount = 0,
+                        DepositAmount = amount,
+                        OrderCode = orderCode,
+                        TransactionRef = orderCode,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _unitOfWork.Transactions.AddAsync(transaction);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    _logger.LogInformation($"Transaction created for Booking #{booking.BookingId} with OrderCode: {orderCode}");
+                }
+
+                _logger.LogInformation($"QR code generated for Booking #{booking.BookingId}, Amount: {amount}");
 
                 return new ResultModel
                 {
@@ -1062,7 +1161,7 @@ namespace AppBackend.Services.Services.TransactionServices
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
                     Data = qrCodeDto,
-                    Message = "QR code generated successfully"
+                    Message = "QR code generated successfully for booking"
                 };
             }
             catch (Exception ex)
@@ -1263,6 +1362,117 @@ namespace AppBackend.Services.Services.TransactionServices
                     Message = $"Error verifying QR payment: {ex.Message}"
                 };
             }
+        }
+
+        public async Task<ResultModel> ConfirmPaymentByCustomerAsync(ConfirmPaymentByCustomerRequest request)
+        {
+            try
+            {
+                // 1. Validate booking exists
+                var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId);
+                if (booking == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "BOOKING_NOT_FOUND",
+                        StatusCode = 404,
+                        Message = "Booking not found"
+                    };
+                }
+
+                // 2. Validate transaction exists with OrderCode
+                var transactions = await _unitOfWork.Transactions.FindAsync(t => 
+                    t.BookingId == request.BookingId && t.OrderCode == request.OrderCode);
+                var transaction = transactions.FirstOrDefault();
+
+                if (transaction == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "TRANSACTION_NOT_FOUND",
+                        StatusCode = 404,
+                        Message = $"Transaction with OrderCode {request.OrderCode} not found"
+                    };
+                }
+
+                // 3. Check if already confirmed/completed
+                var completedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
+
+                if (completedStatus != null && transaction.TransactionStatusId == completedStatus.CodeId)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = "ALREADY_CONFIRMED",
+                        StatusCode = 400,
+                        Message = "Payment has already been confirmed"
+                    };
+                }
+
+                // 4. Update transaction status to "PendingVerification" or keep as "Pending"
+                // Status remains Pending until staff verifies it
+                transaction.UpdatedAt = DateTime.UtcNow;
+                await _unitOfWork.Transactions.UpdateAsync(transaction);
+                await _unitOfWork.SaveChangesAsync();
+
+                // 5. Send notification email to staff
+                try
+                {
+                    await SendPaymentNotificationEmailAsync(request.BookingId, request.OrderCode);
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send notification email to staff");
+                    // Don't fail the whole operation if email fails
+                }
+
+                // 6. Send booking confirmation email to customer
+                try
+                {
+                    // Lấy thông tin newAccountPassword từ cache nếu có
+                    var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, request.BookingId.ToString());
+                    string? newAccountPassword = paymentInfo?.NewAccountPassword;
+                    
+                    await _emailService.SendBookingConfirmationEmailAsync(request.BookingId, newAccountPassword);
+                    _logger.LogInformation($"Booking confirmation email sent to customer for Booking #{request.BookingId}");
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx, "Failed to send booking confirmation email to customer");
+                    // Don't fail the whole operation if email fails
+                }
+
+                _logger.LogInformation($"Customer confirmed payment for Booking #{request.BookingId}, OrderCode: {request.OrderCode}");
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    ResponseCode = "SUCCESS",
+                    StatusCode = 200,
+                    Message = "Xác nhận thanh toán thành công. Nhân viên sẽ kiểm tra và xác thực giao dịch của bạn."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirming payment by customer");
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    ResponseCode = "SERVER_ERROR",
+                    StatusCode = 500,
+                    Message = $"Error confirming payment: {ex.Message}"
+                };
+            }
+        }
+
+        private async Task SendPaymentNotificationEmailAsync(int bookingId, string orderCode)
+        {
+            // Use the injected email service
+            await _emailService.SendPaymentNotificationToStaffAsync(bookingId, orderCode);
+            _logger.LogInformation($"Payment notification email sent for Booking #{bookingId}");
         }
 
         #endregion

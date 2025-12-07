@@ -288,7 +288,7 @@ public class AccountService : IAccountService
         }
 
         var totalBookings = customer.Bookings?.Count ?? 0;
-        var completedBookings = customer.Bookings?.Count(b => b.PaymentStatus != null) ?? 0;
+        var completedBookings = customer.Bookings?.Count(b => b.Status != null) ?? 0;
         var cancelledBookings = 0; // Cần implement logic check cancelled status
 
         // Tính tổng chi tiêu

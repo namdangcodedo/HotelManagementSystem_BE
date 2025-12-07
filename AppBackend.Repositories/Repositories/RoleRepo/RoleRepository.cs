@@ -85,6 +85,15 @@ namespace AppBackend.Repositories.Repositories.RoleRepo
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<int>> GetAccountIdsByRoleIdsAsync(IEnumerable<int> roleIds)
+        {
+            return await _context.AccountRoles
+                .Where(ar => roleIds.Contains(ar.RoleId))
+                .Select(ar => ar.AccountId)
+                .Distinct()
+                .ToListAsync();
+        }
+
         public async Task AddAccountRoleAsync(int accountId, int roleId)
         {
             var existingRole = await _context.AccountRoles

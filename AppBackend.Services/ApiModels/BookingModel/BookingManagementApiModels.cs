@@ -89,62 +89,6 @@ namespace AppBackend.Services.ApiModels.BookingModel
     }
 
     /// <summary>
-    /// DTO chi tiết booking đầy đủ
-    /// </summary>
-    public class BookingDetailDto
-    {
-        // Thông tin cơ bản
-        public int BookingId { get; set; }
-        public string BookingCode { get; set; } = string.Empty;
-        public string BookingType { get; set; } = string.Empty;
-
-        // Thông tin khách hàng
-        public CustomerDetailDto Customer { get; set; } = new();
-
-        // Thông tin phòng
-        public List<BookingRoomDetailDto> Rooms { get; set; } = new();
-
-        // Thông tin thời gian
-        public DateTime CheckInDate { get; set; }
-        public DateTime CheckOutDate { get; set; }
-        public int TotalNights { get; set; }
-
-        // Thông tin tài chính
-        public decimal SubTotal { get; set; }
-        public decimal TaxAmount { get; set; }
-        public decimal ServiceCharge { get; set; }
-        public decimal TotalAmount { get; set; }
-        public decimal DepositAmount { get; set; }
-        public decimal PaidAmount { get; set; }
-        public decimal RemainingAmount { get; set; }
-
-        // Trạng thái
-        public string BookingStatus { get; set; } = string.Empty;
-        public string PaymentStatus { get; set; } = string.Empty;
-        public string DepositStatus { get; set; } = string.Empty;
-
-        // Yêu cầu đặc biệt
-        public string? SpecialRequests { get; set; }
-
-        // Lịch sử thanh toán
-        public List<PaymentHistoryDetailDto> PaymentHistory { get; set; } = new();
-
-        // Lịch sử thay đổi booking
-        public List<BookingHistoryDto> BookingHistory { get; set; } = new();
-
-        // Thông tin tạo/cập nhật
-        public DateTime CreatedAt { get; set; }
-        public string? CreatedByEmployee { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public string? UpdatedByEmployee { get; set; }
-
-        // Thông tin hủy (nếu có)
-        public DateTime? CancelledAt { get; set; }
-        public string? CancelledBy { get; set; }
-        public string? CancellationReason { get; set; }
-    }
-
-    /// <summary>
     /// DTO thông tin khách hàng chi tiết
     /// </summary>
     public class CustomerDetailDto
@@ -210,12 +154,10 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class BookingHistoryDto
     {
         public int HistoryId { get; set; }
-        public string Action { get; set; } = string.Empty; // Created, Updated, Confirmed, CheckedIn, CheckedOut, Cancelled
+        public string Action { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public string? OldValue { get; set; }
-        public string? NewValue { get; set; }
-        public DateTime ChangedAt { get; set; }
-        public string ChangedBy { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public string CreatedBy { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -277,5 +219,36 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string? BookingType { get; set; }
         public string ExportFormat { get; set; } = "Excel"; // Excel, PDF, CSV
     }
-}
 
+    /// <summary>
+    /// Request xác nhận thanh toán cho bất kỳ booking nào
+    /// Admin/Lễ tân/Manager có thể confirm booking chỉ cần bookingId
+    /// </summary>
+    public class ConfirmBookingPaymentRequest
+    {
+        /// <summary>
+        /// Số tiền thanh toán
+        /// </summary>
+        public decimal PaidAmount { get; set; }
+
+        /// <summary>
+        /// Phương thức thanh toán: Cash, Card, Transfer, QR Code
+        /// </summary>
+        public string PaymentMethod { get; set; } = "Cash";
+
+        /// <summary>
+        /// Mã tham chiếu giao dịch (từ ngân hàng hoặc POS)
+        /// </summary>
+        public string? TransactionReference { get; set; }
+
+        /// <summary>
+        /// Ghi chú
+        /// </summary>
+        public string? Note { get; set; }
+
+        /// <summary>
+        /// True: Confirm deposit, False: Confirm full payment
+        /// </summary>
+        public bool IsDepositOnly { get; set; } = false;
+    }
+}

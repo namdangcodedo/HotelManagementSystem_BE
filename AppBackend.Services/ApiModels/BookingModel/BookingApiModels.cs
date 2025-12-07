@@ -88,7 +88,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string BookingType { get; set; } = string.Empty;
         public string? SpecialRequests { get; set; }
         public DateTime CreatedAt { get; set; }
-        public string? PaymentUrl { get; set; } 
+        public string? PaymentUrl { get; set; }
+        public string OrderCode { get; set; }
     }
 
     public class RoomTypeQuantityDto
@@ -104,8 +105,9 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class ConfirmPaymentRequest
     {
         public int BookingId { get; set; }
-        public string OrderCode { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
+        public bool IsCancel { get; set; } = false;
+        public int? UserId { get; set; }
+        public string? CancellationReason { get; set; }
     }
 
     public class RoomLockInfo
@@ -176,7 +178,7 @@ namespace AppBackend.Services.ApiModels.BookingModel
 
     /// <summary>
     /// Request tạo booking offline - dành cho lễ tán
-    /// Tự động tìm customer theo email/SĐT, nếu chưa có thì tạo mới
+    /// Lễ tân sẽ tự chọn phòng cụ thể (không tự động)
     /// </summary>
     public class CreateOfflineBookingRequest
     {
@@ -187,14 +189,13 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string? IdentityCard { get; set; }
         public string? Address { get; set; }
 
-        // Booking Info
-        public List<RoomTypeQuantityRequest> RoomTypes { get; set; } = new List<RoomTypeQuantityRequest>();
+        // Booking Info - Lễ tán chọn phòng cụ thể
+        public List<int> RoomIds { get; set; } = new List<int>();
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public string? SpecialRequests { get; set; }
 
         // Payment Info
-        public decimal DepositAmount { get; set; }
         public string PaymentMethod { get; set; } = string.Empty; // Cash, Card, Transfer
         public string? PaymentNote { get; set; }
     }
@@ -219,7 +220,7 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class ConfirmOfflineDepositRequest
     {
         public decimal DepositAmount { get; set; }
-        public string PaymentMethod { get; set; } = string.Empty; // Cash, Card, Transfer
+        public string PaymentMethod { get; set; } = string.Empty;
         public string? PaymentNote { get; set; }
         public string? TransactionReference { get; set; }
     }
@@ -242,8 +243,7 @@ namespace AppBackend.Services.ApiModels.BookingModel
     {
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
-        public string? PaymentStatus { get; set; }
-        public string? DepositStatus { get; set; }
+        public int? BookingStatus { get; set; }
         public string? CustomerName { get; set; }
         public string? PhoneNumber { get; set; }
         public int PageNumber { get; set; } = 1;
@@ -318,5 +318,175 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class CancelBookingRequest
     {
         public string? Reason { get; set; }
+    }
+
+    /// <summary>
+    /// DTO chi tiết booking đầy đủ
+    /// </summary>
+    public class BookingDetailDto
+    {
+        public int BookingId { get; set; }
+        public int CustomerId { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public string CustomerPhone { get; set; } = string.Empty;
+        public List<int> RoomIds { get; set; } = new List<int>();
+        public List<string> RoomNames { get; set; } = new List<string>();
+        public List<RoomTypeQuantityDto> RoomTypeDetails { get; set; } = new List<RoomTypeQuantityDto>();
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal DepositAmount { get; set; }
+        public string PaymentStatus { get; set; } = string.Empty;
+        public string BookingType { get; set; } = string.Empty;
+        public string? SpecialRequests { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Request xác nhận thanh toán thủ công (QR/Bank Transfer) - dành cho nhân viên
+    /// </summary>
+    public class ConfirmManualPaymentRequest
+    {
+        public int BookingId { get; set; }
+        public string TransactionRef { get; set; } = string.Empty;
+        public decimal PaidAmount { get; set; }
+        public string PaymentMethod { get; set; } = "BankTransfer";
+        public string? PaymentNote { get; set; }
+        public string? ProofImageUrl { get; set; }
+    }
+
+    /// <summary>
+    /// Response thông tin QR payment - được tạo tự động từ GenerateVietQRUrl
+    /// </summary>
+    public class QRPaymentInfoDto
+    {
+        /// <summary>
+        /// URL của QR code image từ VietQR (tự động generate theo số tiền)
+        /// Format: https://img.vietqr.io/image/{BANK_CODE}-{ACCOUNT_NUMBER}-{TEMPLATE}.png?amount={AMOUNT}&addInfo={DESCRIPTION}
+        /// </summary>
+        public string QRCodeUrl { get; set; } = string.Empty;
+        
+        public string BankName { get; set; } = string.Empty;
+        public string BankCode { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string TransactionRef { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Thông tin text để hiển thị cho khách hàng
+        /// </summary>
+        public string QRDataText { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Request tìm kiếm và filter phòng available
+    /// </summary>
+    public class SearchAvailableRoomsRequest
+    {
+        /// <summary>
+        /// Ngày check-in
+        /// </summary>
+        public DateTime? CheckInDate { get; set; }
+        
+        /// <summary>
+        /// Ngày check-out
+        /// </summary>
+        public DateTime? CheckOutDate { get; set; }
+        
+        /// <summary>
+        /// Loại phòng
+        /// </summary>
+        public int? RoomTypeId { get; set; }
+        
+        /// <summary>
+        /// Số lượng giường
+        /// </summary>
+        public int? NumberOfBeds { get; set; }
+        
+        /// <summary>
+        /// Loại giường (King, Queen, Twin...)
+        /// </summary>
+        public string? BedType { get; set; }
+        
+        /// <summary>
+        /// Số người tối đa
+        /// </summary>
+        public int? MaxOccupancy { get; set; }
+        
+        /// <summary>
+        /// Giá tối thiểu
+        /// </summary>
+        public decimal? MinPrice { get; set; }
+        
+        /// <summary>
+        /// Giá tối đa
+        /// </summary>
+        public decimal? MaxPrice { get; set; }
+        
+        /// <summary>
+        /// Diện tích tối thiểu (m2)
+        /// </summary>
+        public decimal? MinRoomSize { get; set; }
+        
+        /// <summary>
+        /// Tìm kiếm theo tên hoặc mã phòng
+        /// </summary>
+        public string? SearchTerm { get; set; }
+        
+        /// <summary>
+        /// Sắp xếp theo (Price, RoomSize, RoomName)
+        /// </summary>
+        public string? SortBy { get; set; }
+        
+        /// <summary>
+        /// Sắp xếp giảm dần
+        /// </summary>
+        public bool IsDescending { get; set; } = false;
+        
+        /// <summary>
+        /// Trang hiện tại
+        /// </summary>
+        public int PageNumber { get; set; } = 1;
+        
+        /// <summary>
+        /// Số lượng kết quả mỗi trang
+        /// </summary>
+        public int PageSize { get; set; } = 20;
+    }
+
+    /// <summary>
+    /// Response danh sách phòng available
+    /// </summary>
+    public class AvailableRoomsResponse
+    {
+        public List<AvailableRoomDto> Rooms { get; set; } = new List<AvailableRoomDto>();
+        public int TotalCount { get; set; }
+        public int PageNumber { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
+    }
+
+    /// <summary>
+    /// DTO thông tin phòng available
+    /// </summary>
+    public class AvailableRoomDto
+    {
+        public int RoomId { get; set; }
+        public string RoomName { get; set; } = string.Empty;
+        public int RoomTypeId { get; set; }
+        public string RoomTypeName { get; set; } = string.Empty;
+        public string RoomTypeCode { get; set; } = string.Empty;
+        public decimal PricePerNight { get; set; }
+        public int MaxOccupancy { get; set; }
+        public decimal? RoomSize { get; set; }
+        public int? NumberOfBeds { get; set; }
+        public string? BedType { get; set; }
+        public string? Description { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public List<string> Amenities { get; set; } = new List<string>();
+        public List<string> Images { get; set; } = new List<string>();
     }
 }

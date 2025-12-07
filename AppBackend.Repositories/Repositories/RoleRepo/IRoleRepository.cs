@@ -13,6 +13,7 @@ namespace AppBackend.Repositories.Repositories.RoleRepo
         Task<Role?> GetRoleByCommonCodeAsync(string commonCode);
         Task<IEnumerable<Role>> SearchRolesAsync(string? searchTerm, bool? isActive);
         Task<IEnumerable<Role>> GetRolesByAccountIdAsync(int accountId);
+        Task<IEnumerable<int>> GetAccountIdsByRoleIdsAsync(IEnumerable<int> roleIds);
         Task AddAccountRoleAsync(int accountId, int roleId);
         Task RemoveAccountRoleAsync(int accountId, int roleId);
         Task RemoveAllAccountRolesAsync(int accountId);
