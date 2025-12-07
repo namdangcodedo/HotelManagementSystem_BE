@@ -125,15 +125,11 @@ public class HotelManagementContext : DbContext
             .HasForeignKey(r => r.RoomTypeId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Booking>()
-            .HasOne(b => b.PaymentStatus)
+            .HasOne(b => b.Status)
             .WithMany()
-            .HasForeignKey(b => b.PaymentStatusId)
+            .HasForeignKey(b => b.StatusId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Booking>()
-            .HasOne(b => b.DepositStatus)
-            .WithMany()
-            .HasForeignKey(b => b.DepositStatusId)
-            .OnDelete(DeleteBehavior.Restrict);
+        
         modelBuilder.Entity<Booking>()
             .HasOne(b => b.BookingType)
             .WithMany()

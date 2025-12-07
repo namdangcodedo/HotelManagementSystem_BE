@@ -98,6 +98,11 @@ namespace AppBackend.Services.Services.TransactionServices
         /// </summary>
         Task<ResultModel> VerifyQRPaymentAsync(VerifyQRPaymentRequest request);
 
+        /// <summary>
+        /// Customer confirms payment has been made
+        /// </summary>
+        Task<ResultModel> ConfirmPaymentByCustomerAsync(ConfirmPaymentByCustomerRequest request);
+
         #endregion
 
         #region PayOS Payment Link

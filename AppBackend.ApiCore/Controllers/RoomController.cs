@@ -63,7 +63,6 @@ namespace AppBackend.ApiCore.Controllers
         /// <returns>Danh sách loại phòng với hình ảnh và số lượng phòng</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet("types")]
-        [Authorize(Roles = "Admin,Manager,Receptionist")]
         public async Task<IActionResult> GetRoomTypeList([FromQuery] GetRoomTypeListRequest request)
         {
             var result = await _roomService.GetRoomTypeListAsync(request);

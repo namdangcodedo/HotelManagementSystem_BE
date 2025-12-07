@@ -10,11 +10,9 @@ namespace AppBackend.Services.Services.BookingServices
         Task<ResultModel> CreateGuestBookingAsync(CreateGuestBookingRequest request);
         Task<ResultModel> GetBookingByIdAsync(int bookingId);
         Task<ResultModel> GetBookingByTokenAsync(string token);
-        Task<ResultModel> ConfirmPaymentAsync(ConfirmPaymentRequest request);
-        Task<ResultModel> CancelBookingAsync(int bookingId, int userId);
-        Task<ResultModel> GetMyBookingsAsync(int customerId);
+        Task<ResultModel> ProcessPaymentAsync(ConfirmPaymentRequest request);
         Task<ResultModel> GetMyBookingsByAccountIdAsync(int accountId);
-        Task<ResultModel> HandlePayOSWebhookAsync(PayOSWebhookRequest request);
-        Task<ResultModel> CancelBookingCacheAsync(int bookingId);
+        Task<ResultModel> GetQRPaymentInfoAsync(int bookingId);
+        Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId);
     }
 }
