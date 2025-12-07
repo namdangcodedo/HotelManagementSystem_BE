@@ -15,6 +15,7 @@ using AppBackend.Repositories.Repositories.TransactionRepo;
 using AppBackend.Repositories.Repositories.HolidayPricingRepo;
 using AppBackend.Repositories.Repositories.BankConfigRepo;
 using AppBackend.Repositories.Repositories.AttendanceRepo;
+using AppBackend.Repositories.Repositories.CommentRepo;
 
 namespace AppBackend.Repositories.UnitOfWork
 {
@@ -37,6 +38,7 @@ namespace AppBackend.Repositories.UnitOfWork
         private IHolidayPricingRepository? _holidayPricingRepository;
         private IBankConfigRepository? _bankConfigRepository;
         private IAttendenceRepository? _attendenceRepository;
+        private ICommentRepository? _commentRepository;
 
         public UnitOfWork(HotelManagementContext context)
         {
@@ -59,6 +61,7 @@ namespace AppBackend.Repositories.UnitOfWork
         public IHolidayPricingRepository HolidayPricings => _holidayPricingRepository ??= new HolidayPricingRepository(_context);
         public IBankConfigRepository BankConfigs => _bankConfigRepository ??= new BankConfigRepository(_context);
         public IAttendenceRepository AttendenceRepository => _attendenceRepository ??= new AttendanceRepository(_context);  
+        public ICommentRepository Comments => _commentRepository ??= new CommentRepository(_context);
 
         public async Task<int> SaveChangesAsync()
         {

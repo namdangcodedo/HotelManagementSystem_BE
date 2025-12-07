@@ -47,4 +47,6 @@ public class Room
   public virtual ICollection<Medium> Media { get; set; } = new List<Medium>();
   public virtual ICollection<BookingRoom> BookingRooms { get; set; } = new List<BookingRoom>();
   public virtual ICollection<RoomAmenity> RoomAmenities { get; set; } = new List<RoomAmenity>();
+  public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+
 }

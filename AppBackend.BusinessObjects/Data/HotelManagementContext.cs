@@ -41,6 +41,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<ChatMessage> ChatMessages { get; set; }
     public virtual DbSet<RoomType> RoomTypes { get; set; }
     public virtual DbSet<EmpAttendInfo> EmpAttendInfo { get; set; }
+    public virtual DbSet<Comment> Comments { get; set; }
+
 
 
 
@@ -200,5 +202,20 @@ public class HotelManagementContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<RoomType>()
                .HasMany(d => d.Rooms);
+
+        modelBuilder.Entity<Comment>(entity =>
+        {
+
+            entity.Property(e => e.Content).HasMaxLength(640);
+
+            entity.HasOne(d => d.Account).WithMany(p => p.Comments)
+                .HasForeignKey(d => d.AccountId);
+
+            entity.HasOne(d => d.Reply).WithMany(p => p.InverseReply)
+                .HasForeignKey(d => d.ReplyId);
+
+            entity.HasOne(d => d.Room).WithMany(p => p.Comments)
+                .HasForeignKey(d => d.RoomId);
+        });
     }
 }
