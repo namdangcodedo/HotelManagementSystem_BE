@@ -14,7 +14,7 @@ namespace AppBackend.Repositories.Generic
             Context = context;
         }
 
-        public async Task<IEnumerable<T>> GetAllAsync()
+        public virtual async Task<IEnumerable<T>> GetAllAsync()
         {
             return await Context.Set<T>().ToListAsync();
         }

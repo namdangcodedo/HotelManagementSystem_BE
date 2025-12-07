@@ -837,52 +837,69 @@ public class BookingManagementService : IBookingManagementService
     {
         try
         {
-            // 1. Query base - lấy tất cả phòng active
-            var roomsQuery = (await _unitOfWork.Rooms.GetAllAsync())
-                .Where(r => r.RoomType.IsActive);
+            // 1. Query base - lấy tất cả phòng active với RoomType
+            var allRooms = await _unitOfWork.Rooms.GetAllAsync();
+            
+            // Debug: Log số lượng phòng
+            Console.WriteLine($"[SearchAvailableRooms] Total rooms from DB: {allRooms.Count()}");
+            Console.WriteLine($"[SearchAvailableRooms] Rooms with RoomType: {allRooms.Count(r => r.RoomType != null)}");
+            
+            // Nếu không có RoomType, skip filter RoomType.IsActive
+            var roomsQuery = allRooms.Where(r => r.RoomType == null || r.RoomType.IsActive);
+            
+            Console.WriteLine($"[SearchAvailableRooms] After active filter: {roomsQuery.Count()}");
 
             // 2. Filter theo RoomType
             if (request.RoomTypeId.HasValue)
             {
                 roomsQuery = roomsQuery.Where(r => r.RoomTypeId == request.RoomTypeId.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After RoomTypeId filter: {roomsQuery.Count()}");
             }
 
             // 3. Filter theo số giường
             if (request.NumberOfBeds.HasValue)
             {
-                roomsQuery = roomsQuery.Where(r => r.RoomType.NumberOfBeds == request.NumberOfBeds.Value);
+                roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.NumberOfBeds == request.NumberOfBeds.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After NumberOfBeds filter: {roomsQuery.Count()}");
             }
 
             // 4. Filter theo loại giường
             if (!string.IsNullOrEmpty(request.BedType))
             {
                 roomsQuery = roomsQuery.Where(r => 
+                    r.RoomType != null &&
                     r.RoomType.BedType != null && 
                     r.RoomType.BedType.Contains(request.BedType, StringComparison.OrdinalIgnoreCase));
+                Console.WriteLine($"[SearchAvailableRooms] After BedType filter: {roomsQuery.Count()}");
             }
 
             // 5. Filter theo số người tối đa
             if (request.MaxOccupancy.HasValue)
             {
-                roomsQuery = roomsQuery.Where(r => r.RoomType.MaxOccupancy >= request.MaxOccupancy.Value);
+                roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.MaxOccupancy >= request.MaxOccupancy.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After MaxOccupancy filter: {roomsQuery.Count()}");
             }
 
             // 6. Filter theo giá
             if (request.MinPrice.HasValue)
             {
-                roomsQuery = roomsQuery.Where(r => r.RoomType.BasePriceNight >= request.MinPrice.Value);
+                roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.BasePriceNight >= request.MinPrice.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After MinPrice filter: {roomsQuery.Count()}");
             }
             if (request.MaxPrice.HasValue)
             {
-                roomsQuery = roomsQuery.Where(r => r.RoomType.BasePriceNight <= request.MaxPrice.Value);
+                roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.BasePriceNight <= request.MaxPrice.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After MaxPrice filter: {roomsQuery.Count()}");
             }
 
             // 7. Filter theo diện tích
             if (request.MinRoomSize.HasValue)
             {
                 roomsQuery = roomsQuery.Where(r => 
+                    r.RoomType != null &&
                     r.RoomType.RoomSize.HasValue && 
                     r.RoomType.RoomSize.Value >= request.MinRoomSize.Value);
+                Console.WriteLine($"[SearchAvailableRooms] After MinRoomSize filter: {roomsQuery.Count()}");
             }
 
             // 8. Search theo tên hoặc mã phòng
@@ -890,57 +907,90 @@ public class BookingManagementService : IBookingManagementService
             {
                 roomsQuery = roomsQuery.Where(r => 
                     r.RoomName.Contains(request.SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                    r.RoomType.TypeName.Contains(request.SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                    r.RoomType.TypeCode.Contains(request.SearchTerm, StringComparison.OrdinalIgnoreCase));
+                    (r.RoomType != null && (
+                        r.RoomType.TypeName.Contains(request.SearchTerm, StringComparison.OrdinalIgnoreCase) ||
+                        r.RoomType.TypeCode.Contains(request.SearchTerm, StringComparison.OrdinalIgnoreCase)
+                    )));
+                Console.WriteLine($"[SearchAvailableRooms] After SearchTerm filter: {roomsQuery.Count()}");
             }
+
+            Console.WriteLine($"[SearchAvailableRooms] Before availability check: {roomsQuery.Count()}");
+            Console.WriteLine($"[SearchAvailableRooms] CheckInDate: {request.CheckInDate}, CheckOutDate: {request.CheckOutDate}");
 
             // 9. Filter theo ngày available
             if (request.CheckInDate.HasValue && request.CheckOutDate.HasValue)
             {
                 var availableRoomIds = new List<int>();
-                foreach (var room in roomsQuery)
+                var roomsToCheck = roomsQuery.ToList(); // Materialize để tránh multiple enumeration
+                
+                Console.WriteLine($"[SearchAvailableRooms] Checking availability for {roomsToCheck.Count} rooms");
+                
+                foreach (var room in roomsToCheck)
                 {
                     var isAvailable = await _bookingHelper.IsRoomAvailableAsync(
                         room.RoomId,
                         request.CheckInDate.Value,
                         request.CheckOutDate.Value
                     );
+                    
+                    Console.WriteLine($"[SearchAvailableRooms] Room {room.RoomId} ({room.RoomName}): {(isAvailable ? "Available" : "Not Available")}");
+                    
                     if (isAvailable)
                     {
                         availableRoomIds.Add(room.RoomId);
                     }
                 }
-                roomsQuery = roomsQuery.Where(r => availableRoomIds.Contains(r.RoomId));
+                
+                Console.WriteLine($"[SearchAvailableRooms] Available rooms: {availableRoomIds.Count}");
+                roomsQuery = roomsToCheck.Where(r => availableRoomIds.Contains(r.RoomId));
             }
 
             // 10. Sorting
             roomsQuery = request.SortBy?.ToLower() switch
             {
                 "price" => request.IsDescending 
-                    ? roomsQuery.OrderByDescending(r => r.RoomType.BasePriceNight)
-                    : roomsQuery.OrderBy(r => r.RoomType.BasePriceNight),
+                    ? roomsQuery.OrderByDescending(r => r.RoomType != null ? r.RoomType.BasePriceNight : 0)
+                    : roomsQuery.OrderBy(r => r.RoomType != null ? r.RoomType.BasePriceNight : 0),
                 "roomsize" => request.IsDescending
-                    ? roomsQuery.OrderByDescending(r => r.RoomType.RoomSize ?? 0)
-                    : roomsQuery.OrderBy(r => r.RoomType.RoomSize ?? 0),
+                    ? roomsQuery.OrderByDescending(r => r.RoomType != null ? (r.RoomType.RoomSize ?? 0) : 0)
+                    : roomsQuery.OrderBy(r => r.RoomType != null ? (r.RoomType.RoomSize ?? 0) : 0),
                 "roomname" => request.IsDescending
                     ? roomsQuery.OrderByDescending(r => r.RoomName)
                     : roomsQuery.OrderBy(r => r.RoomName),
                 _ => roomsQuery.OrderBy(r => r.RoomId)
             };
 
-            // 11. Pagination
+            // 11. Pagination - Sửa lại để hỗ trợ PageNumber từ 0 hoặc 1
             var totalCount = roomsQuery.Count();
             var totalPages = (int)Math.Ceiling(totalCount / (double)request.PageSize);
+            
+            // Nếu PageNumber = 0, coi như page 1
+            var actualPageNumber = request.PageNumber <= 0 ? 1 : request.PageNumber;
+            
+            Console.WriteLine($"[SearchAvailableRooms] Total count: {totalCount}, PageNumber: {request.PageNumber}, Actual page: {actualPageNumber}");
 
             var rooms = roomsQuery
-                .Skip((request.PageNumber - 1) * request.PageSize)
+                .Skip((actualPageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
+                
+            Console.WriteLine($"[SearchAvailableRooms] Rooms after pagination: {rooms.Count}");
 
             // 12. Build response DTOs
             var roomDtos = new List<AvailableRoomDto>();
+            
+            Console.WriteLine($"[SearchAvailableRooms] Building DTOs for {rooms.Count} rooms");
+            
             foreach (var room in rooms)
             {
+                Console.WriteLine($"[SearchAvailableRooms] Processing room {room.RoomId}, RoomType is {(room.RoomType == null ? "NULL" : "NOT NULL")}");
+                
+                if (room.RoomType == null)
+                {
+                    Console.WriteLine($"[SearchAvailableRooms] SKIPPING room {room.RoomId} - No RoomType");
+                    continue; // Skip rooms without RoomType
+                }
+                
                 var roomType = room.RoomType;
                 var statusCode = await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId);
 
@@ -980,7 +1030,11 @@ public class BookingManagementService : IBookingManagementService
                     Amenities = amenityNames,
                     Images = imageUrls
                 });
+                
+                Console.WriteLine($"[SearchAvailableRooms] Successfully added room {room.RoomId} to DTOs");
             }
+            
+            Console.WriteLine($"[SearchAvailableRooms] Total DTOs created: {roomDtos.Count}");
 
             var response = new AvailableRoomsResponse
             {
@@ -1001,6 +1055,9 @@ public class BookingManagementService : IBookingManagementService
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[SearchAvailableRooms] Error: {ex.Message}");
+            Console.WriteLine($"[SearchAvailableRooms] StackTrace: {ex.StackTrace}");
+            
             return new ResultModel
             {
                 IsSuccess = false,

@@ -16,6 +16,14 @@ namespace AppBackend.Repositories.Repositories.RoomRepo
             _context = context;
         }
 
+        // Override GetAllAsync to include RoomType navigation property
+        public override async Task<IEnumerable<Room>> GetAllAsync()
+        {
+            return await _context.Rooms
+                .Include(r => r.RoomType)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<Room>> GetByStatusAsync(int statusId)
         {
             return await _context.Rooms.Where(r => r.StatusId == statusId).ToListAsync();
@@ -34,4 +42,3 @@ namespace AppBackend.Repositories.Repositories.RoomRepo
         // Thêm các phương thức đặc thù nếu cần
     }
 }
-
