@@ -1,3 +1,5 @@
+using AppBackend.BusinessObjects.Dtos;
+
 namespace AppBackend.Services.ApiModels.BookingModel
 {
     /// <summary>
@@ -76,6 +78,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public int BookingId { get; set; }
         public int CustomerId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public string CustomerPhone { get; set; } = string.Empty;
         public List<int> RoomIds { get; set; } = new List<int>();
         public List<string> RoomNames { get; set; } = new List<string>();
         public List<RoomTypeQuantityDto> RoomTypeDetails { get; set; } = new List<RoomTypeQuantityDto>();
@@ -245,15 +249,13 @@ namespace AppBackend.Services.ApiModels.BookingModel
     /// <summary>
     /// Filter để lọc danh sách booking offline
     /// </summary>
-    public class OfflineBookingFilterRequest
+    public class BookingFilterRequest : PagedRequestDto
     {
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
         public int? BookingStatus { get; set; }
-        public string? CustomerName { get; set; }
-        public string? PhoneNumber { get; set; }
-        public int PageNumber { get; set; } = 1;
-        public int PageSize { get; set; } = 20;
+        public string? key { get; set; }
+        public int? BookingType { get; set; }
     }
 
     /// <summary>

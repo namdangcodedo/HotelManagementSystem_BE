@@ -8,7 +8,9 @@ namespace AppBackend.Services.Services.BookingServices
         // Offline Booking Methods
         Task<ResultModel> CreateOfflineBookingAsync(CreateOfflineBookingRequest request, int employeeId);
         Task<ResultModel> UpdateOfflineBookingAsync(int bookingId, UpdateOfflineBookingRequest request, int employeeId);
-        Task<ResultModel> GetOfflineBookingsAsync(OfflineBookingFilterRequest filter);
+        
+        // Get Bookings with Filters (Online + Offline)
+        Task<ResultModel> GetBookingsAsync(BookingFilterRequest filter);
         
         // General Booking Methods
         Task<ResultModel> GetBookingDetailAsync(int bookingId);

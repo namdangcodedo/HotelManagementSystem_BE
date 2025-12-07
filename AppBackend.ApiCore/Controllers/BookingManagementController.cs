@@ -141,21 +141,47 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Lấy danh sách booking offline với filter
+        /// Lấy danh sách booking với filter (online/offline)
         /// </summary>
         /// <remarks>
         /// ### Query Parameters:
-        /// - fromDate: Lọc từ ngày
-        /// - toDate: Lọc đến ngày
-        /// - bookingStatus: Lọc theo trạng thái
-        /// - pageNumber: Trang hiện tại (default: 1)
-        /// - pageSize: Số records mỗi trang (default: 20)
+        /// - **fromDate**: Lọc từ ngày (optional)
+        /// - **toDate**: Lọc đến ngày (optional)
+        /// - **bookingStatus**: Lọc theo trạng thái từ CommonCode (optional) - ID của CommonCode
+        /// - **bookingType**: Lọc loại booking từ CommonCode (optional) - ID của CommonCode
+        ///   - Không truyền hoặc null = Lấy tất cả
+        ///   - Truyền ID của "Online" = Chỉ lấy booking online
+        ///   - Truyền ID của "WalkIn" = Chỉ lấy booking offline
+        /// - **key**: Tìm kiếm theo tên khách, email, số điện thoại (optional)
+        /// - **pageNumber**: Trang hiện tại (default: 1)
+        /// - **pageSize**: Số records mỗi trang (default: 20)
+        /// 
+        /// ### Examples:
+        /// 
+        /// **Lấy tất cả booking:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?pageNumber=1&pageSize=20
+        /// ```
+        /// 
+        /// **Lọc booking offline:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?bookingType=2&pageNumber=1&pageSize=20
+        /// ```
+        /// 
+        /// **Lọc theo ngày và trạng thái:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?fromDate=2024-12-01&toDate=2024-12-31&bookingStatus=3
+        /// ```
+        /// 
+        /// **Tìm kiếm khách hàng:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?key=nguyen van a
+        /// ```
         /// </remarks>
-        [HttpGet("offline")]
-        [Authorize(Roles = "Receptionist,Manager,Admin")]
-        public async Task<IActionResult> GetOfflineBookings([FromQuery] OfflineBookingFilterRequest filter)
+        [HttpGet("bookings")]
+        public async Task<IActionResult> GetBookings([FromQuery] BookingFilterRequest filter)
         {
-            var result = await _bookingManagementService.GetOfflineBookingsAsync(filter);
+            var result = await _bookingManagementService.GetBookingsAsync(filter);
             return StatusCode(result.StatusCode, result);
         }
 

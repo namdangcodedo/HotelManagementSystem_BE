@@ -476,79 +476,145 @@ public class BookingManagementService : IBookingManagementService
     }
 
 
-    public async Task<ResultModel> GetOfflineBookingsAsync(OfflineBookingFilterRequest filter)
+    public async Task<ResultModel> GetBookingsAsync(BookingFilterRequest filter)
     {
         try
         {
-            var walkInType = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "BookingType" && c.CodeName == "WalkIn")).FirstOrDefault();
+            Console.WriteLine($"[GetBookingsAsync] Starting with filter: BookingType={filter.BookingType}, Status={filter.BookingStatus}, Key={filter.key}");
 
-            if (walkInType == null)
+            // 1. Lấy toàn bộ bookings với Include để eager load related entities (chỉ 1 query thay vì N+1)
+            var allBookings = (await _unitOfWork.Bookings.FindAsync(
+                x => true,
+                b => b.Customer,
+                b => b.Customer.Account,
+                b => b.BookingRooms
+            )).ToList();
+            
+            Console.WriteLine($"[GetBookingsAsync] Total bookings in database: {allBookings.Count}");
+            
+            var filteredBookings = allBookings;
+
+            // 2. Filter by booking type (Online/WalkIn) nếu có
+            if (filter.BookingType.HasValue)
             {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    StatusCode = StatusCodes.Status500InternalServerError,
-                    Message = "Không tìm thấy booking type WalkIn"
-                };
+                filteredBookings = filteredBookings.Where(b => b.BookingTypeId == filter.BookingType.Value).ToList();
+                Console.WriteLine($"[GetBookingsAsync] After BookingType filter: {filteredBookings.Count}");
             }
 
-            var query = await _unitOfWork.Bookings.FindAsync(b => b.BookingTypeId == walkInType.CodeId);
-            
-            if (filter.FromDate.HasValue)
-            {
-                query = query.Where(b => b.CreatedAt >= filter.FromDate.Value);
-            }
-            
-            if (filter.ToDate.HasValue)
-            {
-                query = query.Where(b => b.CreatedAt <= filter.ToDate.Value);
-            }
-            
+            // 3. Filter by booking status nếu có
             if (filter.BookingStatus.HasValue)
             {
-                query = query.Where(b => b.StatusId == filter.BookingStatus.Value);
+                filteredBookings = filteredBookings.Where(b => b.StatusId == filter.BookingStatus.Value).ToList();
+                Console.WriteLine($"[GetBookingsAsync] After Status filter: {filteredBookings.Count}");
             }
 
-            var bookings = query.OrderByDescending(b => b.CreatedAt)
-                .Skip((filter.PageNumber - 1) * filter.PageSize)
+            // 4. Filter by date range
+            if (filter.FromDate.HasValue)
+            {
+                filteredBookings = filteredBookings.Where(b => b.CreatedAt >= filter.FromDate.Value).ToList();
+                Console.WriteLine($"[GetBookingsAsync] After FromDate filter: {filteredBookings.Count}");
+            }
+
+            if (filter.ToDate.HasValue)
+            {
+                filteredBookings = filteredBookings.Where(b => b.CreatedAt <= filter.ToDate.Value).ToList();
+                Console.WriteLine($"[GetBookingsAsync] After ToDate filter: {filteredBookings.Count}");
+            }
+
+            // 5. Search by key (customer name, email, phone) - Không cần query thêm vì đã Include
+            if (!string.IsNullOrWhiteSpace(filter.key))
+            {
+                var searchKey = filter.key.ToLower().Trim();
+                filteredBookings = filteredBookings.Where(b => 
+                    b.Customer != null && (
+                        (b.Customer.FullName != null && b.Customer.FullName.ToLower().Contains(searchKey)) ||
+                        (b.Customer.Account != null && b.Customer.Account.Email != null && b.Customer.Account.Email.ToLower().Contains(searchKey)) ||
+                        (b.Customer.PhoneNumber != null && b.Customer.PhoneNumber.Contains(searchKey))
+                    )
+                ).ToList();
+                Console.WriteLine($"[GetBookingsAsync] After Key search filter: {filteredBookings.Count}");
+            }
+
+            // 6. Order by booking date desc
+            filteredBookings = filteredBookings.OrderByDescending(b => b.CreatedAt).ToList();
+
+            // 7. Get total count before pagination
+            var totalCount = filteredBookings.Count;
+
+            // 8. Apply pagination
+            var pageNumber = filter.PageIndex <= 0 ? 1 : filter.PageIndex;
+            var pagedBookings = filteredBookings
+                .Skip((pageNumber - 1) * filter.PageSize)
                 .Take(filter.PageSize)
                 .ToList();
+            
+            Console.WriteLine($"[GetBookingsAsync] Pagination: Page {pageNumber}, Size {filter.PageSize}, Returned {pagedBookings.Count}");
 
+            // 9. Build response DTOs - Không cần query thêm vì đã có data
             var bookingDtos = new List<BookingDto>();
-            foreach (var booking in bookings)
+            
+            // Lấy tất cả CommonCode một lần để map status và booking type
+            var allCommonCodes = (await _unitOfWork.CommonCodes.FindAsync(
+                c => c.CodeType == "BookingStatus" || c.CodeType == "BookingType"
+            )).ToList();
+            
+            // Lấy tất cả RoomIds cần query
+            var roomIds = pagedBookings
+                .SelectMany(b => b.BookingRooms ?? new List<BookingRoom>())
+                .Select(br => br.RoomId)
+                .Distinct()
+                .ToList();
+            
+            // Query tất cả rooms một lần
+            var rooms = roomIds.Any() 
+                ? (await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId))).ToList()
+                : new List<Room>();
+            
+            foreach (var booking in pagedBookings)
             {
-                var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
-                var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId);
-                var rooms = new List<Room>();
+                var customer = booking.Customer;
+                var email = customer?.Account?.Email ?? "";
 
-                foreach (var br in bookingRooms)
-                {
-                    var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
-                    if (room != null) rooms.Add(room);
-                }
-
-                var statusCode = booking.StatusId.HasValue
-                    ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
+                // Get booking type name từ CommonCode (đã load sẵn)
+                var bookingTypeCode = booking.BookingTypeId.HasValue
+                    ? allCommonCodes.FirstOrDefault(c => c.CodeId == booking.BookingTypeId.Value)
                     : null;
+
+                // Get status name từ CommonCode (đã load sẵn)
+                var statusCode = booking.StatusId.HasValue
+                    ? allCommonCodes.FirstOrDefault(c => c.CodeId == booking.StatusId.Value)
+                    : null;
+
+                // Get rooms info (đã load sẵn)
+                var bookingRooms = booking.BookingRooms ?? new List<BookingRoom>();
+                var roomsList = bookingRooms
+                    .Select(br => rooms.FirstOrDefault(r => r.RoomId == br.RoomId))
+                    .Where(r => r != null)
+                    .ToList();
+                
+                var roomNames = roomsList.Select(r => r.RoomName).ToList();
 
                 bookingDtos.Add(new BookingDto
                 {
                     BookingId = booking.BookingId,
                     CustomerId = booking.CustomerId,
                     CustomerName = customer?.FullName ?? "",
-                    RoomIds = rooms.Select(r => r.RoomId).ToList(),
-                    RoomNames = rooms.Select(r => r.RoomName).ToList(),
+                    CustomerEmail = email,
+                    CustomerPhone = customer?.PhoneNumber ?? "",
+                    RoomIds = roomsList.Select(r => r.RoomId).ToList(),
+                    RoomNames = roomNames,
                     CheckInDate = booking.CheckInDate,
                     CheckOutDate = booking.CheckOutDate,
                     TotalAmount = booking.TotalAmount,
                     DepositAmount = booking.DepositAmount,
                     PaymentStatus = statusCode?.CodeValue ?? "Unknown",
-                    BookingType = "WalkIn",
+                    BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
                     SpecialRequests = booking.SpecialRequests,
                     CreatedAt = booking.CreatedAt
                 });
             }
+
+            Console.WriteLine($"[GetBookingsAsync] Successfully built {bookingDtos.Count} DTOs");
 
             return new ResultModel
             {
@@ -557,14 +623,18 @@ public class BookingManagementService : IBookingManagementService
                 Data = new
                 {
                     Bookings = bookingDtos,
-                    TotalCount = query.Count(),
-                    PageNumber = filter.PageNumber,
-                    PageSize = filter.PageSize
-                }
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = filter.PageSize,
+                    TotalPages = (int)Math.Ceiling(totalCount / (double)filter.PageSize)
+                },
+                Message = $"Tìm thấy {totalCount} booking"
             };
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[GetBookingsAsync] Error filtering bookings: {ex.Message}");
+            Console.WriteLine($"[GetBookingsAsync] StackTrace: {ex.StackTrace}");
             return new ResultModel
             {
                 IsSuccess = false,
