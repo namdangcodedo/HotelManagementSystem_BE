@@ -1,3 +1,4 @@
+using AppBackend.BusinessObjects.Enums;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
@@ -56,29 +57,136 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // 3. Tìm hoặc tạo customer
-            var existingCustomer = (await _unitOfWork.Customers.FindAsync(c =>
-                c.PhoneNumber == request.PhoneNumber ||
-                (c.Account != null && c.Account.Email == request.Email)
-            )).FirstOrDefault();
-
+            // 3. Tìm hoặc tạo customer với logic mới
             Customer customer;
-            if (existingCustomer != null)
+            
+            if (request.CustomerId.HasValue)
             {
-                customer = existingCustomer;
+                // ✅ Trường hợp 1: Đã có CustomerId từ Quick Search → Update thông tin
+                customer = await _unitOfWork.Customers.GetByIdAsync(request.CustomerId.Value);
+                if (customer == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status404NotFound,
+                        Message = $"Không tìm thấy khách hàng với ID: {request.CustomerId.Value}"
+                    };
+                }
+                
+                // Update thông tin customer nếu có thay đổi
+                customer.FullName = request.FullName;
+                customer.PhoneNumber = request.PhoneNumber;
+                customer.IdentityCard = request.IdentityCard;
+                customer.Address = request.Address;
+                customer.UpdatedAt = DateTime.UtcNow;
+                
+                await _unitOfWork.Customers.UpdateAsync(customer);
+                await _unitOfWork.SaveChangesAsync();
+                
+                Console.WriteLine($"[CreateOfflineBooking] Updated existing customer ID: {customer.CustomerId}");
             }
             else
             {
-                customer = new Customer
+                // ✅ Trường hợp 2: Không có CustomerId → Kiểm tra email có tồn tại không
+                var existingAccount = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
+                
+                if (existingAccount != null)
                 {
-                    FullName = request.FullName,
-                    PhoneNumber = request.PhoneNumber,
-                    IdentityCard = request.IdentityCard,
-                    Address = request.Address,
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _unitOfWork.Customers.AddAsync(customer);
-                await _unitOfWork.SaveChangesAsync();
+                    // ✅ Trường hợp 2a: Email đã có Account → Tìm Customer tương ứng và update
+                    var existingCustomer = (await _unitOfWork.Customers.FindAsync(c => 
+                        c.AccountId == existingAccount.AccountId)).FirstOrDefault();
+                    
+                    if (existingCustomer != null)
+                    {
+                        // Update thông tin customer
+                        existingCustomer.FullName = request.FullName;
+                        existingCustomer.PhoneNumber = request.PhoneNumber;
+                        existingCustomer.IdentityCard = request.IdentityCard;
+                        existingCustomer.Address = request.Address;
+                        existingCustomer.UpdatedAt = DateTime.UtcNow;
+                        
+                        await _unitOfWork.Customers.UpdateAsync(existingCustomer);
+                        await _unitOfWork.SaveChangesAsync();
+                        
+                        customer = existingCustomer;
+                        Console.WriteLine($"[CreateOfflineBooking] Updated customer linked to existing account. CustomerID: {customer.CustomerId}");
+                    }
+                    else
+                    {
+                        // Account có nhưng chưa có Customer → Tạo Customer mới link với Account
+                        customer = new Customer
+                        {
+                            AccountId = existingAccount.AccountId,
+                            FullName = request.FullName,
+                            PhoneNumber = request.PhoneNumber,
+                            IdentityCard = request.IdentityCard,
+                            Address = request.Address,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _unitOfWork.Customers.AddAsync(customer);
+                        await _unitOfWork.SaveChangesAsync();
+                        
+                        Console.WriteLine($"[CreateOfflineBooking] Created new customer for existing account. CustomerID: {customer.CustomerId}");
+                    }
+                }
+                else
+                {
+                    // ✅ Trường hợp 2b: Email chưa có Account → Tạo mới Account + Customer
+                    Console.WriteLine($"[CreateOfflineBooking] Creating new account and customer for email: {request.Email}");
+                    
+                    // Tạo Account mới với password random
+                    var randomPassword = new Random().Next(100000, 999999).ToString();
+                    var hashedPassword = BCrypt.Net.BCrypt.HashPassword(randomPassword);
+                    
+                    var newAccount = new Account
+                    {
+                        Username = request.Email,
+                        Email = request.Email,
+                        PasswordHash = hashedPassword,
+                        IsLocked = false,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = employeeId
+                    };
+                    
+                    await _unitOfWork.Accounts.AddAsync(newAccount);
+                    await _unitOfWork.SaveChangesAsync();
+                    
+                    Console.WriteLine($"[CreateOfflineBooking] Created new account. AccountID: {newAccount.AccountId}");
+                    
+                    // Gán User role
+                    var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
+                    if (userRole != null)
+                    {
+                        var accountRole = new AccountRole
+                        {
+                            AccountId = newAccount.AccountId,
+                            RoleId = userRole.RoleId
+                        };
+                        await _unitOfWork.Accounts.AddAccountRoleAsync(accountRole);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                    
+                    // Tạo Customer mới link với Account
+                    customer = new Customer
+                    {
+                        AccountId = newAccount.AccountId,
+                        FullName = request.FullName,
+                        PhoneNumber = request.PhoneNumber,
+                        IdentityCard = request.IdentityCard,
+                        Address = request.Address,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = employeeId
+                    };
+                    
+                    await _unitOfWork.Customers.AddAsync(customer);
+                    await _unitOfWork.SaveChangesAsync();
+                    
+                    Console.WriteLine($"[CreateOfflineBooking] Created new customer. CustomerID: {customer.CustomerId}");
+                    
+                    // TODO: Có thể gửi email thông báo tài khoản mới cho khách hàng
+                    // await _emailService.SendWelcomeEmailAsync(newAccount.AccountId, randomPassword);
+                }
             }
 
             // 4. Validate các phòng được chọn
@@ -238,7 +346,38 @@ public class BookingManagementService : IBookingManagementService
                 Console.WriteLine($"[Warning] Failed to send confirmation email: {ex.Message}");
             }
 
-            // 12. Return response
+            // 12. Generate QR payment info (optional - nếu khách muốn thanh toán qua QR sau)
+            QRPaymentInfoDto? qrPaymentInfo = null;
+            try
+            {
+                var bankConfig = (await _unitOfWork.BankConfigs.FindAsync(bc => bc.IsActive)).FirstOrDefault();
+                if (bankConfig != null)
+                {
+                    var transactionRef = $"WALKIN-{booking.BookingId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+                    var description = $"Thanh toan booking {booking.BookingId}";
+                    var qrUrl = _qrPaymentHelper.GenerateVietQRUrl(bankConfig, totalAmount, description, transactionRef);
+                    var qrDataText = _qrPaymentHelper.GenerateQRData(bankConfig, totalAmount, description);
+                    
+                    qrPaymentInfo = new QRPaymentInfoDto
+                    {
+                        QRCodeUrl = qrUrl,
+                        BankName = bankConfig.BankName,
+                        BankCode = bankConfig.BankCode,
+                        AccountNumber = bankConfig.AccountNumber,
+                        AccountName = bankConfig.AccountName,
+                        Amount = totalAmount,
+                        Description = description,
+                        TransactionRef = transactionRef,
+                        QRDataText = qrDataText
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Warning] Failed to generate QR payment info: {ex.Message}");
+            }
+
+            // 13. Return response with QR info
             var response = new BookingDto
             {
                 BookingId = booking.BookingId,
@@ -262,7 +401,11 @@ public class BookingManagementService : IBookingManagementService
                 IsSuccess = true,
                 StatusCode = StatusCodes.Status201Created,
                 Message = "Tạo booking tại quầy thành công!",
-                Data = response
+                Data = new
+                {
+                    Booking = response,
+                    QRPayment = qrPaymentInfo  // Thêm QR info vào response
+                }
             };
         }
         catch (Exception ex)
@@ -869,7 +1012,7 @@ public class BookingManagementService : IBookingManagementService
 
     /// <summary>
     /// Manager/Admin xác nhận đã nhận được tiền cọc từ khách (sau khi check bill ngân hàng)
-    /// Chuyển status từ PendingConfirmation → Confirmed
+    /// Chuyển status từ Pending hoặc PendingConfirmation → Confirmed
     /// Gửi email cảm ơn + thông tin đặt phòng chi tiết cho khách
     /// </summary>
     public async Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId)
@@ -887,18 +1030,19 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // Kiểm tra status hiện tại - chỉ confirm được booking PendingConfirmation
+            // Kiểm tra status hiện tại - cho phép confirm cả Pending và PendingConfirmation
             var currentStatus = booking.StatusId.HasValue
                 ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
                 : null;
 
-            if (currentStatus?.CodeName != "PendingConfirmation")
+            // Chỉ cho phép confirm booking đang ở trạng thái Pending hoặc PendingConfirmation
+            if (currentStatus?.CodeName != "Pending" && currentStatus?.CodeName != "PendingConfirmation")
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Message = $"Không thể confirm booking ở trạng thái {currentStatus?.CodeValue}. Chỉ có thể confirm booking đang ở trạng thái 'Chờ xác nhận'."
+                    Message = $"Không thể confirm booking ở trạng thái {currentStatus?.CodeValue}. Chỉ có thể confirm booking đang ở trạng thái 'Chờ thanh toán' hoặc 'Chờ xác nhận'."
                 };
             }
 
@@ -932,7 +1076,7 @@ public class BookingManagementService : IBookingManagementService
             booking.TotalAmount = totalAmount;
             booking.DepositAmount = depositAmount;
 
-            // Chuyển trạng thái booking từ PendingConfirmation → Confirmed
+            // Chuyển trạng thái booking từ Pending/PendingConfirmation → Confirmed
             var confirmedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "BookingStatus" && c.CodeName == "Confirmed")).FirstOrDefault();
 
@@ -968,6 +1112,94 @@ public class BookingManagementService : IBookingManagementService
                 IsSuccess = true,
                 StatusCode = StatusCodes.Status200OK,
                 Message = "Xác nhận thanh toán thành công. Email xác nhận đã được gửi đến khách hàng."
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Tìm kiếm nhanh khách hàng theo số điện thoại, email hoặc tên
+    /// Dùng để fill nhanh thông tin khi tạo booking offline
+    /// </summary>
+    public async Task<ResultModel> QuickSearchCustomerAsync(string searchKey)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(searchKey))
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Vui lòng nhập thông tin tìm kiếm (số điện thoại, email hoặc tên)"
+                };
+            }
+
+            searchKey = searchKey.Trim();
+
+            // Tìm kiếm customer theo nhiều tiêu chí
+            var customers = await _unitOfWork.Customers.FindAsync(c =>
+                (c.PhoneNumber != null && c.PhoneNumber.Contains(searchKey)) ||
+                (c.Account != null && c.Account.Email != null && c.Account.Email.Contains(searchKey)) ||
+                (c.FullName != null && c.FullName.Contains(searchKey))
+            );
+
+            if (!customers.Any())
+            {
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Message = "Không tìm thấy khách hàng. Vui lòng nhập thông tin mới để tạo booking.",
+                    Data = new List<QuickSearchCustomerDto>()
+                };
+            }
+
+            // Map sang DTO và tính thống kê
+            var customerDtos = new List<QuickSearchCustomerDto>();
+
+            foreach (var customer in customers.Take(10)) // Giới hạn 10 kết quả
+            {
+                // Đếm số booking của khách hàng
+                var bookings = await _unitOfWork.Bookings.FindAsync(b => b.CustomerId == customer.CustomerId);
+                var totalBookings = bookings.Count();
+                var lastBookingDate = bookings.OrderByDescending(b => b.CreatedAt).FirstOrDefault()?.CreatedAt;
+
+                // Xác định match theo field nào
+                string matchedBy = "Name";
+                if (customer.PhoneNumber != null && customer.PhoneNumber.Contains(searchKey))
+                    matchedBy = "Phone";
+                else if (customer.Account != null && customer.Account.Email != null && customer.Account.Email.Contains(searchKey))
+                    matchedBy = "Email";
+
+                customerDtos.Add(new QuickSearchCustomerDto
+                {
+                    CustomerId = customer.CustomerId,
+                    FullName = customer.FullName ?? "",
+                    PhoneNumber = customer.PhoneNumber ?? "",
+                    Email = customer.Account?.Email ?? "",
+                    IdentityCard = customer.IdentityCard,
+                    Address = customer.Address,
+                    TotalBookings = totalBookings,
+                    LastBookingDate = lastBookingDate,
+                    MatchedBy = matchedBy
+                });
+            }
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = StatusCodes.Status200OK,
+                Message = $"Tìm thấy {customerDtos.Count} khách hàng",
+                Data = customerDtos
             };
         }
         catch (Exception ex)

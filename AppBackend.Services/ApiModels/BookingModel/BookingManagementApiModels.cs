@@ -208,6 +208,26 @@ namespace AppBackend.Services.ApiModels.BookingModel
     }
 
     /// <summary>
+    /// DTO kết quả tìm kiếm nhanh khách hàng cho booking
+    /// </summary>
+    public class QuickSearchCustomerDto
+    {
+        public int CustomerId { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string? IdentityCard { get; set; }
+        public string? Address { get; set; }
+        
+        // Thông tin thống kê nhanh
+        public int TotalBookings { get; set; }
+        public DateTime? LastBookingDate { get; set; }
+        
+        // Highlight match (để frontend biết match theo field nào)
+        public string MatchedBy { get; set; } = string.Empty; // "Phone", "Email", "Name"
+    }
+
+    /// <summary>
     /// Request export booking
     /// </summary>
     public class ExportBookingRequest

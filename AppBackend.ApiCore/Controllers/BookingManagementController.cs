@@ -244,5 +244,94 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _bookingManagementService.ConfirmOnlineBookingAsync(bookingId);
             return StatusCode(result.StatusCode, result);
         }
+
+        /// <summary>
+        /// Tìm kiếm nhanh khách hàng theo số điện thoại, email hoặc tên
+        /// </summary>
+        /// <remarks>
+        /// ### Mục đích:
+        /// API này giúp lễ tân/nhân viên **tìm kiếm nhanh thông tin khách hàng** khi tạo booking offline.
+        /// 
+        /// ### Luồng sử dụng:
+        /// 1. **Khách đến quầy đặt phòng**
+        /// 2. **Lễ tân hỏi số điện thoại/email** của khách
+        /// 3. **Gọi API này** với searchKey = số điện thoại/email/tên
+        /// 4. **Nếu tìm thấy:**
+        ///    - Frontend tự động **fill thông tin** khách hàng vào form (FullName, Phone, Email, Address, IdentityCard)
+        ///    - Hiển thị thống kê: Tổng số booking trước đó, ngày booking gần nhất
+        ///    - Lễ tân chỉ cần chọn phòng và confirm → Tạo booking nhanh
+        /// 5. **Nếu không tìm thấy:**
+        ///    - Lễ tân nhập thông tin mới
+        ///    - Khi tạo booking, hệ thống sẽ **tự động tạo customer mới**
+        /// 
+        /// ### Query Parameters:
+        /// - **searchKey**: Số điện thoại, email hoặc tên khách hàng (required)
+        /// 
+        /// ### Examples:
+        /// 
+        /// **Tìm theo số điện thoại:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=0901234567
+        /// ```
+        /// 
+        /// **Tìm theo email:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=customer@gmail.com
+        /// ```
+        /// 
+        /// **Tìm theo tên:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=Nguyen Van A
+        /// ```
+        /// 
+        /// ### Response Success - Tìm thấy:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Tìm thấy 2 khách hàng",
+        ///   "data": [
+        ///     {
+        ///       "customerId": 123,
+        ///       "fullName": "Nguyễn Văn A",
+        ///       "phoneNumber": "0901234567",
+        ///       "email": "nguyenvana@gmail.com",
+        ///       "identityCard": "001234567890",
+        ///       "address": "123 Đường ABC, TP.HCM",
+        ///       "totalBookings": 5,
+        ///       "lastBookingDate": "2024-11-20T10:30:00Z",
+        ///       "matchedBy": "Phone"
+        ///     }
+        ///   ]
+        /// }
+        /// ```
+        /// 
+        /// ### Response Success - Không tìm thấy:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Không tìm thấy khách hàng. Vui lòng nhập thông tin mới để tạo booking.",
+        ///   "data": []
+        /// }
+        /// ```
+        /// 
+        /// ### Response Fields:
+        /// - **matchedBy**: "Phone" | "Email" | "Name" - Để frontend biết highlight field nào
+        /// - **totalBookings**: Số lần đã đặt phòng trước đó
+        /// - **lastBookingDate**: Ngày booking gần nhất (để biết khách quen hay khách mới)
+        /// 
+        /// ### Notes:
+        /// - API trả về **tối đa 10 kết quả** để tránh quá nhiều
+        /// - Search **không phân biệt hoa thường**
+        /// - Hỗ trợ **search một phần** (ví dụ: "090" sẽ tìm thấy "0901234567")
+        /// </remarks>
+        [HttpGet("customers/quick-search")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> QuickSearchCustomer([FromQuery] string searchKey)
+        {
+            var result = await _bookingManagementService.QuickSearchCustomerAsync(searchKey);
+            return StatusCode(result.StatusCode, result);
+        }
     }
 }

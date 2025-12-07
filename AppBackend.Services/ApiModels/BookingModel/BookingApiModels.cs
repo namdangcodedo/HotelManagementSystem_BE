@@ -183,6 +183,12 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class CreateOfflineBookingRequest
     {
         // Customer Info
+        /// <summary>
+        /// CustomerId nếu đã tìm thấy khách hàng qua Quick Search
+        /// Null nếu là khách hàng mới hoàn toàn
+        /// </summary>
+        public int? CustomerId { get; set; }
+        
         public string FullName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;

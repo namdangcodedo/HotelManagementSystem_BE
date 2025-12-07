@@ -102,7 +102,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex-1) * request.PageSize)
+                .Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -253,8 +253,6 @@ namespace AppBackend.Services.Services.RoomServices
             {
                 roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight); // Mặc định sắp xếp theo giá
             }
-
-            var typeString = roomTypes.Select(rt => '%'+ rt.TypeName+'%').ToList();
 
             var totalRecords = roomTypes.Count();
 
@@ -487,7 +485,7 @@ namespace AppBackend.Services.Services.RoomServices
             var totalRecords = roomTypes.Count();
 
             var pagedRoomTypes = roomTypes
-                .Skip(request.PageIndex * request.PageSize)
+                .Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 

@@ -231,8 +231,12 @@ namespace AppBackend.Services.Authentication
         public async Task<ResultModel> LoginWithGoogleCallbackAsync(GoogleUserInfo userInfo)
         {
             var account = await _unitOfWork.Accounts.GetByEmailAsync(userInfo.Email);
+            
             if (account == null)
             {
+                // ✅ Account chưa tồn tại - Tạo mới
+                Console.WriteLine($"[GoogleLogin] Creating new account for email: {userInfo.Email}");
+                
                 var randomPassword = new Random().Next(100000, 999999).ToString();
                 var hashedPassword = _accountHelper.HashPassword(randomPassword);
                 account = new Account
@@ -241,10 +245,14 @@ namespace AppBackend.Services.Authentication
                     Email = userInfo.Email,
                     PasswordHash = hashedPassword,
                     IsLocked = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
                 };
                 await _unitOfWork.Accounts.AddAsync(account);
                 await _unitOfWork.SaveChangesAsync();
+                
+                Console.WriteLine($"[GoogleLogin] Account created with ID: {account.AccountId}");
+                
+                // Tạo Customer
                 var customer = new Customer
                 {
                     AccountId = account.AccountId,
@@ -254,9 +262,11 @@ namespace AppBackend.Services.Authentication
                     CreatedAt = DateTime.UtcNow
                 };
                 await _unitOfWork.Customers.AddAsync(customer);
-                
                 await _unitOfWork.SaveChangesAsync();
+                
+                Console.WriteLine($"[GoogleLogin] Customer created for account: {account.AccountId}");
 
+                // Gán User role
                 var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
                 if (userRole != null)
                 {
@@ -267,8 +277,55 @@ namespace AppBackend.Services.Authentication
                     };
                     await _unitOfWork.Accounts.AddAccountRoleAsync(accountRole);
                     await _unitOfWork.SaveChangesAsync();
+                    
+                    Console.WriteLine($"[GoogleLogin] User role assigned to account: {account.AccountId}");
                 }
             }
+            else
+            {
+                // ✅ Account đã tồn tại - Không tạo mới
+                Console.WriteLine($"[GoogleLogin] Account already exists for email: {userInfo.Email} (ID: {account.AccountId})");
+                
+                // Kiểm tra xem có Customer chưa, nếu chưa thì tạo
+                var existingCustomer = (await _unitOfWork.Customers.FindAsync(c => c.AccountId == account.AccountId)).FirstOrDefault();
+                if (existingCustomer == null)
+                {
+                    Console.WriteLine($"[GoogleLogin] Customer not found, creating Customer for existing account: {account.AccountId}");
+                    var customer = new Customer
+                    {
+                        AccountId = account.AccountId,
+                        FullName = userInfo.Name,
+                        Address = "",
+                        IdentityCard = "",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _unitOfWork.Customers.AddAsync(customer);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                
+                // Kiểm tra xem có role chưa, nếu chưa thì gán
+                var existingRoles = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
+                if (existingRoles == null || !existingRoles.Any())
+                {
+                    Console.WriteLine($"[GoogleLogin] No roles found, assigning User role to account: {account.AccountId}");
+                    var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
+                    if (userRole != null)
+                    {
+                        var accountRole = new AccountRole
+                        {
+                            AccountId = account.AccountId,
+                            RoleId = userRole.RoleId
+                        };
+                        await _unitOfWork.Accounts.AddAccountRoleAsync(accountRole);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                }
+            }
+
+            // Update last login time
+            account.LastLoginAt = DateTime.UtcNow;
+            await _unitOfWork.Accounts.UpdateAsync(account);
+            await _unitOfWork.SaveChangesAsync();
 
             var roleNames = await _unitOfWork.Accounts.GetRoleNamesByAccountIdAsync(account.AccountId);
             var token = _accountHelper.CreateToken(account, roleNames);

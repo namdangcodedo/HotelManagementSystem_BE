@@ -22,5 +22,8 @@ namespace AppBackend.Services.Services.BookingServices
         
         // Confirm Online Booking Payment (Manager/Admin only)
         Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId);
+        
+        // Quick Search Customer for Fast Booking (Manager/Receptionist)
+        Task<ResultModel> QuickSearchCustomerAsync(string searchKey);
     }
 }
