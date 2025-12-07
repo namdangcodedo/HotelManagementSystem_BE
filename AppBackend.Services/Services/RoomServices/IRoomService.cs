@@ -16,6 +16,13 @@ namespace AppBackend.Services.Services.RoomServices
         /// </summary>
         Task<ResultModel> GetRoomTypeDetailForCustomerAsync(int roomTypeId, DateTime? checkInDate = null, DateTime? checkOutDate = null);
         
+        // ============= ROOM TYPE STATISTICS & ANALYTICS =============
+        /// <summary>
+        /// Tìm kiếm và thống kê loại phòng với nhiều filter khác nhau
+        /// Bao gồm: thống kê tổng quan, top được đặt nhiều nhất, filter theo giá/số khách/thời gian
+        /// </summary>
+        Task<ResultModel> SearchRoomTypeStatisticsAsync(RoomTypeStatisticsRequest request);
+        
         // ============= ROOM TYPE CRUD (FOR ADMIN) =============
         Task<ResultModel> GetRoomTypeListAsync(GetRoomTypeListRequest request);
         Task<ResultModel> GetRoomTypeDetailAsync(int roomTypeId);

@@ -78,6 +78,58 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int TotalRoomCount { get; set; }
     }
 
+    // ============= ROOM TYPE STATISTICS & ANALYTICS =============
+    /// <summary>
+    /// Request thống kê loại phòng với nhiều filter khác nhau
+    /// </summary>
+    public class RoomTypeStatisticsRequest
+    {
+        /// <summary>
+        /// Loại thống kê: "overview", "most_booked", "by_price", "by_occupancy", "booking_stats"
+        /// </summary>
+        public string StatisticType { get; set; } = "overview";
+        
+        /// <summary>
+        /// Số lượng top items (cho most_booked)
+        /// </summary>
+        public int TopCount { get; set; } = 10;
+        
+        /// <summary>
+        /// Giá tối thiểu (cho by_price)
+        /// </summary>
+        public decimal? MinPrice { get; set; }
+        
+        /// <summary>
+        /// Giá tối đa (cho by_price)
+        /// </summary>
+        public decimal? MaxPrice { get; set; }
+        
+        /// <summary>
+        /// Số lượng khách tối thiểu (cho by_occupancy)
+        /// </summary>
+        public int? MinOccupancy { get; set; }
+        
+        /// <summary>
+        /// Số lượng khách tối đa (cho by_occupancy)
+        /// </summary>
+        public int? MaxOccupancy { get; set; }
+        
+        /// <summary>
+        /// Ngày bắt đầu (cho booking_stats)
+        /// </summary>
+        public DateTime? FromDate { get; set; }
+        
+        /// <summary>
+        /// Ngày kết thúc (cho booking_stats)
+        /// </summary>
+        public DateTime? ToDate { get; set; }
+        
+        /// <summary>
+        /// Chỉ lấy loại phòng active
+        /// </summary>
+        public bool OnlyActive { get; set; } = true;
+    }
+
     // ============= ROOM TYPE CRUD (FOR ADMIN) =============
     public class GetRoomTypeListRequest : PagedRequestDto
     {
