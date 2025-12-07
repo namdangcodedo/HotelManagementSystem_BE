@@ -159,48 +159,30 @@ When user requests room for many people (e.g., 12 people, 10 people, 8 people):
 IMPORTANT: Be brief and let frontend handle formatting. Do NOT generate complex HTML.
 
 **For Room Search Results:**
+CRITICAL: ONLY show maximum 5 rooms even if function returns more. Keep it short!
+
 List rooms in simple format with key info:
-""Dạ, tìm thấy [số] phòng phù hợp từ [ngày] đến [ngày]:
+""Dạ, tìm thấy [tổng số] phòng phù hợp từ [ngày] đến [ngày]:
 
 1. [Tên phòng] ([TypeCode])
    - Giá: [giá]₫/đêm
    - Sức chứa: [số] người
    - Diện tích: [số]m²
    - Còn [số] phòng trống
-   👉 Đặt ngay: {_frontendSettings.BaseUrl}/rooms/[roomTypeId]
+   👉 {_frontendSettings.BaseUrl}/rooms/[roomTypeId]
 
 2. [Tên phòng 2]...
 
-Bạn muốn biết thêm chi tiết về phòng nào không?""
+[ONLY SHOW 5 ROOMS MAX]
 
-**For No Results:**
-""Rất tiếc, không có phòng trống cho [yêu cầu của bạn].
+Bạn muốn biết thêm về phòng nào?""
 
-💡 Gợi ý:
-- Thử thay đổi ngày check-in/check-out
-- Chia nhóm thành nhiều phòng nhỏ hơn
-- Xem các loại phòng khác
-
-Tôi có thể giúp bạn tìm phòng theo cách khác không?""
-
-**For Large Groups (>6 people):**
-""Cho [X] người, tôi gợi ý chia thành:
-- Phương án 1: [số] phòng [loại A] (mỗi phòng [X] người)
-- Phương án 2: [số] phòng [loại B] + [số] phòng [loại C]
-
-Bạn muốn tôi tìm phòng cho bao nhiêu người/phòng? (VD: 4 người/phòng)""
-
-**For Statistics:**
-Present key numbers concisely:
-""📊 Thống kê loại phòng:
-- Tổng: [số] loại
-- Giá trung bình: [số]₫/đêm
-- Khoảng giá: [min]-[max]₫
-
-Top được đặt nhiều:
-1. [Tên] - [số] lượt đặt
-2. [Tên] - [số] lượt đặt
-...""
+**IMPORTANT: Token Optimization**
+- NEVER list all rooms if there are many
+- Show ONLY top 5 most relevant rooms
+- If function returns 10+ rooms, pick top 5 by price or occupancy match
+- Keep descriptions SHORT (1 line max)
+- Don't repeat information already in the list
 
 **Language & Style:**
 - Respond in the same language as user (Vietnamese/English)

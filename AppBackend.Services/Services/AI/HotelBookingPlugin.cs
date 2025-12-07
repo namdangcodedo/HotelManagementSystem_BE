@@ -48,22 +48,30 @@ public class HotelBookingPlugin
                 NumberOfGuests = guestCount,
                 MinPrice = minPrice,
                 MaxPrice = maxPrice,
-                PageIndex = 0,  // ← QUAN TRỌNG: Luôn lấy trang đầu tiên cho chatbot
-                PageSize = 20   // ← Tăng lên 20 để AI có nhiều options hơn
+                PageIndex = 1,
+                PageSize = 10  // ← GIỚI HẠN CHỈ LẤY 10 PHÒNG ĐẦU TIÊN
             };
 
             var result = await _roomService.SearchRoomTypesAsync(request);
 
-            if (result.IsSuccess)
+            if (result.IsSuccess && result.Data != null)
             {
-                _logger.LogInformation("✅ Function returned {Count} rooms", 
-                    result.Data is System.Collections.IEnumerable enumerable ? enumerable.Cast<object>().Count() : 0);
+                // Lấy dữ liệu và giới hạn số lượng phòng trả về
+                var pagedData = result.Data as dynamic;
+                
+                _logger.LogInformation("✅ Function returned successfully");
                     
                 return JsonSerializer.Serialize(new
                 {
                     success = true,
-                    message = "Found available rooms",
-                    data = result.Data
+                    message = "Found available rooms (showing top 10 results)",
+                    totalCount = pagedData?.TotalCount ?? 0,
+                    showingCount = pagedData?.Items?.Count ?? 0,
+                    data = new
+                    {
+                        rooms = pagedData?.Items,
+                        totalCount = pagedData?.TotalCount ?? 0
+                    }
                 });
             }
 

@@ -263,7 +263,7 @@ namespace AppBackend.ApiCore.Controllers
         /// ```
         /// </remarks>
         [HttpPost("{bookingId}/confirm-payment")]
-        [Authorize(Roles = "Manager,Admin")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> ConfirmPayment(int bookingId)
         {
             // Gọi service ConfirmOnlineBookingAsync đã có sẵn trong BookingService
