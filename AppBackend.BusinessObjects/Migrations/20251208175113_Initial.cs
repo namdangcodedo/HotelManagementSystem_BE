@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AppBackend.BusinessObjects.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -317,6 +317,42 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Comment",
+                columns: table => new
+                {
+                    CommentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoomTypeId = table.Column<int>(type: "int", nullable: true),
+                    ReplyId = table.Column<int>(type: "int", nullable: true),
+                    AccountId = table.Column<int>(type: "int", nullable: true),
+                    Content = table.Column<string>(type: "nvarchar(640)", maxLength: 640, nullable: true),
+                    Rating = table.Column<int>(type: "int", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Comment", x => x.CommentId);
+                    table.ForeignKey(
+                        name: "FK_Comment_Account_AccountId",
+                        column: x => x.AccountId,
+                        principalTable: "Account",
+                        principalColumn: "AccountId");
+                    table.ForeignKey(
+                        name: "FK_Comment_Comment_ReplyId",
+                        column: x => x.ReplyId,
+                        principalTable: "Comment",
+                        principalColumn: "CommentId");
+                    table.ForeignKey(
+                        name: "FK_Comment_RoomType_RoomTypeId",
+                        column: x => x.RoomTypeId,
+                        principalTable: "RoomType",
+                        principalColumn: "RoomTypeId");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Room",
                 columns: table => new
                 {
@@ -494,33 +530,24 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Salary",
+                name: "SalaryInfo",
                 columns: table => new
                 {
-                    SalaryId = table.Column<int>(type: "int", nullable: false)
+                    SalaryInfoId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     EmployeeId = table.Column<int>(type: "int", nullable: false),
-                    SalaryMonth = table.Column<int>(type: "int", nullable: false),
-                    SalaryYear = table.Column<int>(type: "int", nullable: false),
-                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    PaidAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    StatusId = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                    Year = table.Column<int>(type: "int", nullable: false),
+                    BaseSalary = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    YearBonus = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    Allowance = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: true, defaultValueSql: "(getdate())"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Salary", x => x.SalaryId);
+                    table.PrimaryKey("PK_SalaryInfo", x => x.SalaryInfoId);
                     table.ForeignKey(
-                        name: "FK_Salary_CommonCode_StatusId",
-                        column: x => x.StatusId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_Salary_Employee_EmployeeId",
+                        name: "FK_SalaryInfo_Employee_EmployeeId",
                         column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "EmployeeId",
@@ -528,39 +555,34 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Comment",
+                name: "SalaryRecord",
                 columns: table => new
                 {
-                    CommentId = table.Column<int>(type: "int", nullable: false)
+                    SalaryRecordId = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    RoomId = table.Column<int>(type: "int", nullable: true),
-                    ReplyId = table.Column<int>(type: "int", nullable: true),
-                    AccountId = table.Column<int>(type: "int", nullable: true),
-                    Content = table.Column<string>(type: "nvarchar(640)", maxLength: 640, nullable: true),
-                    Rating = table.Column<int>(type: "int", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedTime = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    Month = table.Column<int>(type: "int", nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PaidAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    StatusId = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Comment", x => x.CommentId);
+                    table.PrimaryKey("PK_SalaryRecord", x => x.SalaryRecordId);
                     table.ForeignKey(
-                        name: "FK_Comment_Account_AccountId",
-                        column: x => x.AccountId,
-                        principalTable: "Account",
-                        principalColumn: "AccountId");
+                        name: "FK_SalaryRecord_CommonCode_StatusId",
+                        column: x => x.StatusId,
+                        principalTable: "CommonCode",
+                        principalColumn: "CodeId",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_Comment_Comment_ReplyId",
-                        column: x => x.ReplyId,
-                        principalTable: "Comment",
-                        principalColumn: "CommentId");
-                    table.ForeignKey(
-                        name: "FK_Comment_Room_RoomId",
-                        column: x => x.RoomId,
-                        principalTable: "Room",
-                        principalColumn: "RoomId");
+                        name: "FK_SalaryRecord_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employee",
+                        principalColumn: "EmployeeId",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -1067,9 +1089,9 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "ReplyId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Comment_RoomId",
+                name: "IX_Comment_RoomTypeId",
                 table: "Comment",
-                column: "RoomId");
+                column: "RoomTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CommonCode_CodeType_CodeValue",
@@ -1221,13 +1243,18 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "AmenityId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Salary_EmployeeId",
-                table: "Salary",
+                name: "IX_SalaryInfo_EmployeeId",
+                table: "SalaryInfo",
                 column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Salary_StatusId",
-                table: "Salary",
+                name: "IX_SalaryRecord_EmployeeId",
+                table: "SalaryRecord",
+                column: "EmployeeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SalaryRecord_StatusId",
+                table: "SalaryRecord",
                 column: "StatusId");
 
             migrationBuilder.CreateIndex(
@@ -1311,7 +1338,10 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "RoomAmenity");
 
             migrationBuilder.DropTable(
-                name: "Salary");
+                name: "SalaryInfo");
+
+            migrationBuilder.DropTable(
+                name: "SalaryRecord");
 
             migrationBuilder.DropTable(
                 name: "Transaction");

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251208153542_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20251208175113_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -514,7 +514,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int?>("ReplyId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RoomId")
+                    b.Property<int?>("RoomTypeId")
                         .HasColumnType("int");
 
                     b.Property<string>("Status")
@@ -529,7 +529,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasIndex("ReplyId");
 
-                    b.HasIndex("RoomId");
+                    b.HasIndex("RoomTypeId");
 
                     b.ToTable("Comment");
                 });
@@ -1311,33 +1311,65 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("RoomType");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Salary", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.SalaryInfo", b =>
                 {
-                    b.Property<int>("SalaryId")
+                    b.Property<int>("SalaryInfoId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SalaryId"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SalaryInfoId"));
+
+                    b.Property<decimal?>("Allowance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BaseSalary")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(getdate())");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("YearBonus")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("SalaryInfoId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("SalaryInfo");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.SalaryRecord", b =>
+                {
+                    b.Property<int>("SalaryRecordId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SalaryRecordId"));
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(getdate())");
 
-                    b.Property<int?>("CreatedBy")
+                    b.Property<int>("EmployeeId")
                         .HasColumnType("int");
 
-                    b.Property<int>("EmployeeId")
+                    b.Property<int>("Month")
                         .HasColumnType("int");
 
                     b.Property<decimal>("PaidAmount")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("SalaryMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SalaryYear")
-                        .HasColumnType("int");
 
                     b.Property<int>("StatusId")
                         .HasColumnType("int");
@@ -1348,16 +1380,13 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.HasKey("SalaryId");
+                    b.HasKey("SalaryRecordId");
 
                     b.HasIndex("EmployeeId");
 
                     b.HasIndex("StatusId");
 
-                    b.ToTable("Salary");
+                    b.ToTable("SalaryRecord");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Service", b =>
@@ -1683,15 +1712,15 @@ namespace AppBackend.BusinessObjects.Migrations
                         .WithMany("InverseReply")
                         .HasForeignKey("ReplyId");
 
-                    b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
+                    b.HasOne("AppBackend.BusinessObjects.Models.RoomType", "RoomType")
                         .WithMany("Comments")
-                        .HasForeignKey("RoomId");
+                        .HasForeignKey("RoomTypeId");
 
                     b.Navigation("Account");
 
                     b.Navigation("Reply");
 
-                    b.Navigation("Room");
+                    b.Navigation("RoomType");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
@@ -1934,10 +1963,21 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Room");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Salary", b =>
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.SalaryInfo", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Employee", "Employee")
-                        .WithMany("Salaries")
+                        .WithMany("SalaryInfos")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.SalaryRecord", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Employee", "Employee")
+                        .WithMany("SalaryRecords")
                         .HasForeignKey("EmployeeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -2056,7 +2096,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Navigation("PayrollDisbursements");
 
-                    b.Navigation("Salaries");
+                    b.Navigation("SalaryInfos");
+
+                    b.Navigation("SalaryRecords");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Holiday", b =>
@@ -2075,8 +2117,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Navigation("Bookings");
 
-                    b.Navigation("Comments");
-
                     b.Navigation("HousekeepingTasks");
 
                     b.Navigation("Media");
@@ -2086,6 +2126,8 @@ namespace AppBackend.BusinessObjects.Migrations
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.RoomType", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("Media");
 
                     b.Navigation("Rooms");
