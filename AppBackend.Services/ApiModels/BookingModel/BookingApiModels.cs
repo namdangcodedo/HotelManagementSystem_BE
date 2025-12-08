@@ -90,6 +90,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public decimal DepositAmount { get; set; }
         public int? PaymentStatusId{ get; set; }
         public int? BookingTypeId { get; set; }
+        public string PaymentStatusName { get; set; } = string.Empty;
+        public string BookingStatusName { get; set; } = string.Empty;
         public string PaymentStatus { get; set; } = string.Empty;
         public string BookingType { get; set; } = string.Empty;
         public string? SpecialRequests { get; set; }

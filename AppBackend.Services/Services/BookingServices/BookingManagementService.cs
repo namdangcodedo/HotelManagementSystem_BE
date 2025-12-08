@@ -616,6 +616,8 @@ public class BookingManagementService : IBookingManagementService
                     TotalAmount = booking.TotalAmount,
                     DepositAmount = booking.DepositAmount,
                     PaymentStatusId = booking.StatusId,
+                    PaymentStatusName = statusCode.CodeName,
+                    BookingStatusName = bookingTypeCode.CodeName,
                     BookingTypeId = booking.BookingTypeId,
                     PaymentStatus = statusCode?.CodeValue ?? "Unknown",
                     BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
