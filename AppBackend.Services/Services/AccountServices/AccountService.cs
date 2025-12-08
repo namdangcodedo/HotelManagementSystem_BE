@@ -329,7 +329,7 @@ public class AccountService : IAccountService
             e => e.EmployeeId == employeeId,
             e => e.HousekeepingTasks,
             e => e.Attendances,
-            e => e.Salaries,
+            e => e.SalaryRecords,
             e => e.Account
         );
 
@@ -343,7 +343,7 @@ public class AccountService : IAccountService
         var pendingTasks = totalTasks - completedTasks;
 
         var totalAttendance = employee.Attendances?.Count ?? 0;
-        var totalSalaryPaid = employee.Salaries?.Sum(s => (decimal?)s.PaidAmount) ?? 0;
+        var totalSalaryPaid = employee.SalaryRecords?.Sum(s => (decimal?)s.PaidAmount) ?? 0;
 
         // Tính số ngày làm việc
         var workingDays = (DateOnly.FromDateTime(DateTime.UtcNow).DayNumber - employee.HireDate.DayNumber);

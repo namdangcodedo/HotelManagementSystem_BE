@@ -144,7 +144,9 @@ public class BookingService : IBookingService
         try
         {
             // 1. Validate
-            if (request.CheckInDate <= DateTime.UtcNow)
+            var todayStart = DateTime.UtcNow.Date;
+
+            if (request.CheckInDate < todayStart)
             {
                 return new ResultModel
                 {
