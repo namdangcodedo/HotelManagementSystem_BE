@@ -214,8 +214,8 @@ public class HotelManagementContext : DbContext
             entity.HasOne(d => d.Reply).WithMany(p => p.InverseReply)
                 .HasForeignKey(d => d.ReplyId);
 
-            entity.HasOne(d => d.Room).WithMany(p => p.Comments)
-                .HasForeignKey(d => d.RoomId);
+            entity.HasOne(d => d.RoomType).WithMany(p => p.Comments)
+                .HasForeignKey(d => d.RoomTypeId);
         });
     }
 }

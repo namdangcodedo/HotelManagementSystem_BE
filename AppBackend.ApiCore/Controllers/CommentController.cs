@@ -28,9 +28,9 @@ namespace AppBackend.ApiCore.Controllers
 
        
         [HttpGet("Comment")]
-        public async Task<IActionResult> GetCommentByPost(GetCommentRequest request)
+        public async Task<IActionResult> GetCommentByRoomType(GetCommentRequest request)
         {
-            var result = await _commentService.GetCommentsByPostId(request);
+            var result = await _commentService.GetCommentsByRoomTypeId(request);
             return HandleResult(result);
         }
 

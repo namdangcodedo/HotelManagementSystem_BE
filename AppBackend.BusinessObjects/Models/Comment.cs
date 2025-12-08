@@ -11,8 +11,8 @@ public partial class Comment
     [Key]
     public int CommentId { get; set; }
 
-    [ForeignKey("Room")]
-    public int? RoomId { get; set; }
+    [ForeignKey("RoomType")]
+    public int? RoomTypeId { get; set; }
 
     [ForeignKey("Comment")]
     public int? ReplyId { get; set; }
@@ -36,5 +36,5 @@ public partial class Comment
 
     public virtual Comment? Reply { get; set; }
 
-    public virtual Room? Room { get; set; }
+    public virtual RoomType? RoomType { get; set; }
 }

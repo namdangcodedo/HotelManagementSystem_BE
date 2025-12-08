@@ -28,9 +28,9 @@ namespace AppBackend.Repositories.Repositories.CommentRepo
             }
         }
 
-        public async Task<List<Comment>> GetCommentsByRoomId(int roomId)
+        public async Task<List<Comment>> GetCommentsByRoomTypeId(int roomTypeId)
         {
-            return await _context.Comments.Where(c => c.RoomId == roomId).ToListAsync();
+            return await _context.Comments.Where(c => c.RoomTypeId == roomTypeId).ToListAsync();
         }
 
         public async Task InsertComment(Comment comment)

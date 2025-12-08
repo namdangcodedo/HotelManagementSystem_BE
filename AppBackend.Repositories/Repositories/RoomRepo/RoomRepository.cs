@@ -21,6 +21,7 @@ namespace AppBackend.Repositories.Repositories.RoomRepo
             return await _context.Rooms.Where(r => r.StatusId == statusId).ToListAsync();
         }
 
+
         public async Task<IEnumerable<Room>> getRoomByType(string typeNameStr, int? statusId)
         {
             var rooms = await _context.Rooms.Include(r => r.RoomType).Where(r => typeNameStr.Contains('%' + r.RoomType.TypeName + '%')).ToListAsync();

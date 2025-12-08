@@ -71,4 +71,6 @@ public class RoomType
   // Navigation properties
   public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
   public virtual ICollection<Medium> Media { get; set; } = new List<Medium>();
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+
 }
