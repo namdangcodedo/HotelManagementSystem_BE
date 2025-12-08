@@ -118,6 +118,7 @@ namespace AppBackend.Services.Services.RoomServices
 
                 // Lấy tất cả phòng thuộc loại này
                 var allRoomsOfType = (await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == rt.RoomTypeId)).ToList();
+                var allCommentOfType = (await _unitOfWork.Comments.FindAsync(c => c.RoomTypeId == rt.RoomTypeId)).ToList();
                 var totalRoomCount = allRoomsOfType.Count;
                 
                 // Tính số phòng available nếu có CheckIn/Out date
@@ -146,6 +147,8 @@ namespace AppBackend.Services.Services.RoomServices
                         }).ToList();
                 }
 
+                var comments = _mapper.Map<List<CommentDTO>>(allCommentOfType);
+
                 var dto = new RoomTypeSearchResultDto
                 {
                     RoomTypeId = rt.RoomTypeId,
@@ -161,7 +164,8 @@ namespace AppBackend.Services.Services.RoomServices
                     Images = _mapper.Map<List<MediumDto>>(images),
                     Amenities = amenities,
                     TotalRoomCount = totalRoomCount,
-                    AvailableRoomCount = availableRoomCount
+                    AvailableRoomCount = availableRoomCount,
+                    Comments = comments
                 };
 
                 roomTypeResults.Add(dto);

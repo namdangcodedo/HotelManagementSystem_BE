@@ -65,11 +65,11 @@ namespace AppBackend.Services.Services.CommentService
             };
         }
 
-        public async Task<ResultModel> GetCommentsByPostId(GetCommentRequest request)
+        public async Task<ResultModel> GetCommentsByRoomTypeId(GetCommentRequest request)
         {
-            if(request.RoomId != null)
+            if(request.RoomTypeId != null)
             {
-                var comments = await _unitOfWork.Comments.GetCommentsByRoomId(request.RoomId.Value); 
+                var comments = await _unitOfWork.Comments.GetCommentsByRoomTypeId(request.RoomTypeId.Value); 
                 return new ResultModel
                 {
                     IsSuccess = false,

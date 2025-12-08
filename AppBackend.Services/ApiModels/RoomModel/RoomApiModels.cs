@@ -1,4 +1,5 @@
 using AppBackend.BusinessObjects.Dtos;
+using AppBackend.BusinessObjects.Models;
 
 namespace AppBackend.Services.ApiModels.RoomModel
 {
@@ -66,7 +67,8 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public bool IsActive { get; set; }
         public List<MediumDto> Images { get; set; } = new List<MediumDto>();
         public List<AmenityDto> Amenities { get; set; } = new List<AmenityDto>();
-        
+        public List<CommentDTO> Comments { get; set; } = new List<CommentDTO>();
+
         /// <summary>
         /// Số phòng available (nếu có CheckIn/Out date)
         /// </summary>

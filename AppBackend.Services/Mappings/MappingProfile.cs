@@ -67,6 +67,8 @@ namespace AppBackend.Services.Mappings
 
             #region Comment
             CreateMap<Comment, CommentDTO>().ReverseMap();
+            CreateMap<List<Comment>, List<CommentDTO>>().ReverseMap();
+
             CreateMap<Comment, PostCommentRequest>().ReverseMap();
             #endregion
         }

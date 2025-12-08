@@ -10,7 +10,7 @@ namespace AppBackend.Repositories.Repositories.CommentRepo
 {
     public interface ICommentRepository : IGenericRepository<Comment>
     {
-        public Task<List<Comment>> GetCommentsByRoomId(int roomId);
+        public Task<List<Comment>> GetCommentsByRoomTypeId(int roomTypeId);
         public Task InsertComment(Comment comment);
         public Task UpdateComment(Comment comment);
         public Task DeleteComment(int commentId);

@@ -11,7 +11,7 @@ namespace AppBackend.Services.Services.CommentService
 {
     public interface ICommentService
     {
-        Task<ResultModel> GetCommentsByPostId(GetCommentRequest request);
+        Task<ResultModel> GetCommentsByRoomTypeId(GetCommentRequest request);
         Task<ResultModel> AddComment(PostCommentRequest request, int accountId);
         Task<ResultModel> UpdateComment(PostCommentRequest request, int accountId);
 

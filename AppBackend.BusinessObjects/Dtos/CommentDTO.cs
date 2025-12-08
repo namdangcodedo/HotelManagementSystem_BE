@@ -8,7 +8,7 @@ namespace AppBackend.BusinessObjects.Models;
 public partial class CommentDTO
 {
     public int CommentId { get; set; }
-    public int? RoomId { get; set; }
+    public int? RoomTypeId { get; set; }
     public int? ReplyId { get; set; }
     public int? AccountId { get; set; }
     public string? Content { get; set; }

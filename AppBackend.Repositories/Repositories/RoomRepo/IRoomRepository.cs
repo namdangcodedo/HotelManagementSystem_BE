@@ -10,6 +10,7 @@ namespace AppBackend.Repositories.Repositories.RoomRepo
         Task<IEnumerable<Room>> GetByStatusAsync(int statusId);
 
         Task<IEnumerable<Room>> getRoomByType(string typeNameStr, int? statusId);
+
         // Thêm các phương thức đặc thù nếu cần
     }
 }
