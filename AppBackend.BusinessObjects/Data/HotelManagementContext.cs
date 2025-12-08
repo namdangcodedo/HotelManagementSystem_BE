@@ -27,7 +27,7 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<Room> Rooms { get; set; }
     public virtual DbSet<RoomAmenity> RoomAmenities { get; set; }
-    public virtual DbSet<Salary> Salaries { get; set; }
+    public virtual DbSet<SalaryRecord> SalaryRecords { get; set; }
     public virtual DbSet<Service> Services { get; set; }
     public virtual DbSet<Transaction> Transactions { get; set; }
     public virtual DbSet<Voucher> Vouchers { get; set; }
@@ -43,6 +43,8 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<EmpAttendInfo> EmpAttendInfo { get; set; }
     public virtual DbSet<Comment> Comments { get; set; }
 
+
+    public virtual DbSet<SalaryInfo> SalaryInfos { get; set; }
 
 
 
@@ -155,9 +157,9 @@ public class HotelManagementContext : DbContext
             .WithMany()
             .HasForeignKey(t => t.DepositStatusId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Salary>()
+        modelBuilder.Entity<SalaryRecord>()
             .HasOne(s => s.Employee)
-            .WithMany(e => e.Salaries)
+            .WithMany(e => e.SalaryRecords)
             .HasForeignKey(s => s.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<PayrollDisbursement>()
@@ -202,6 +204,11 @@ public class HotelManagementContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<RoomType>()
                .HasMany(d => d.Rooms);
+        modelBuilder.Entity<SalaryInfo>()
+            .HasOne(s => s.Employee)
+            .WithMany(e => e.SalaryInfos)
+            .HasForeignKey(s => s.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Comment>(entity =>
         {

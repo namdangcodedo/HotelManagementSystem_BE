@@ -5,21 +5,18 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AppBackend.BusinessObjects.Models;
 
-[Table("Salary")]
-public class Salary
+[Table("SalaryRecord")]
+public class SalaryRecord
 {
     [Key]
-    public int SalaryId { get; set; }
+    public int SalaryRecordId { get; set; }
 
     [Required]
     [ForeignKey("Employee")]
     public int EmployeeId { get; set; }
 
     [Required]
-    public int SalaryMonth { get; set; }
-
-    [Required]
-    public int SalaryYear { get; set; }
+    public int Month { get; set; }
 
     [Required]
     [Column(TypeName = "decimal(18,2)")]
@@ -37,11 +34,7 @@ public class Salary
     [Required]
     public DateTime CreatedAt { get; set; }
 
-    public int? CreatedBy { get; set; }
-
     public DateTime? UpdatedAt { get; set; }
-
-    public int? UpdatedBy { get; set; }
 
     public virtual Employee Employee { get; set; } = null!;
 }
