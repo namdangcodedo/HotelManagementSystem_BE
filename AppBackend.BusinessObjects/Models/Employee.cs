@@ -47,6 +47,8 @@ public class Employee
     public virtual ICollection<Attendance> Attendances { get; set; } = new List<Attendance>();
     public virtual ICollection<EmployeeSchedule> EmployeeSchedules { get; set; } = new List<EmployeeSchedule>();
     public virtual ICollection<HousekeepingTask> HousekeepingTasks { get; set; } = new List<HousekeepingTask>();
-    public virtual ICollection<Salary> Salaries { get; set; } = new List<Salary>();
+    public virtual ICollection<SalaryRecord> SalaryRecords { get; set; } = new List<SalaryRecord>();
+    public virtual ICollection<SalaryInfo> SalaryInfos { get; set; } = new List<SalaryInfo>();
+
     public virtual ICollection<PayrollDisbursement> PayrollDisbursements { get; set; } = new List<PayrollDisbursement>();
 }
