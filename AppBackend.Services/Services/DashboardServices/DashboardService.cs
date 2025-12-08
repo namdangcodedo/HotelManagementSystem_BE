@@ -548,27 +548,40 @@ namespace AppBackend.Services.Services.DashboardServices
                         .ThenInclude(br => br.Room)
                     .OrderByDescending(b => b.CreatedAt)
                     .Take(limit)
-                    .Select(b => new RecentBookingDto
+                    .Select(b => new
                     {
-                        BookingId = b.BookingId,
-                        BookingReference = $"BK{b.BookingId}",
+                        b.BookingId,
                         CustomerName = b.Customer != null ? b.Customer.FullName : "",
                         RoomNumbers = string.Join(", ", b.BookingRooms.Select(br => br.Room.RoomName)),
-                        CheckInDate = b.CheckInDate,
-                        CheckOutDate = b.CheckOutDate,
-                        TotalAmount = b.TotalAmount,
-                        PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == b.PaymentStatusId).CodeValue ?? "",
-                        BookingType = commonCodes.FirstOrDefault(c => c.CodeId == b.BookingTypeId).CodeValue ?? "",
-                        CreatedAt = b.CreatedAt
+                        b.CheckInDate,
+                        b.CheckOutDate,
+                        b.TotalAmount,
+                        b.StatusId,
+                        b.BookingTypeId,
+                        b.CreatedAt
                     })
                     .ToListAsync();
+
+                var result = bookings.Select(b => new RecentBookingDto
+                {
+                    BookingId = b.BookingId,
+                    BookingReference = $"BK{b.BookingId}",
+                    CustomerName = b.CustomerName,
+                    RoomNumbers = b.RoomNumbers,
+                    CheckInDate = b.CheckInDate,
+                    CheckOutDate = b.CheckOutDate,
+                    TotalAmount = b.TotalAmount,
+                    BookingStatus = commonCodes.FirstOrDefault(c => c.CodeId == b.StatusId).CodeValue ?? "",
+                    BookingType = commonCodes.FirstOrDefault(c => c.CodeId == b.BookingTypeId).CodeValue ?? "",
+                    CreatedAt = b.CreatedAt
+                }).ToList();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = bookings,
+                    Data = result,
                     Message = "Recent bookings retrieved successfully"
                 };
             }
@@ -596,25 +609,37 @@ namespace AppBackend.Services.Services.DashboardServices
                         .ThenInclude(b => b.Customer)
                     .OrderByDescending(t => t.CreatedAt)
                     .Take(limit)
-                    .Select(t => new RecentPaymentDto
+                    .Select(t => new
                     {
-                        TransactionId = t.TransactionId,
-                        TransactionRef = t.TransactionRef ?? $"TXN{t.TransactionId}",
-                        BookingId = t.BookingId,
+                        t.TransactionId,
+                        t.TransactionRef,
+                        t.BookingId,
                         CustomerName = t.Booking != null && t.Booking.Customer != null ? t.Booking.Customer.FullName : "",
-                        Amount = t.PaidAmount,
-                        PaymentMethod = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentMethodId).CodeValue ?? "",
-                        PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentStatusId).CodeValue ?? "",
-                        CreatedAt = t.CreatedAt
+                        t.PaidAmount,
+                        t.PaymentMethodId,
+                        t.PaymentStatusId,
+                        t.CreatedAt
                     })
                     .ToListAsync();
+
+                var result = payments.Select(t => new RecentPaymentDto
+                {
+                    TransactionId = t.TransactionId,
+                    TransactionRef = t.TransactionRef ?? $"TXN{t.TransactionId}",
+                    BookingId = t.BookingId,
+                    CustomerName = t.CustomerName,
+                    Amount = t.PaidAmount,
+                    PaymentMethod = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentMethodId).CodeValue ?? "",
+                    PaymentStatus = commonCodes.FirstOrDefault(c => c.CodeId == t.PaymentStatusId).CodeValue ?? "",
+                    CreatedAt = t.CreatedAt
+                }).ToList();
 
                 return new ResultModel
                 {
                     IsSuccess = true,
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
-                    Data = payments,
+                    Data = result,
                     Message = "Recent payments retrieved successfully"
                 };
             }
@@ -1030,10 +1055,10 @@ namespace AppBackend.Services.Services.DashboardServices
                     .Where(b => b.CreatedAt.Date == today)
                     .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
 
-                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
+                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("BookingStatus", "Completed");
                 var paidAmount = paidStatusId.HasValue
                     ? await _context.Bookings
-                        .Where(b => b.CreatedAt.Date == today && b.PaymentStatusId == paidStatusId.Value)
+                        .Where(b => b.CreatedAt.Date == today && b.BookingId == paidStatusId.Value)
                         .SumAsync(b => (decimal?)b.TotalAmount) ?? 0
                     : 0;
 

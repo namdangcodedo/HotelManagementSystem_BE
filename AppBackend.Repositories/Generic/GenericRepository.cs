@@ -14,7 +14,7 @@ namespace AppBackend.Repositories.Generic
             Context = context;
         }
 
-        public async Task<IEnumerable<T>> GetAllAsync()
+        public virtual async Task<IEnumerable<T>> GetAllAsync()
         {
             return await Context.Set<T>().ToListAsync();
         }
@@ -27,6 +27,24 @@ namespace AppBackend.Repositories.Generic
         public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate)
         {
             return await Context.Set<T>().Where(predicate).ToListAsync();
+        }
+
+        /// <summary>
+        /// Find entities với Include cho related entities
+        /// </summary>
+        public async Task<IEnumerable<T>> FindAsync(Expression<Func<T, bool>> predicate, params Expression<Func<T, object>>[] includes)
+        {
+            IQueryable<T> query = Context.Set<T>().Where(predicate);
+            
+            if (includes != null)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+            
+            return await query.ToListAsync();
         }
 
         public async Task AddAsync(T entity)

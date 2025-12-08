@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AppBackend.BusinessObjects.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -391,13 +391,39 @@ namespace AppBackend.BusinessObjects.Migrations
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    IsApproved = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Attendance", x => x.AttendanceId);
                     table.ForeignKey(
                         name: "FK_Attendance_Employee_EmployeeId",
+                        column: x => x.EmployeeId,
+                        principalTable: "Employee",
+                        principalColumn: "EmployeeId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "EmpAttendInfo",
+                columns: table => new
+                {
+                    AttendInfoId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    EmployeeId = table.Column<int>(type: "int", nullable: false),
+                    Year = table.Column<int>(type: "int", nullable: false),
+                    TotalLeaveRequest = table.Column<int>(type: "int", nullable: true),
+                    RemainLeaveRequest = table.Column<int>(type: "int", nullable: true),
+                    UsedLeaveRequest = table.Column<int>(type: "int", nullable: true),
+                    OverLeaveDay = table.Column<int>(type: "int", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_EmpAttendInfo", x => x.AttendInfoId);
+                    table.ForeignKey(
+                        name: "FK_EmpAttendInfo_Employee_EmployeeId",
                         column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "EmployeeId",
@@ -499,6 +525,42 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Employee",
                         principalColumn: "EmployeeId",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Comment",
+                columns: table => new
+                {
+                    CommentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoomId = table.Column<int>(type: "int", nullable: true),
+                    ReplyId = table.Column<int>(type: "int", nullable: true),
+                    AccountId = table.Column<int>(type: "int", nullable: true),
+                    Content = table.Column<string>(type: "nvarchar(640)", maxLength: 640, nullable: true),
+                    Rating = table.Column<int>(type: "int", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Comment", x => x.CommentId);
+                    table.ForeignKey(
+                        name: "FK_Comment_Account_AccountId",
+                        column: x => x.AccountId,
+                        principalTable: "Account",
+                        principalColumn: "AccountId");
+                    table.ForeignKey(
+                        name: "FK_Comment_Comment_ReplyId",
+                        column: x => x.ReplyId,
+                        principalTable: "Comment",
+                        principalColumn: "CommentId");
+                    table.ForeignKey(
+                        name: "FK_Comment_Room_RoomId",
+                        column: x => x.RoomId,
+                        principalTable: "Room",
+                        principalColumn: "RoomId");
                 });
 
             migrationBuilder.CreateTable(
@@ -694,8 +756,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     CheckOutDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     DepositAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    PaymentStatusId = table.Column<int>(type: "int", nullable: true),
-                    DepositStatusId = table.Column<int>(type: "int", nullable: true),
+                    StatusId = table.Column<int>(type: "int", nullable: true),
                     BookingTypeId = table.Column<int>(type: "int", nullable: true),
                     SpecialRequests = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
@@ -714,14 +775,8 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalColumn: "CodeId",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Booking_CommonCode_DepositStatusId",
-                        column: x => x.DepositStatusId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Booking_CommonCode_PaymentStatusId",
-                        column: x => x.PaymentStatusId,
+                        name: "FK_Booking_CommonCode_StatusId",
+                        column: x => x.StatusId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
                         onDelete: ReferentialAction.Restrict);
@@ -952,19 +1007,14 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "CustomerId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Booking_DepositStatusId",
-                table: "Booking",
-                column: "DepositStatusId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Booking_PaymentStatusId",
-                table: "Booking",
-                column: "PaymentStatusId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Booking_RoomId",
                 table: "Booking",
                 column: "RoomId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Booking_StatusId",
+                table: "Booking",
+                column: "StatusId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookingRoom_BookingId",
@@ -1007,6 +1057,21 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "AccountId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Comment_AccountId",
+                table: "Comment",
+                column: "AccountId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Comment_ReplyId",
+                table: "Comment",
+                column: "ReplyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Comment_RoomId",
+                table: "Comment",
+                column: "RoomId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CommonCode_CodeType_CodeValue",
                 table: "CommonCode",
                 columns: new[] { "CodeType", "CodeValue" },
@@ -1023,6 +1088,11 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_Customer_AvatarMediaId",
                 table: "Customer",
                 column: "AvatarMediaId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_EmpAttendInfo_EmployeeId",
+                table: "EmpAttendInfo",
+                column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Employee_AccountId",
@@ -1212,6 +1282,12 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "ChatMessage");
+
+            migrationBuilder.DropTable(
+                name: "Comment");
+
+            migrationBuilder.DropTable(
+                name: "EmpAttendInfo");
 
             migrationBuilder.DropTable(
                 name: "EmployeeSchedule");

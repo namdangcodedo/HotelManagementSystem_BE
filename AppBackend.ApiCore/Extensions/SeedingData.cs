@@ -54,13 +54,13 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Đầu bếp", CodeName = "Chef" , Description = "Đầu bếp nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 7 },
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Nhân viên phục vụ", CodeName = "Waiter" , Description = "Nhân viên phục vụ nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 8 },
                     
-                    // BookingStatus - QUAN TRỌNG cho Booking
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Chờ xử lý", CodeName = "Pending" , Description = "Đặt phòng đang chờ xác nhận", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã xác nhận", CodeName = "Confirmed" , Description = "Đặt phòng đã được xác nhận", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã nhận phòng", CodeName = "CheckedIn" , Description = "Khách đã check-in", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã trả phòng", CodeName = "CheckedOut" , Description = "Khách đã check-out", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Đặt phòng đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
-                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Không đến", CodeName = "NoShow" , Description = "Khách không đến", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
+                    // Lifecycle: Pending → DepositPaid → Confirmed → CheckedIn → Completed (hoặc Cancelled)
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Chờ thanh toán", CodeName = "Pending" , Description = "Booking vừa tạo, chờ khách chuyển khoản (15 phút tự động hủy)", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Chờ xác nhận", CodeName = "PendingConfirmation" , Description = "Khách đã báo chuyển khoản, chờ manager kiểm tra bill ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã xác nhận", CodeName = "Confirmed" , Description = "Manager đã check bill và xác nhận nhận được tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã nhận phòng", CodeName = "CheckedIn" , Description = "Khách đã check-in", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Đã check-out, hoàn thành", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
+                    new CommonCode { CodeType = "BookingStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Booking đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
                     
                     // TaskType
                     new CommonCode { CodeType = "TaskType", CodeValue = "Dọn phòng", CodeName = "Cleaning" , Description = "Nhiệm vụ dọn dẹp vệ sinh phòng", IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -88,31 +88,23 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "BookingType", CodeValue = "Đặt qua điện thoại", CodeName = "Phone" , Description = "Đặt phòng qua hotline", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "BookingType", CodeValue = "Đặt qua đại lý", CodeName = "Agency" , Description = "Đặt phòng qua đại lý du lịch", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
-                    // PaymentStatus
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán đầy đủ", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Chưa thanh toán", CodeName = "Unpaid" , Description = "Chưa thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Thanh toán một phần", CodeName = "PartiallyPaid" , Description = "Đã thanh toán một phần", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hủy", CodeName = "Cancelled" , Description = "Thanh toán đã bị hủy", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    
-                    // DepositStatus
-                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã đặt cọc", CodeName = "Paid" , Description = "Đã thanh toán tiền đặt cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Chưa đặt cọc", CodeName = "Unpaid" , Description = "Chưa thanh toán tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã hoàn cọc", CodeName = "Refunded" , Description = "Đã hoàn lại tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    
                     // PaymentMethod
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Tiền mặt", CodeName = "Cash" , Description = "Thanh toán bằng tiền mặt", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Thẻ ngân hàng", CodeName = "Card" , Description = "Thanh toán bằng thẻ ATM/Credit", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "BankTransfer" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , Description = "Ví điện tử (Momo, ZaloPay, VNPay)", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "PayOS", CodeName = "PayOS" , Description = "Cổng thanh toán PayOS", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    
-                    // TransactionType - QUAN TRỌNG
-                    new CommonCode { CodeType = "TransactionType", CodeValue = "Đặt cọc", CodeName = "Deposit" , Description = "Giao dịch đặt cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
-                    new CommonCode { CodeType = "TransactionType", CodeValue = "Thanh toán", CodeName = "Payment" , Description = "Giao dịch thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
-                    new CommonCode { CodeType = "TransactionType", CodeValue = "Hoàn tiền", CodeName = "Refund" , Description = "Giao dịch hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
-                    
+
+                    // PaymentStatus - QUAN TRỌNG cho giao dịch thanh toán
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán đầy đủ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Chưa thanh toán", CodeName = "Unpaid" , Description = "Chưa thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Thanh toán hoàn tất", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+
+                    // DepositStatus - QUAN TRỌNG cho tiền cọc
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+
                     // TransactionStatus
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , Description = "Giao dịch đang được xử lý", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Giao dịch thành công", IsActive = true, CreatedAt = DateTime.UtcNow },

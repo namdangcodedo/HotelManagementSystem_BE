@@ -29,13 +29,9 @@ public class Booking
   [Column(TypeName = "decimal(18,2)")]
   public decimal DepositAmount { get; set; }
 
-  [ForeignKey("PaymentStatus")]
-  public int? PaymentStatusId { get; set; }
-  public virtual CommonCode? PaymentStatus { get; set; }
-
-  [ForeignKey("DepositStatus")]
-  public int? DepositStatusId { get; set; }
-  public virtual CommonCode? DepositStatus { get; set; }
+  [ForeignKey("Status")]
+  public int? StatusId { get; set; }
+  public virtual CommonCode? Status { get; set; }
 
   [ForeignKey("BookingType")]
   public int? BookingTypeId { get; set; }

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AppBackend.BusinessObjects.Migrations
 {
     [DbContext(typeof(HotelManagementContext))]
-    [Migration("20251123154812_Initial")]
-    partial class Initial
+    [Migration("20251208153542_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -161,7 +161,15 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int>("EmployeeId")
                         .HasColumnType("int");
 
+                    b.Property<string>("IsApproved")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
                     b.Property<string>("Notes")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Status")
                         .HasMaxLength(255)
                         .HasColumnType("nvarchar(255)");
 
@@ -263,18 +271,15 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<decimal>("DepositAmount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("DepositStatusId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("PaymentStatusId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("RoomId")
                         .HasColumnType("int");
 
                     b.Property<string>("SpecialRequests")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("StatusId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18,2)");
@@ -291,11 +296,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("DepositStatusId");
-
-                    b.HasIndex("PaymentStatusId");
-
                     b.HasIndex("RoomId");
+
+                    b.HasIndex("StatusId");
 
                     b.ToTable("Booking");
                 });
@@ -484,6 +487,53 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("ChatSession");
                 });
 
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.Property<int>("CommentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CommentId"));
+
+                    b.Property<int?>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(640)
+                        .HasColumnType("nvarchar(640)");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CreatedTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReplyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CommentId");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("ReplyId");
+
+                    b.HasIndex("RoomId");
+
+                    b.ToTable("Comment");
+                });
+
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.CommonCode", b =>
                 {
                     b.Property<int>("CodeId")
@@ -593,6 +643,39 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("AvatarMediaId");
 
                     b.ToTable("Customer");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.EmpAttendInfo", b =>
+                {
+                    b.Property<int>("AttendInfoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AttendInfoId"));
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("OverLeaveDay")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RemainLeaveRequest")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TotalLeaveRequest")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UsedLeaveRequest")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("AttendInfoId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("EmpAttendInfo");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Employee", b =>
@@ -1497,27 +1580,20 @@ namespace AppBackend.BusinessObjects.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "DepositStatus")
-                        .WithMany()
-                        .HasForeignKey("DepositStatusId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "PaymentStatus")
-                        .WithMany()
-                        .HasForeignKey("PaymentStatusId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("AppBackend.BusinessObjects.Models.Room", null)
                         .WithMany("Bookings")
                         .HasForeignKey("RoomId");
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
+                        .WithMany()
+                        .HasForeignKey("StatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("BookingType");
 
                     b.Navigation("Customer");
 
-                    b.Navigation("DepositStatus");
-
-                    b.Navigation("PaymentStatus");
+                    b.Navigation("Status");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.BookingRoom", b =>
@@ -1597,6 +1673,27 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Account");
                 });
 
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
+                        .WithMany("Comments")
+                        .HasForeignKey("AccountId");
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Comment", "Reply")
+                        .WithMany("InverseReply")
+                        .HasForeignKey("ReplyId");
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
+                        .WithMany("Comments")
+                        .HasForeignKey("RoomId");
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("Room");
+                });
+
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
@@ -1610,6 +1707,17 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Account");
 
                     b.Navigation("AvatarMedium");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.EmpAttendInfo", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Employee", b =>
@@ -1891,6 +1999,8 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     b.Navigation("AccountRoles");
 
+                    b.Navigation("Comments");
+
                     b.Navigation("Customer");
 
                     b.Navigation("Employee");
@@ -1922,6 +2032,11 @@ namespace AppBackend.BusinessObjects.Migrations
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatSession", b =>
                 {
                     b.Navigation("ChatMessages");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.Navigation("InverseReply");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
@@ -1959,6 +2074,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("BookingRooms");
 
                     b.Navigation("Bookings");
+
+                    b.Navigation("Comments");
 
                     b.Navigation("HousekeepingTasks");
 

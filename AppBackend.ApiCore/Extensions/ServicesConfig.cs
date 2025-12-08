@@ -18,6 +18,8 @@ using AppBackend.Services.Services.TransactionServices;
 using AppBackend.Services.Services.DashboardServices;
 using AppBackend.Services.Services.RoomManagement;
 using AppBackend.Services.Services.AttendanceServices;
+using AppBackend.Services.BackgroundJobs;
+using AppBackend.Services.Services.CheckoutServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -55,6 +57,7 @@ public static class ServicesConfig
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<IRoomManagementService, RoomManagementService>();
+        services.AddScoped<ICheckoutService, CheckoutService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
@@ -65,6 +68,9 @@ public static class ServicesConfig
         // Background Service for processing booking queue
         services.AddHostedService<BookingQueueProcessor>();
         
+        // Booking Timeout Checker - Singleton for delayed job processing
+        services.AddSingleton<BookingTimeoutChecker>();
+        
         services.AddSingleton<RateLimiterStore>();
         #endregion
 
@@ -72,6 +78,7 @@ public static class ServicesConfig
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
         services.AddScoped<CommonCodeHelper>();
+        services.AddScoped<BookingHelperService>();
         services.AddScoped<BookingTokenHelper>();
         services.AddScoped<AccountTokenHelper>();
         services.AddScoped<QRPaymentHelper>();

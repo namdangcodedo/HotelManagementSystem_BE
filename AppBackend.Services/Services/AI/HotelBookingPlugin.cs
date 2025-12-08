@@ -48,22 +48,30 @@ public class HotelBookingPlugin
                 NumberOfGuests = guestCount,
                 MinPrice = minPrice,
                 MaxPrice = maxPrice,
-                PageIndex = 0,  // ← QUAN TRỌNG: Luôn lấy trang đầu tiên cho chatbot
-                PageSize = 20   // ← Tăng lên 20 để AI có nhiều options hơn
+                PageIndex = 1,
+                PageSize = 10  // ← GIỚI HẠN CHỈ LẤY 10 PHÒNG ĐẦU TIÊN
             };
 
             var result = await _roomService.SearchRoomTypesAsync(request);
 
-            if (result.IsSuccess)
+            if (result.IsSuccess && result.Data != null)
             {
-                _logger.LogInformation("✅ Function returned {Count} rooms", 
-                    result.Data is System.Collections.IEnumerable enumerable ? enumerable.Cast<object>().Count() : 0);
+                // Lấy dữ liệu và giới hạn số lượng phòng trả về
+                var pagedData = result.Data as dynamic;
+                
+                _logger.LogInformation("✅ Function returned successfully");
                     
                 return JsonSerializer.Serialize(new
                 {
                     success = true,
-                    message = "Found available rooms",
-                    data = result.Data
+                    message = "Found available rooms (showing top 10 results)",
+                    totalCount = pagedData?.TotalCount ?? 0,
+                    showingCount = pagedData?.Items?.Count ?? 0,
+                    data = new
+                    {
+                        rooms = pagedData?.Items,
+                        totalCount = pagedData?.TotalCount ?? 0
+                    }
                 });
             }
 
@@ -146,6 +154,78 @@ public class HotelBookingPlugin
         
         _logger.LogInformation("✅ Returning: {Result}", result);
         return result;
+    }
+
+    [KernelFunction("search_room_type_statistics")]
+    [Description("Search and get statistics about room types: overview, most booked, by price range, by occupancy, or booking statistics")]
+    public async Task<string> SearchRoomTypeStatisticsAsync(
+        [Description("Type of statistics: 'overview' (general stats), 'most_booked' (top booked room types), 'by_price' (filter by price), 'by_occupancy' (filter by guest count), 'booking_stats' (booking statistics by date)")] 
+        string statisticType = "overview",
+        [Description("Number of top items to return (for most_booked)")] 
+        int topCount = 10,
+        [Description("Minimum price (for by_price)")] 
+        decimal? minPrice = null,
+        [Description("Maximum price (for by_price)")] 
+        decimal? maxPrice = null,
+        [Description("Minimum occupancy/guests (for by_occupancy)")] 
+        int? minOccupancy = null,
+        [Description("Maximum occupancy/guests (for by_occupancy)")] 
+        int? maxOccupancy = null,
+        [Description("Start date for filtering (for booking_stats) in format YYYY-MM-DD")] 
+        string? fromDate = null,
+        [Description("End date for filtering (for booking_stats) in format YYYY-MM-DD")] 
+        string? toDate = null)
+    {
+        try
+        {
+            _logger.LogInformation("🔧 FUNCTION CALLED: search_room_type_statistics");
+            _logger.LogInformation("  StatisticType: {Type}, TopCount: {Top}", statisticType, topCount);
+            _logger.LogInformation("  Price: {Min}-{Max}, Occupancy: {MinOcc}-{MaxOcc}", 
+                minPrice, maxPrice, minOccupancy, maxOccupancy);
+            _logger.LogInformation("  DateRange: {From} to {To}", fromDate ?? "N/A", toDate ?? "N/A");
+
+            var request = new RoomTypeStatisticsRequest
+            {
+                StatisticType = statisticType,
+                TopCount = topCount,
+                MinPrice = minPrice,
+                MaxPrice = maxPrice,
+                MinOccupancy = minOccupancy,
+                MaxOccupancy = maxOccupancy,
+                FromDate = string.IsNullOrEmpty(fromDate) ? null : DateTime.Parse(fromDate),
+                ToDate = string.IsNullOrEmpty(toDate) ? null : DateTime.Parse(toDate),
+                OnlyActive = true
+            };
+
+            var result = await _roomService.SearchRoomTypeStatisticsAsync(request);
+
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation("✅ Function returned statistics successfully");
+                return JsonSerializer.Serialize(new
+                {
+                    success = true,
+                    message = result.Message,
+                    data = result.Data
+                });
+            }
+
+            _logger.LogWarning("⚠️ Function failed: {Message}", result.Message);
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                message = result.Message ?? "Failed to get statistics"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error in search_room_type_statistics function");
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = $"Error getting room type statistics: {ex.Message}"
+            });
+        }
     }
 }
 

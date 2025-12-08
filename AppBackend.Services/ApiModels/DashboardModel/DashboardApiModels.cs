@@ -128,7 +128,7 @@ namespace AppBackend.Services.ApiModels.DashboardModel
         public DateTime CheckInDate { get; set; }
         public DateTime CheckOutDate { get; set; }
         public decimal TotalAmount { get; set; }
-        public string PaymentStatus { get; set; } = string.Empty;
+        public string BookingStatus { get; set; } = string.Empty;
         public string BookingType { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }

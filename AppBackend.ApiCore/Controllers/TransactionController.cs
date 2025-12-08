@@ -248,6 +248,22 @@ namespace AppBackend.ApiCore.Controllers
             return HandleResult(result);
         }
 
+        /// <summary>
+        /// Customer confirms payment has been made (sends notification to staff)
+        /// </summary>
+        [HttpPost("payment/confirm")]
+        [Authorize]
+        public async Task<IActionResult> ConfirmPaymentByCustomer([FromBody] ConfirmPaymentByCustomerRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var result = await _transactionService.ConfirmPaymentByCustomerAsync(request);
+            return HandleResult(result);
+        }
+
         #endregion
 
         #region PayOS Payment Link

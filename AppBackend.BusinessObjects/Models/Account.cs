@@ -45,4 +45,7 @@ public class Account
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 
     public virtual ICollection<AccountRole> AccountRoles { get; set; } = new List<AccountRole>();
+
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+
 }

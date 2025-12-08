@@ -5,6 +5,7 @@ using AppBackend.Repositories.Repositories.AttendanceRepo;
 using AppBackend.Repositories.Repositories.BankConfigRepo;
 using AppBackend.Repositories.Repositories.BookingRepo;
 using AppBackend.Repositories.Repositories.BookingRoomRepo;
+using AppBackend.Repositories.Repositories.CommentRepo;
 using AppBackend.Repositories.Repositories.CommonCodeRepo;
 using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.EmployeeRepo;
@@ -37,6 +38,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IHolidayPricingRepository HolidayPricings { get; }
         IBankConfigRepository BankConfigs { get; }
         IAttendenceRepository AttendenceRepository { get; }
+        ICommentRepository Comments { get; }
         Task<int> SaveChangesAsync();
     }
 }

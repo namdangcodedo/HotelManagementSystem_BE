@@ -102,7 +102,7 @@ namespace AppBackend.Services.Services.RoomServices
 
             // Phân trang
             var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex-1) * request.PageSize)
+                .Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -253,8 +253,6 @@ namespace AppBackend.Services.Services.RoomServices
             {
                 roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight); // Mặc định sắp xếp theo giá
             }
-
-            var typeString = roomTypes.Select(rt => '%'+ rt.TypeName+'%').ToList();
 
             var totalRecords = roomTypes.Count();
 
@@ -487,7 +485,7 @@ namespace AppBackend.Services.Services.RoomServices
             var totalRecords = roomTypes.Count();
 
             var pagedRoomTypes = roomTypes
-                .Skip(request.PageIndex * request.PageSize)
+                .Skip((request.PageIndex - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 
@@ -1172,6 +1170,350 @@ namespace AppBackend.Services.Services.RoomServices
         }
 
         #endregion
+
+        #region ROOM TYPE STATISTICS & ANALYTICS
+
+        /// <summary>
+        /// Tìm kiếm và thống kê loại phòng với nhiều filter khác nhau
+        /// </summary>
+        public async Task<ResultModel> SearchRoomTypeStatisticsAsync(RoomTypeStatisticsRequest request)
+        {
+            _logger.LogInformation("SearchRoomTypeStatisticsAsync - Type: {Type}", request.StatisticType);
+
+            return request.StatisticType.ToLower() switch
+            {
+                "overview" => await GetOverviewStatisticsAsync(request),
+                "most_booked" => await GetMostBookedRoomTypesAsync(request),
+                "by_price" => await GetRoomTypesByPriceAsync(request),
+                "by_occupancy" => await GetRoomTypesByOccupancyAsync(request),
+                "booking_stats" => await GetBookingStatisticsAsync(request),
+                _ => new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = $"Loại thống kê '{request.StatisticType}' không hợp lệ. Sử dụng: overview, most_booked, by_price, by_occupancy, booking_stats",
+                    StatusCode = StatusCodes.Status400BadRequest
+                }
+            };
+        }
+
+        private async Task<ResultModel> GetOverviewStatisticsAsync(RoomTypeStatisticsRequest request)
+        {
+            var allRoomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
+            
+            if (request.OnlyActive)
+            {
+                allRoomTypes = allRoomTypes.Where(rt => rt.IsActive);
+            }
+
+            var statistics = new
+            {
+                TotalRoomTypes = allRoomTypes.Count(),
+                ActiveRoomTypes = allRoomTypes.Count(rt => rt.IsActive),
+                InactiveRoomTypes = allRoomTypes.Count(rt => !rt.IsActive),
+                PriceRanges = new
+                {
+                    Budget = new { 
+                        Count = allRoomTypes.Count(rt => rt.BasePriceNight < 500000),
+                        Label = "< 500k VND"
+                    },
+                    Standard = new { 
+                        Count = allRoomTypes.Count(rt => rt.BasePriceNight >= 500000 && rt.BasePriceNight < 1000000),
+                        Label = "500k - 1M VND"
+                    },
+                    Deluxe = new { 
+                        Count = allRoomTypes.Count(rt => rt.BasePriceNight >= 1000000 && rt.BasePriceNight < 2000000),
+                        Label = "1M - 2M VND"
+                    },
+                    Luxury = new { 
+                        Count = allRoomTypes.Count(rt => rt.BasePriceNight >= 2000000),
+                        Label = ">= 2M VND"
+                    }
+                },
+                OccupancyDistribution = allRoomTypes
+                    .GroupBy(rt => rt.MaxOccupancy)
+                    .Select(g => new { 
+                        MaxGuests = g.Key, 
+                        Count = g.Count(),
+                        RoomTypes = g.Select(rt => new { rt.RoomTypeId, rt.TypeName, rt.BasePriceNight }).ToList()
+                    })
+                    .OrderBy(x => x.MaxGuests)
+                    .ToList(),
+                AveragePricePerNight = allRoomTypes.Any() ? allRoomTypes.Average(rt => rt.BasePriceNight) : 0,
+                MinPrice = allRoomTypes.Any() ? allRoomTypes.Min(rt => rt.BasePriceNight) : 0,
+                MaxPrice = allRoomTypes.Any() ? allRoomTypes.Max(rt => rt.BasePriceNight) : 0
+            };
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = "Lấy thống kê tổng quan loại phòng thành công",
+                Data = statistics,
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        private async Task<ResultModel> GetMostBookedRoomTypesAsync(RoomTypeStatisticsRequest request)
+        {
+            var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => true);
+            var rooms = await _unitOfWork.Rooms.GetAllAsync();
+            var roomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
+
+            if (request.OnlyActive)
+            {
+                roomTypes = roomTypes.Where(rt => rt.IsActive);
+            }
+
+            // Filter by date if provided
+            if (request.FromDate.HasValue || request.ToDate.HasValue)
+            {
+                bookingRooms = bookingRooms.Where(br =>
+                {
+                    if (request.FromDate.HasValue && br.CheckInDate < request.FromDate.Value)
+                        return false;
+                    if (request.ToDate.HasValue && br.CheckOutDate > request.ToDate.Value)
+                        return false;
+                    return true;
+                });
+            }
+
+            var roomTypeStats = bookingRooms
+                .Join(rooms, br => br.RoomId, r => r.RoomId, (br, r) => new { br, r })
+                .Where(x => roomTypes.Any(rt => rt.RoomTypeId == x.r.RoomTypeId))
+                .GroupBy(x => x.r.RoomTypeId)
+                .Select(g => new
+                {
+                    RoomTypeId = g.Key,
+                    BookingCount = g.Count(),
+                    TotalRevenue = g.Sum(x => x.br.SubTotal),
+                    TotalNights = g.Sum(x => x.br.NumberOfNights),
+                    AveragePricePerNight = g.Average(x => x.br.PricePerNight)
+                })
+                .OrderByDescending(x => x.BookingCount)
+                .Take(request.TopCount)
+                .ToList();
+
+            var result = roomTypeStats.Select(stat =>
+            {
+                var roomType = roomTypes.FirstOrDefault(rt => rt.RoomTypeId == stat.RoomTypeId);
+                return new
+                {
+                    RoomTypeId = stat.RoomTypeId,
+                    TypeName = roomType?.TypeName ?? "N/A",
+                    TypeCode = roomType?.TypeCode ?? "N/A",
+                    CurrentBasePriceNight = roomType?.BasePriceNight ?? 0,
+                    MaxOccupancy = roomType?.MaxOccupancy ?? 0,
+                    BookingCount = stat.BookingCount,
+                    TotalRevenue = stat.TotalRevenue,
+                    TotalNights = stat.TotalNights,
+                    AveragePricePerNight = stat.AveragePricePerNight,
+                    AverageRevenuePerBooking = stat.BookingCount > 0 ? stat.TotalRevenue / stat.BookingCount : 0
+                };
+            }).ToList();
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = $"Lấy top {request.TopCount} loại phòng được đặt nhiều nhất thành công",
+                Data = new
+                {
+                    TopCount = request.TopCount,
+                    FromDate = request.FromDate,
+                    ToDate = request.ToDate,
+                    RoomTypes = result
+                },
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        private async Task<ResultModel> GetRoomTypesByPriceAsync(RoomTypeStatisticsRequest request)
+        {
+            var roomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
+            
+            if (request.OnlyActive)
+            {
+                roomTypes = roomTypes.Where(rt => rt.IsActive);
+            }
+
+            if (request.MinPrice.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.BasePriceNight >= request.MinPrice.Value);
+            }
+            if (request.MaxPrice.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.BasePriceNight <= request.MaxPrice.Value);
+            }
+
+            var result = roomTypes
+                .OrderBy(rt => rt.BasePriceNight)
+                .Select(rt => new
+                {
+                    RoomTypeId = rt.RoomTypeId,
+                    TypeName = rt.TypeName,
+                    TypeCode = rt.TypeCode,
+                    Description = rt.Description,
+                    BasePriceNight = rt.BasePriceNight,
+                    MaxOccupancy = rt.MaxOccupancy,
+                    RoomSize = rt.RoomSize,
+                    NumberOfBeds = rt.NumberOfBeds,
+                    BedType = rt.BedType,
+                    IsActive = rt.IsActive
+                })
+                .ToList();
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = $"Tìm thấy {result.Count} loại phòng trong khoảng giá {request.MinPrice ?? 0:N0} - {request.MaxPrice?.ToString("N0") ?? "∞"} VND",
+                Data = new
+                {
+                    MinPrice = request.MinPrice,
+                    MaxPrice = request.MaxPrice,
+                    TotalCount = result.Count,
+                    RoomTypes = result
+                },
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        private async Task<ResultModel> GetRoomTypesByOccupancyAsync(RoomTypeStatisticsRequest request)
+        {
+            var roomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
+            
+            if (request.OnlyActive)
+            {
+                roomTypes = roomTypes.Where(rt => rt.IsActive);
+            }
+
+            if (request.MinOccupancy.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.MaxOccupancy >= request.MinOccupancy.Value);
+            }
+            if (request.MaxOccupancy.HasValue)
+            {
+                roomTypes = roomTypes.Where(rt => rt.MaxOccupancy <= request.MaxOccupancy.Value);
+            }
+
+            var result = roomTypes
+                .OrderBy(rt => rt.MaxOccupancy)
+                .ThenBy(rt => rt.BasePriceNight)
+                .Select(rt => new
+                {
+                    RoomTypeId = rt.RoomTypeId,
+                    TypeName = rt.TypeName,
+                    TypeCode = rt.TypeCode,
+                    Description = rt.Description,
+                    BasePriceNight = rt.BasePriceNight,
+                    MaxOccupancy = rt.MaxOccupancy,
+                    RoomSize = rt.RoomSize,
+                    NumberOfBeds = rt.NumberOfBeds,
+                    BedType = rt.BedType,
+                    IsActive = rt.IsActive
+                })
+                .ToList();
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = $"Tìm thấy {result.Count} loại phòng cho {request.MinOccupancy ?? 0}-{request.MaxOccupancy?.ToString() ?? "∞"} khách",
+                Data = new
+                {
+                    MinOccupancy = request.MinOccupancy,
+                    MaxOccupancy = request.MaxOccupancy,
+                    TotalCount = result.Count,
+                    RoomTypes = result
+                },
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        private async Task<ResultModel> GetBookingStatisticsAsync(RoomTypeStatisticsRequest request)
+        {
+            var bookings = await _unitOfWork.Bookings.FindAsync(b => true);
+            var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => true);
+            var rooms = await _unitOfWork.Rooms.GetAllAsync();
+            var roomTypes = await _unitOfWork.RoomTypes.GetAllAsync();
+
+            if (request.OnlyActive)
+            {
+                roomTypes = roomTypes.Where(rt => rt.IsActive);
+            }
+
+            // Filter bookings by date
+            if (request.FromDate.HasValue)
+            {
+                bookings = bookings.Where(b => b.CheckInDate >= request.FromDate.Value);
+            }
+            if (request.ToDate.HasValue)
+            {
+                bookings = bookings.Where(b => b.CheckOutDate <= request.ToDate.Value);
+            }
+
+            var validBookingIds = bookings.Select(b => b.BookingId).ToList();
+
+            var stats = bookingRooms
+                .Where(br => validBookingIds.Contains(br.BookingId))
+                .Join(rooms, br => br.RoomId, r => r.RoomId, (br, r) => new { br, r })
+                .Where(x => roomTypes.Any(rt => rt.RoomTypeId == x.r.RoomTypeId))
+                .GroupBy(x => x.r.RoomTypeId)
+                .Select(g => new
+                {
+                    RoomTypeId = g.Key,
+                    TotalBookings = g.Count(),
+                    TotalRevenue = g.Sum(x => x.br.SubTotal),
+                    TotalNights = g.Sum(x => x.br.NumberOfNights),
+                    AveragePrice = g.Average(x => x.br.PricePerNight),
+                    MinPrice = g.Min(x => x.br.PricePerNight),
+                    MaxPrice = g.Max(x => x.br.PricePerNight)
+                })
+                .ToList();
+
+            var result = stats.Select(stat =>
+            {
+                var roomType = roomTypes.FirstOrDefault(rt => rt.RoomTypeId == stat.RoomTypeId);
+                return new
+                {
+                    RoomTypeId = stat.RoomTypeId,
+                    TypeName = roomType?.TypeName ?? "N/A",
+                    TypeCode = roomType?.TypeCode ?? "N/A",
+                    CurrentBasePriceNight = roomType?.BasePriceNight ?? 0,
+                    MaxOccupancy = roomType?.MaxOccupancy ?? 0,
+                    Statistics = new
+                    {
+                        TotalBookings = stat.TotalBookings,
+                        TotalRevenue = stat.TotalRevenue,
+                        TotalNights = stat.TotalNights,
+                        AveragePricePerNight = stat.AveragePrice,
+                        MinPricePerNight = stat.MinPrice,
+                        MaxPricePerNight = stat.MaxPrice,
+                        AverageRevenuePerBooking = stat.TotalBookings > 0 ? stat.TotalRevenue / stat.TotalBookings : 0
+                    }
+                };
+            })
+            .OrderByDescending(x => x.Statistics.TotalBookings)
+            .ToList();
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = $"Thống kê booking của {result.Count} loại phòng từ {request.FromDate?.ToString("yyyy-MM-dd") ?? "∞"} đến {request.ToDate?.ToString("yyyy-MM-dd") ?? "∞"}",
+                Data = new
+                {
+                    FromDate = request.FromDate,
+                    ToDate = request.ToDate,
+                    TotalRoomTypes = result.Count,
+                    TotalBookings = result.Sum(x => x.Statistics.TotalBookings),
+                    TotalRevenue = result.Sum(x => x.Statistics.TotalRevenue),
+                    RoomTypes = result
+                },
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        #endregion
     }
 }
-

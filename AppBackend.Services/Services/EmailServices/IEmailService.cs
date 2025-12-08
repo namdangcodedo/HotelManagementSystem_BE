@@ -12,5 +12,7 @@ namespace AppBackend.Services.Services.Email
         Task SendOtpEmail(string email, string otp);
         Task SendBookingConfirmationEmailAsync(int bookingId, string? newAccountPassword = null);
         Task SendAccountActivationEmailAsync(int accountId);
+        Task SendPaymentNotificationToStaffAsync(int bookingId, string orderCode);
+        Task SendPaymentConfirmationRequestEmailToManagerAsync(int bookingId);
     }
 }

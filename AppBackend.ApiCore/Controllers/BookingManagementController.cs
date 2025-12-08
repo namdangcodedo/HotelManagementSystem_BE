@@ -7,81 +7,101 @@ namespace AppBackend.ApiCore.Controllers
 {
     /// <summary>
     /// API quản lý booking offline - dành cho Lễ tân, Manager, Admin
-    /// Tự động điền thông tin customer từ email/SĐT, gửi email cảm ơn sau booking
+    /// Lễ tân tự chọn phòng cụ thể, không tự động chọn phòng
     /// </summary>
     [Route("api/[controller]")]
-    [Authorize(Roles = "Receptionist,Manager,Admin")]
+    [ApiController]
     public class BookingManagementController : BaseApiController
     {
         private readonly IBookingManagementService _bookingManagementService;
-        private readonly IBookingService _bookingService;
 
-        public BookingManagementController(IBookingManagementService bookingManagementService, IBookingService bookingService)
+        public BookingManagementController(IBookingManagementService bookingManagementService)
         {
             _bookingManagementService = bookingManagementService;
-            _bookingService = bookingService;
         }
 
         /// <summary>
-        /// Kiểm tra phòng available theo filter - dành cho lễ tân
-        /// Tự động check phòng trong DB và phòng đang bị lock trong cache
+        /// Search và filter phòng available - API GET chuẩn
         /// </summary>
         /// <remarks>
-        /// API này sử dụng lại logic check availability từ BookingService
-        /// Phân biệt với booking online: Lễ tân có thể xem chi tiết phòng nào available cụ thể
+        /// API GET để tìm kiếm và filter phòng trống với đầy đủ tiêu chí:
+        /// - Ngày check-in/check-out
+        /// - Loại phòng (RoomType)
+        /// - Số lượng giường
+        /// - Loại giường (King, Queen, Twin...)
+        /// - Số người tối đa
+        /// - Khoảng giá
+        /// - Diện tích phòng
+        /// - Tìm kiếm theo tên/mã phòng
+        /// - Sắp xếp theo giá, diện tích, tên
         /// 
-        /// ### Request Example:
-        /// ```json
-        /// {
-        ///   "roomTypes": [
-        ///     { "roomTypeId": 1, "quantity": 2 },
-        ///     { "roomTypeId": 3, "quantity": 1 }
-        ///   ],
-        ///   "checkInDate": "2025-11-20T14:00:00Z",
-        ///   "checkOutDate": "2025-11-22T12:00:00Z"
-        /// }
+        /// ### Query Parameters Examples:
+        /// 
+        /// **Tìm phòng trống trong khoảng thời gian:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?checkInDate=2025-12-10&checkOutDate=2025-12-12
         /// ```
         /// 
+        /// **Filter theo loại phòng và số giường:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?roomTypeId=1&numberOfBeds=2
+        /// ```
+        /// 
+        /// **Filter theo giá:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?minPrice=500000&maxPrice=2000000
+        /// ```
+        /// 
+        /// **Filter theo loại giường:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?bedType=King
+        /// ```
+        /// 
+        /// **Filter theo số người:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?maxOccupancy=4
+        /// ```
+        /// 
+        /// **Search theo tên:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?searchTerm=deluxe
+        /// ```
+        /// 
+        /// **Kết hợp nhiều filter:**
+        /// ```
+        /// GET /api/BookingManagement/rooms/search?checkInDate=2025-12-10&checkOutDate=2025-12-12&roomTypeId=1&numberOfBeds=2&minPrice=1000000&maxPrice=3000000&sortBy=price&pageNumber=1&pageSize=10
+        /// ```
+        /// 
+        /// ### Sorting Options:
+        /// - `sortBy=price` - Sắp xếp theo giá
+        /// - `sortBy=roomsize` - Sắp xếp theo diện tích
+        /// - `sortBy=roomname` - Sắp xếp theo tên phòng
+        /// - `isDescending=true` - Sắp xếp giảm dần
+        /// 
         /// ### Response bao gồm:
-        /// - Danh sách room types với số lượng available
-        /// - Thông tin chi tiết từng loại phòng
-        /// - Các phòng đang bị lock trong cache sẽ không hiển thị
+        /// - Danh sách phòng chi tiết (Room info, RoomType, Price, Size, Beds...)
+        /// - Amenities của từng phòng
+        /// - Hình ảnh phòng
+        /// - Pagination info
         /// </remarks>
-        [HttpPost("available-rooms")]
-        public async Task<IActionResult> GetAvailableRooms([FromBody] CheckRoomAvailabilityRequest request)
+        [HttpGet("rooms/search")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> SearchAvailableRooms([FromQuery] SearchAvailableRoomsRequest request)
         {
-            var result = await _bookingService.CheckRoomAvailabilityAsync(request);
+            var result = await _bookingManagementService.SearchAvailableRoomsAsync(request);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Tìm kiếm customer theo email hoặc số điện thoại để tự động điền form
-        /// </summary>
-        /// <param name="searchTerm">Email hoặc số điện thoại</param>
-        /// <returns>Thông tin customer nếu tìm thấy</returns>
-        [HttpGet("search-customer")]
-        public async Task<IActionResult> SearchCustomer([FromQuery] string searchTerm)
-        {
-            if (string.IsNullOrWhiteSpace(searchTerm))
-            {
-                return BadRequest("Vui lòng nhập email hoặc số điện thoại");
-            }
-
-            var result = await _bookingManagementService.SearchCustomerAsync(searchTerm);
-            return Ok(result);
-        }
-
-        /// <summary>
-        /// Tạo booking offline cho khách - Lễ tân nhập thông tin tại quầy
-        /// Tự động tìm customer theo email/SĐT, nếu chưa có thì tạo mới
-        /// BookingType sẽ được set là "Walkin" để phân biệt với booking online
+        /// Tạo booking offline - Lễ tân tự chọn phòng cụ thể
         /// </summary>
         /// <remarks>
-        /// ### Đặc điểm booking offline (Walkin):
-        /// - BookingType = "Walkin" (khác với "Online")
-        /// - Có thể nhận deposit ngay tại quầy (Cash/Card/Transfer)
-        /// - Lễ tân có thể sửa thông tin trước khi check-in
-        /// - Không cần qua payment gateway như PayOS
+        /// ### Đặc điểm:
+        /// - Lễ tân **tự chọn các phòng cụ thể** bằng RoomIds (không tự động)
+        /// - BookingType = "WalkIn"
+        /// - Status mặc định = "CheckedIn"
+        /// - Thanh toán toàn bộ ngay tại quầy
+        /// - Tự động gửi email xác nhận
         /// 
         /// ### Request Example:
         /// ```json
@@ -91,153 +111,84 @@ namespace AppBackend.ApiCore.Controllers
         ///   "phoneNumber": "0901234567",
         ///   "identityCard": "001234567890",
         ///   "address": "123 Đường ABC, TP.HCM",
-        ///   "roomTypes": [
-        ///     { "roomTypeId": 1, "quantity": 1 }
-        ///   ],
-        ///   "checkInDate": "2025-11-20T14:00:00Z",
-        ///   "checkOutDate": "2025-11-22T12:00:00Z",
-        ///   "specialRequests": "Tầng cao, view biển",
-        ///   "depositAmount": 500000,
-        ///   "paymentMethod": "Cash",
-        ///   "paymentNote": "Khách đặt cọc tiền mặt"
+        ///   "roomIds": [101, 102, 201],
+        ///   "checkInDate": "2025-12-10T14:00:00Z",
+        ///   "checkOutDate": "2025-12-12T12:00:00Z",
+        ///   "specialRequests": "Phòng tầng cao, view đẹp",
+        ///   "paymentMethod": "Cash"
         /// }
         /// ```
         /// </remarks>
-        [HttpPost("offline-booking")]
+        [HttpPost("offline")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> CreateOfflineBooking([FromBody] CreateOfflineBookingRequest request)
         {
             var employeeId = CurrentUserId;
-
             var result = await _bookingManagementService.CreateOfflineBookingAsync(request, employeeId);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Cập nhật thông tin booking offline (trước khi check-in)
-        /// Chỉ cho phép cập nhật booking có BookingType = "Walkin"
+        /// Cập nhật thông tin booking offline
         /// </summary>
-        [HttpPut("offline-booking/{bookingId}")]
+        [HttpPut("offline/{bookingId}")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> UpdateOfflineBooking(int bookingId, [FromBody] UpdateOfflineBookingRequest request)
         {
             var employeeId = CurrentUserId;
-
             var result = await _bookingManagementService.UpdateOfflineBookingAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Xác nhận thanh toán đặt cọc cho booking offline (tiền mặt/chuyển khoản)
-        /// </summary>
-        [HttpPost("offline-booking/{bookingId}/confirm-deposit")]
-        public async Task<IActionResult> ConfirmOfflineDeposit(int bookingId, [FromBody] ConfirmOfflineDepositRequest request)
-        {
-            var employeeId = CurrentUserId;
-
-            var result = await _bookingManagementService.ConfirmOfflineDepositAsync(bookingId, request, employeeId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Xác nhận thanh toán toàn bộ cho booking offline và gửi email cảm ơn
-        /// </summary>
-        [HttpPost("offline-booking/{bookingId}/confirm-payment")]
-        public async Task<IActionResult> ConfirmOfflinePayment(int bookingId, [FromBody] ConfirmOfflinePaymentRequest request)
-        {
-            var employeeId = CurrentUserId;
-
-            var result = await _bookingManagementService.ConfirmOfflinePaymentAsync(bookingId, request, employeeId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Lấy danh sách booking offline với bộ lọc đầy đủ
+        /// Lấy danh sách booking với filter (online/offline)
         /// </summary>
         /// <remarks>
-        /// ### Màn hình quản lý booking sẽ hiển thị:
-        /// - Danh sách booking offline (BookingType = "Walkin")
-        /// - Filter theo: Ngày, Trạng thái thanh toán, Trạng thái deposit, Tên khách, SĐT
-        /// - Phân trang
-        /// - Thông tin chi tiết: Khách hàng, Phòng, Giá, Lịch sử thanh toán
-        /// 
         /// ### Query Parameters:
-        /// - fromDate: Lọc từ ngày check-in
-        /// - toDate: Lọc đến ngày check-out
-        /// - paymentStatus: "Paid" | "Unpaid" | "PartiallyPaid"
-        /// - depositStatus: "Paid" | "Unpaid"
-        /// - customerName: Tìm theo tên khách
-        /// - phoneNumber: Tìm theo SĐT
-        /// - pageNumber: Trang hiện tại (default: 1)
-        /// - pageSize: Số records mỗi trang (default: 20)
-        /// </remarks>
-        [HttpGet("offline-bookings")]
-        public async Task<IActionResult> GetOfflineBookings([FromQuery] OfflineBookingFilterRequest filter)
-        {
-            var result = await _bookingManagementService.GetOfflineBookingsAsync(filter);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Lấy chi tiết một booking offline
-        /// </summary>
-        [HttpGet("offline-booking/{bookingId}")]
-        public async Task<IActionResult> GetOfflineBookingById(int bookingId)
-        {
-            var result = await _bookingService.GetBookingByIdAsync(bookingId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Hủy booking offline
-        /// </summary>
-        [HttpDelete("offline-booking/{bookingId}")]
-        public async Task<IActionResult> CancelOfflineBooking(int bookingId, [FromBody] CancelBookingRequest request)
-        {
-            var employeeId = CurrentUserId;
-
-            var result = await _bookingManagementService.CancelOfflineBookingAsync(bookingId, request.Reason ?? "", employeeId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
-        /// Lấy danh sách tất cả booking với filter và phân trang (Online + Offline)
-        /// </summary>
-        /// <remarks>
-        /// ### API tổng hợp cho quản lý tất cả booking
-        /// Hỗ trợ filter theo nhiều tiêu chí:
-        /// - Khoảng thời gian (fromDate, toDate)
-        /// - Trạng thái booking (bookingStatus)
-        /// - Trạng thái thanh toán (paymentStatus)
-        /// - Trạng thái đặt cọc (depositStatus)
-        /// - Loại booking (bookingType: Online, Walkin)
-        /// - Tìm kiếm khách hàng (customerName, phoneNumber, email)
-        /// - Tìm theo mã booking (bookingCode)
-        /// - Sắp xếp (sortBy: CreatedAt, CheckInDate, TotalAmount)
+        /// - **fromDate**: Lọc từ ngày (optional)
+        /// - **toDate**: Lọc đến ngày (optional)
+        /// - **bookingStatus**: Lọc theo trạng thái từ CommonCode (optional) - ID của CommonCode
+        /// - **bookingType**: Lọc loại booking từ CommonCode (optional) - ID của CommonCode
+        ///   - Không truyền hoặc null = Lấy tất cả
+        ///   - Truyền ID của "Online" = Chỉ lấy booking online
+        ///   - Truyền ID của "WalkIn" = Chỉ lấy booking offline
+        /// - **key**: Tìm kiếm theo tên khách, email, số điện thoại (optional)
+        /// - **pageNumber**: Trang hiện tại (default: 1)
+        /// - **pageSize**: Số records mỗi trang (default: 20)
         /// 
-        /// ### Query Parameters Example:
+        /// ### Examples:
+        /// 
+        /// **Lấy tất cả booking:**
         /// ```
-        /// GET /api/bookingmanagement/bookings?pageNumber=1&pageSize=20&fromDate=2024-01-01&bookingType=Online&sortBy=CheckInDate&isDescending=true
+        /// GET /api/BookingManagement/bookings?pageNumber=1&pageSize=20
+        /// ```
+        /// 
+        /// **Lọc booking offline:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?bookingType=2&pageNumber=1&pageSize=20
+        /// ```
+        /// 
+        /// **Lọc theo ngày và trạng thái:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?fromDate=2024-12-01&toDate=2024-12-31&bookingStatus=3
+        /// ```
+        /// 
+        /// **Tìm kiếm khách hàng:**
+        /// ```
+        /// GET /api/BookingManagement/bookings?key=nguyen van a
         /// ```
         /// </remarks>
         [HttpGet("bookings")]
-        [Authorize(Roles = "Receptionist,Manager,Admin")]
-        public async Task<IActionResult> GetBookingList([FromQuery] GetBookingListRequest request)
+        public async Task<IActionResult> GetBookings([FromQuery] BookingFilterRequest filter)
         {
-            var result = await _bookingManagementService.GetBookingListAsync(request);
+            var result = await _bookingManagementService.GetBookingsAsync(filter);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Lấy chi tiết đầy đủ của một booking
+        /// Lấy chi tiết một booking
         /// </summary>
-        /// <remarks>
-        /// ### Thông tin chi tiết bao gồm:
-        /// - Thông tin khách hàng đầy đủ (lịch sử booking, tổng chi tiêu)
-        /// - Danh sách phòng với ảnh và tiện nghi
-        /// - Lịch sử thanh toán chi tiết
-        /// - Lịch sử thay đổi booking
-        /// - Thông tin nhân viên tạo/cập nhật
-        /// </remarks>
-        [HttpGet("booking/{bookingId}/detail")]
+        [HttpGet("{bookingId}")]
         [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> GetBookingDetail(int bookingId)
         {
@@ -246,42 +197,9 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Cập nhật trạng thái booking
-        /// </summary>
-        /// <remarks>
-        /// ### Các trạng thái hợp lệ:
-        /// - Confirmed: Xác nhận booking
-        /// - CheckedIn: Khách đã check-in
-        /// - CheckedOut: Khách đã check-out
-        /// - Cancelled: Hủy booking
-        /// 
-        /// ### Request Example:
-        /// ```json
-        /// {
-        ///   "status": "CheckedIn",
-        ///   "note": "Khách đã check-in lúc 14:00"
-        /// }
-        /// ```
-        /// </remarks>
-        [HttpPut("booking/{bookingId}/status")]
-        [Authorize(Roles = "Receptionist,Manager,Admin")]
-        public async Task<IActionResult> UpdateBookingStatus(int bookingId, [FromBody] UpdateBookingStatusRequest request)
-        {
-            var employeeId = CurrentUserId;
-
-            var result = await _bookingManagementService.UpdateBookingStatusAsync(bookingId, request, employeeId);
-            return StatusCode(result.StatusCode, result);
-        }
-
-        /// <summary>
         /// Hủy booking với lý do
         /// </summary>
         /// <remarks>
-        /// ### Lưu ý:
-        /// - Chỉ có thể hủy booking chưa check-in
-        /// - Lý do hủy sẽ được lưu vào SpecialRequests
-        /// - Phòng sẽ được mở khóa tự động
-        /// 
         /// ### Request Example:
         /// ```json
         /// {
@@ -289,53 +207,247 @@ namespace AppBackend.ApiCore.Controllers
         /// }
         /// ```
         /// </remarks>
-        [HttpPost("booking/{bookingId}/cancel")]
+        [HttpPost("{bookingId}/cancel")]
         [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> CancelBooking(int bookingId, [FromBody] CancelBookingRequest request)
         {
             var employeeId = CurrentUserId;
-
             var result = await _bookingManagementService.CancelBookingAsync(bookingId, request, employeeId);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Lấy thống kê booking theo khoảng thời gian
+        /// Lấy thông tin QR payment cho booking
         /// </summary>
         /// <remarks>
-        /// ### Thống kê bao gồm:
-        /// - Tổng số booking (online + offline)
-        /// - Tổng doanh thu
-        /// - Giá trị trung bình mỗi booking
-        /// - Số booking đã xác nhận/hủy
-        /// - Thống kê theo ngày/tuần/tháng/năm
-        /// 
-        /// ### Query Parameters:
-        /// - fromDate: Ngày bắt đầu
-        /// - toDate: Ngày kết thúc
-        /// - groupBy: day | week | month | year
-        /// 
-        /// ### Example:
-        /// ```
-        /// GET /api/bookingmanagement/statistics?fromDate=2024-01-01&toDate=2024-12-31&groupBy=month
-        /// ```
+        /// Nhân viên có thể generate QR code để khách thanh toán qua VietQR
+        /// Chỉ áp dụng cho booking có status = "Pending"
         /// </remarks>
-        [HttpGet("statistics")]
-        [Authorize(Roles = "Manager,Admin")]
-        public async Task<IActionResult> GetBookingStatistics([FromQuery] BookingStatisticsRequest request)
+        [HttpGet("{bookingId}/qr-payment")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> GetQRPaymentInfo(int bookingId)
         {
-            var result = await _bookingManagementService.GetBookingStatisticsAsync(request);
+            var result = await _bookingManagementService.GetQRPaymentInfoAsync(bookingId);
             return StatusCode(result.StatusCode, result);
         }
 
         /// <summary>
-        /// Gửi lại email xác nhận booking cho khách
+        /// Manager/Admin xác nhận đã nhận được tiền cọc từ khách (sau khi check bill ngân hàng)
         /// </summary>
-        [HttpPost("booking/{bookingId}/resend-confirmation")]
+        /// <remarks>
+        /// ### Luồng xử lý:
+        /// 1. Khách báo "đã chuyển khoản" → Status chuyển sang **PendingConfirmation**
+        /// 2. Manager vào app ngân hàng kiểm tra bill
+        /// 3. Manager gọi API này để xác nhận → Status chuyển sang **Confirmed**
+        /// 4. Hệ thống tự động:
+        ///    - Tạo transaction record
+        ///    - **Gửi email cảm ơn + thông tin đặt phòng chi tiết cho khách**
+        ///    - Email bao gồm: Booking ID, thông tin phòng, ngày check-in/out, tổng tiền, link xem chi tiết
+        /// 
+        /// ### Authorization:
+        /// - Chỉ **Manager** và **Admin** mới có quyền confirm
+        /// - Lễ tân (Receptionist) **KHÔNG** có quyền confirm payment
+        /// 
+        /// ### Example:
+        /// ```
+        /// POST /api/BookingManagement/123/confirm-payment
+        /// ```
+        /// 
+        /// ### Response Success:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Xác nhận thanh toán thành công. Email đã được gửi đến khách hàng."
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("{bookingId}/confirm-payment")]
         [Authorize(Roles = "Receptionist,Manager,Admin")]
-        public async Task<IActionResult> ResendBookingConfirmation(int bookingId)
+        public async Task<IActionResult> ConfirmPayment(int bookingId)
         {
-            var result = await _bookingManagementService.ResendBookingConfirmationEmailAsync(bookingId);
+            // Get current user (Manager/Admin confirming the deposit)
+            var confirmedBy = CurrentUserId > 0 ? CurrentUserId : (int?)null;
+
+            // Gọi service ConfirmOnlineBookingAsync - tạo Transaction cho deposit
+            var result = await _bookingManagementService.ConfirmOnlineBookingAsync(bookingId, confirmedBy);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Tìm kiếm nhanh khách hàng theo số điện thoại, email hoặc tên
+        /// </summary>
+        /// <remarks>
+        /// ### Mục đích:
+        /// API này giúp lễ tân/nhân viên **tìm kiếm nhanh thông tin khách hàng** khi tạo booking offline.
+        /// 
+        /// ### Luồng sử dụng:
+        /// 1. **Khách đến quầy đặt phòng**
+        /// 2. **Lễ tân hỏi số điện thoại/email** của khách
+        /// 3. **Gọi API này** với searchKey = số điện thoại/email/tên
+        /// 4. **Nếu tìm thấy:**
+        ///    - Frontend tự động **fill thông tin** khách hàng vào form (FullName, Phone, Email, Address, IdentityCard)
+        ///    - Hiển thị thống kê: Tổng số booking trước đó, ngày booking gần nhất
+        ///    - Lễ tân chỉ cần chọn phòng và confirm → Tạo booking nhanh
+        /// 5. **Nếu không tìm thấy:**
+        ///    - Lễ tân nhập thông tin mới
+        ///    - Khi tạo booking, hệ thống sẽ **tự động tạo customer mới**
+        /// 
+        /// ### Query Parameters:
+        /// - **searchKey**: Số điện thoại, email hoặc tên khách hàng (required)
+        /// 
+        /// ### Examples:
+        /// 
+        /// **Tìm theo số điện thoại:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=0901234567
+        /// ```
+        /// 
+        /// **Tìm theo email:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=customer@gmail.com
+        /// ```
+        /// 
+        /// **Tìm theo tên:**
+        /// ```
+        /// GET /api/BookingManagement/customers/quick-search?searchKey=Nguyen Van A
+        /// ```
+        /// 
+        /// ### Response Success - Tìm thấy:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Tìm thấy 2 khách hàng",
+        ///   "data": [
+        ///     {
+        ///       "customerId": 123,
+        ///       "fullName": "Nguyễn Văn A",
+        ///       "phoneNumber": "0901234567",
+        ///       "email": "nguyenvana@gmail.com",
+        ///       "identityCard": "001234567890",
+        ///       "address": "123 Đường ABC, TP.HCM",
+        ///       "totalBookings": 5,
+        ///       "lastBookingDate": "2024-11-20T10:30:00Z",
+        ///       "matchedBy": "Phone"
+        ///     }
+        ///   ]
+        /// }
+        /// ```
+        /// 
+        /// ### Response Success - Không tìm thấy:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Không tìm thấy khách hàng. Vui lòng nhập thông tin mới để tạo booking.",
+        ///   "data": []
+        /// }
+        /// ```
+        /// 
+        /// ### Response Fields:
+        /// - **matchedBy**: "Phone" | "Email" | "Name" - Để frontend biết highlight field nào
+        /// - **totalBookings**: Số lần đã đặt phòng trước đó
+        /// - **lastBookingDate**: Ngày booking gần nhất (để biết khách quen hay khách mới)
+        /// 
+        /// ### Notes:
+        /// - API trả về **tối đa 10 kết quả** để tránh quá nhiều
+        /// - Search **không phân biệt hoa thường**
+        /// - Hỗ trợ **search một phần** (ví dụ: "090" sẽ tìm thấy "0901234567")
+        /// </remarks>
+        [HttpGet("customers/quick-search")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> QuickSearchCustomer([FromQuery] string searchKey)
+        {
+            var result = await _bookingManagementService.QuickSearchCustomerAsync(searchKey);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Add dịch vụ vào booking trong quá trình khách ở
+        /// </summary>
+        /// <remarks>
+        /// API để thêm các dịch vụ vào booking trong quá trình khách ở (sau khi check-in hoặc confirmed).
+        ///
+        /// ### Workflow:
+        /// 1. Khách ở trong khách sạn và sử dụng các dịch vụ: minibar, giặt ủi, spa, massage, v.v.
+        /// 2. Nhân viên sử dụng API này để add các services vào booking
+        /// 3. Services sẽ được tính vào hóa đơn khi checkout
+        /// 4. API preview checkout sẽ hiển thị tất cả services đã add
+        ///
+        /// ### Service Types:
+        /// - **Room Service** (có `bookingRoomId`): Dịch vụ gắn với phòng cụ thể (minibar, giặt ủi theo phòng, late checkout)
+        /// - **Booking Service** (`bookingRoomId = null`): Dịch vụ chung cho booking (spa, massage, tour, ăn uống)
+        ///
+        /// ### Example Request:
+        /// ```json
+        /// {
+        ///   "bookingId": 123,
+        ///   "services": [
+        ///     {
+        ///       "serviceId": 5,
+        ///       "quantity": 2,
+        ///       "bookingRoomId": 456,
+        ///       "note": "Minibar - 2 bia Heineken"
+        ///     },
+        ///     {
+        ///       "serviceId": 12,
+        ///       "quantity": 1,
+        ///       "bookingRoomId": null,
+        ///       "note": "Massage 60 phút"
+        ///     }
+        ///   ]
+        /// }
+        /// ```
+        ///
+        /// ### Response:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Đã thêm 2 dịch vụ vào booking",
+        ///   "data": {
+        ///     "bookingId": 123,
+        ///     "addedServices": [
+        ///       {
+        ///         "serviceName": "Minibar",
+        ///         "roomId": 201,
+        ///         "quantity": 2,
+        ///         "price": 50000,
+        ///         "subTotal": 100000,
+        ///         "type": "RoomService"
+        ///       },
+        ///       {
+        ///         "serviceName": "Massage 60 phút",
+        ///         "quantity": 1,
+        ///         "price": 500000,
+        ///         "subTotal": 500000,
+        ///         "type": "BookingService"
+        ///       }
+        ///     ],
+        ///     "addedBy": 3,
+        ///     "addedAt": "2025-12-08T10:30:00Z"
+        ///   }
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("{bookingId}/services")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> AddServicesToBooking(int bookingId, [FromBody] AddBookingServiceRequest request)
+        {
+            // Validate request
+            if (request == null || request.Services == null || !request.Services.Any())
+            {
+                return ValidationError("Danh sách dịch vụ không hợp lệ");
+            }
+
+            // Ensure bookingId in route matches request
+            request.BookingId = bookingId;
+
+            // Get current employee ID
+            var employeeId = CurrentUserId > 0 ? CurrentUserId : (int?)null;
+
+            var result = await _bookingManagementService.AddServicesToBookingAsync(request, employeeId);
             return StatusCode(result.StatusCode, result);
         }
     }

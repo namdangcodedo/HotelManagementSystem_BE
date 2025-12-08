@@ -3,112 +3,97 @@ using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.BookingModel;
 using AppBackend.Services.Helpers;
-using AppBackend.Services.MessageQueue;
+using AppBackend.Services.BackgroundJobs;
+using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Net.payOS;
-using Net.payOS.Types;
-using BusinessTransaction = AppBackend.BusinessObjects.Models.Transaction;
-using AppBackend.Services.Services.Email;
-using AppBackend.BusinessObjects.Enums;
+using Microsoft.Extensions.Logging;
+using AppBackend.Services.ApiModels.TransactionModel;
 
-namespace AppBackend.Services.Services.BookingServices
+namespace AppBackend.Services.Services.BookingServices;
+
+public class BookingService : IBookingService
 {
-    public class BookingService : IBookingService
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly CacheHelper _cacheHelper;
+    private readonly BookingHelperService _bookingHelper;
+    private readonly BookingTokenHelper _tokenHelper;
+    private readonly QRPaymentHelper _qrPaymentHelper;
+    private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration;
+    private readonly BookingTimeoutChecker _timeoutChecker;
+    private readonly ILogger<BookingService> _logger;
+
+    public BookingService(
+        IUnitOfWork unitOfWork,
+        CacheHelper cacheHelper,
+        BookingHelperService bookingHelper,
+        BookingTokenHelper tokenHelper,
+        QRPaymentHelper qrPaymentHelper,
+        IEmailService emailService,
+        IConfiguration configuration,
+        BookingTimeoutChecker timeoutChecker,
+        ILogger<BookingService> logger)
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly CacheHelper _cacheHelper;
-        private readonly IBookingQueueService _queueService;
-        private readonly PayOS _payOS;
-        private readonly IConfiguration _configuration;
-        private readonly IEmailService _emailService;
-        private readonly AccountHelper _accountHelper;
-        private readonly BookingTokenHelper _bookingTokenHelper;
+        _unitOfWork = unitOfWork;
+        _cacheHelper = cacheHelper;
+        _bookingHelper = bookingHelper;
+        _tokenHelper = tokenHelper;
+        _qrPaymentHelper = qrPaymentHelper;
+        _emailService = emailService;
+        _configuration = configuration;
+        _timeoutChecker = timeoutChecker;
+        _logger = logger;
+    }
 
-        public BookingService(
-            IUnitOfWork unitOfWork,
-            CacheHelper cacheHelper,
-            IBookingQueueService queueService,
-            PayOS payOS,
-            IConfiguration configuration,
-            IEmailService emailService,
-            AccountHelper accountHelper,
-            BookingTokenHelper bookingTokenHelper)
+    /// <summary>
+    /// Kiểm tra phòng có sẵn để đặt không
+    /// </summary>
+    public async Task<ResultModel> CheckRoomAvailabilityAsync(CheckRoomAvailabilityRequest request)
+    {
+        try
         {
-            _unitOfWork = unitOfWork;
-            _cacheHelper = cacheHelper;
-            _queueService = queueService;
-            _payOS = payOS;
-            _configuration = configuration;
-            _emailService = emailService;
-            _accountHelper = accountHelper;
-            _bookingTokenHelper = bookingTokenHelper;
-        }
+            var response = new CheckAvailabilityResponse
+            {
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalNights = _bookingHelper.CalculateNumberOfNights(request.CheckInDate, request.CheckOutDate),
+                RoomTypes = new List<RoomTypeAvailabilityDto>()
+            };
 
-        public async Task<ResultModel> CheckRoomAvailabilityAsync(CheckRoomAvailabilityRequest request)
-        {
-            var availabilityResults = new List<RoomTypeAvailabilityDto>();
-            var totalNights = (request.CheckOutDate - request.CheckInDate).Days;
+            bool allAvailable = true;
 
             foreach (var roomTypeRequest in request.RoomTypes)
             {
-                int roomTypeId = roomTypeRequest.RoomTypeId;
-                int requestedQuantity = roomTypeRequest.Quantity;
-
-                // Lấy thông tin RoomType
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeRequest.RoomTypeId);
                 if (roomType == null)
                 {
-                    availabilityResults.Add(new RoomTypeAvailabilityDto
+                    allAvailable = false;
+                    response.RoomTypes.Add(new RoomTypeAvailabilityDto
                     {
-                        RoomTypeId = roomTypeId,
-                        RoomTypeName = "Unknown",
-                        RequestedQuantity = requestedQuantity,
+                        RoomTypeId = roomTypeRequest.RoomTypeId,
+                        RequestedQuantity = roomTypeRequest.Quantity,
                         AvailableCount = 0,
                         IsAvailable = false,
-                        Message = $"Loại phòng ID {roomTypeId} không tồn tại trong hệ thống"
+                        Message = "Loại phòng không tồn tại"
                     });
                     continue;
                 }
 
-                // Lấy tất cả phòng thuộc loại này
-                var allRoomsOfType = await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == roomTypeId);
-                var availableRooms = new List<Room>();
+                // Tìm phòng available
+                var availableRooms = await _bookingHelper.FindAvailableRoomsByTypeAsync(
+                    roomTypeRequest.RoomTypeId,
+                    roomTypeRequest.Quantity,
+                    request.CheckInDate,
+                    request.CheckOutDate
+                );
 
-                // ✅ REFACTORED: Sử dụng hàm chung IsRoomAvailableAsync
-                foreach (var room in allRoomsOfType)
-                {
-                    if (await IsRoomAvailableAsync(room.RoomId, request.CheckInDate, request.CheckOutDate))
-                    {
-                        availableRooms.Add(room);
-                    }
-                }
+                bool isAvailable = availableRooms.Count >= roomTypeRequest.Quantity;
+                if (!isAvailable) allAvailable = false;
 
-                // Lấy hình ảnh của room type
-                var media = await _unitOfWork.Mediums.FindAsync(m => 
-                    m.ReferenceTable == "RoomType" && 
-                    m.ReferenceKey == roomTypeId.ToString() &&
-                    m.IsActive);
-                var images = media.OrderBy(m => m.DisplayOrder).Select(m => m.FilePath).ToList();
-
-                // Tạo message phù hợp
-                string message;
-                if (availableRooms.Count >= requestedQuantity)
+                response.RoomTypes.Add(new RoomTypeAvailabilityDto
                 {
-                    message = $"✓ Còn {availableRooms.Count} phòng trống, đủ để đáp ứng yêu cầu {requestedQuantity} phòng";
-                }
-                else if (availableRooms.Count > 0)
-                {
-                    message = $"⚠ Chỉ còn {availableRooms.Count} phòng trống, không đủ yêu cầu {requestedQuantity} phòng";
-                }
-                else
-                {
-                    message = $"✗ Không còn phòng trống trong khoảng thời gian này";
-                }
-
-                availabilityResults.Add(new RoomTypeAvailabilityDto
-                {
-                    RoomTypeId = roomTypeId,
+                    RoomTypeId = roomType.RoomTypeId,
                     RoomTypeName = roomType.TypeName,
                     RoomTypeCode = roomType.TypeCode,
                     Description = roomType.Description ?? "",
@@ -118,539 +103,54 @@ namespace AppBackend.Services.Services.BookingServices
                     NumberOfBeds = roomType.NumberOfBeds ?? 0,
                     BedType = roomType.BedType ?? "",
                     AvailableCount = availableRooms.Count,
-                    RequestedQuantity = requestedQuantity,
-                    IsAvailable = availableRooms.Count >= requestedQuantity,
-                    Message = message,
-                    Images = images
+                    RequestedQuantity = roomTypeRequest.Quantity,
+                    IsAvailable = isAvailable,
+                    Message = isAvailable
+                        ? $"Có {availableRooms.Count} phòng trống"
+                        : $"Chỉ còn {availableRooms.Count}/{roomTypeRequest.Quantity} phòng trống",
+                    Images = new List<string>() // TODO: Load images if needed
                 });
             }
 
-            // Kiểm tra xem tất cả loại phòng đều đủ số lượng không
-            var unavailableTypes = availabilityResults.Where(r => !r.IsAvailable).ToList();
-            bool isAllAvailable = !unavailableTypes.Any();
-            
-            string overallMessage;
-            if (isAllAvailable)
-            {
-                overallMessage = "✓ Tất cả loại phòng đều có đủ số lượng cho khoảng thời gian này";
-            }
-            else
-            {
-                var unavailableNames = string.Join(", ", unavailableTypes.Select(t => t.RoomTypeName));
-                overallMessage = $"⚠ Một số loại phòng không đủ số lượng: {unavailableNames}";
-            }
-
-            var response = new CheckAvailabilityResponse
-            {
-                IsAllAvailable = isAllAvailable,
-                Message = overallMessage,
-                RoomTypes = availabilityResults,
-                CheckInDate = request.CheckInDate,
-                CheckOutDate = request.CheckOutDate,
-                TotalNights = totalNights
-            };
+            response.IsAllAvailable = allAvailable;
+            response.Message = allAvailable
+                ? "Tất cả phòng đều có sẵn"
+                : "Một số loại phòng không đủ số lượng";
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = overallMessage,
-                Data = response,
-                StatusCode = isAllAvailable ? StatusCodes.Status200OK : StatusCodes.Status409Conflict
+                StatusCode = allAvailable ? StatusCodes.Status200OK : StatusCodes.Status409Conflict,
+                Message = response.Message,
+                Data = response
             };
         }
-
-        /// <summary>
-        /// Kiểm tra phòng có available không (dùng chung cho tất cả flows)
-        /// Logic: Phòng available khi:
-        /// 1. Không bị lock trong cache
-        /// 2. Không có booking với transaction status = "Completed"
-        /// </summary>
-        private async Task<bool> IsRoomAvailableAsync(int roomId, DateTime checkInDate, DateTime checkOutDate, string? ignoreLockId = null)
+        catch (Exception ex)
         {
-            // 1. Kiểm tra cache lock
-            var lockKey = $"{roomId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
-            var lockedBy = _cacheHelper.Get<string>(CachePrefix.RoomBookingLock, lockKey);
-
-            // Nếu phòng bị lock và không phải lock của mình thì không available
-            if (!string.IsNullOrEmpty(lockedBy) && lockedBy != ignoreLockId)
-            {
-                return false;
-            }
-
-            // 2. Kiểm tra booking trong database
-            var existingBookings = (await _unitOfWork.BookingRooms.FindAsync(br =>
-                br.RoomId == roomId &&
-                br.Booking.CheckInDate < checkOutDate &&
-                br.Booking.CheckOutDate > checkInDate)).ToList();
-
-            if (!existingBookings.Any())
-            {
-                return true; // Không có booking nào
-            }
-
-            // 3. Kiểm tra xem có booking nào đã thanh toán thành công chưa
-            var completedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
-
-            if (completedStatus == null)
-            {
-                return true; // Không tìm thấy status code, cho phép đặt
-            }
-
-            foreach (var bookingRoom in existingBookings)
-            {
-                var transactions = await _unitOfWork.Transactions.FindAsync(t => 
-                    t.BookingId == bookingRoom.BookingId);
-
-                // Nếu có bất kỳ transaction nào đã Completed, phòng đã được đặt
-                if (transactions.Any(t => t.TransactionStatusId == completedStatus.CodeId))
-                {
-                    return false;
-                }
-            }
-
-            return true; // Không có booking nào đã thanh toán thành công
-        }
-
-        /// <summary>
-        /// Tìm và chọn phòng available theo loại phòng
-        /// </summary>
-        private async Task<List<Room>> FindAvailableRoomsByTypeAsync(int roomTypeId, int quantity, DateTime checkInDate, DateTime checkOutDate)
-        {
-            // Lấy tất cả phòng thuộc loại này
-            var allRoomsOfType = await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == roomTypeId);
-            
-            var availableRooms = new List<Room>();
-
-            foreach (var room in allRoomsOfType)
-            {
-                if (availableRooms.Count >= quantity)
-                    break; // Đã đủ số lượng
-
-                // Sử dụng hàm chung để kiểm tra availability
-                if (await IsRoomAvailableAsync(room.RoomId, checkInDate, checkOutDate))
-                {
-                    availableRooms.Add(room);
-                }
-            }
-
-            return availableRooms;
-        }
-
-        /// <summary>
-        /// Tính giá phòng có áp dụng điều chỉnh theo ngày lễ
-        /// </summary>
-        private async Task<decimal> CalculateRoomPriceWithHolidayAsync(int roomId, DateTime checkInDate, DateTime checkOutDate, decimal basePricePerNight)
-        {
-            decimal totalPrice = 0;
-            var currentDate = checkInDate;
-            var numberOfNights = (checkOutDate - checkInDate).Days;
-            numberOfNights = numberOfNights == 0 ? 1 : numberOfNights;
-
-            for (int night = 0; night < numberOfNights; night++)
-            {
-                var nightDate = currentDate.AddDays(night);
-                var priceForNight = basePricePerNight;
-
-                // Kiểm tra xem ngày này có trong khoảng thời gian ngày lễ nào không
-                var holidayPricing = (await _unitOfWork.HolidayPricings.FindAsync(hp =>
-                    hp.IsActive &&
-                    hp.RoomId == roomId &&
-                    hp.StartDate <= nightDate &&
-                    hp.EndDate >= nightDate
-                )).FirstOrDefault();
-
-                if (holidayPricing != null)
-                {
-                    // Áp dụng điều chỉnh giá theo đêm
-                    priceForNight = basePricePerNight + holidayPricing.PriceAdjustment;
-                }
-
-                totalPrice += priceForNight;
-            }
-
-            return totalPrice;
-        }
-
-        /// <summary>
-        /// Tìm BookingId từ OrderCode
-        /// </summary>
-        private async Task<int> FindBookingIdByOrderCodeAsync(long orderCode)
-        {
-            var transaction = (await _unitOfWork.Transactions.FindAsync(t => 
-                t.OrderCode == orderCode.ToString())).FirstOrDefault();
-            
-            return transaction?.BookingId ?? 0;
-        }
-
-        public async Task<ResultModel> CreateBookingAsync(CreateBookingRequest request, int userId)
-        {
-            // 1. Validate RoomTypes
-            if (request.RoomTypes == null || !request.RoomTypes.Any())
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Vui lòng chọn ít nhất một loại phòng",
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-
-            // 2. Get customer by userId (from token)
-            var customers = await _unitOfWork.Customers.FindAsync(c => c.AccountId == userId);
-            var customer = customers.FirstOrDefault();
-            
-            if (customer == null)
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Không tìm thấy thông tin khách hàng",
-                    StatusCode = StatusCodes.Status404NotFound
-                };
-            }
-
-            // 3. Generate unique lock ID
-            var lockId = Guid.NewGuid().ToString();
-
-            // 4. Tìm phòng available cho từng loại phòng và lock chúng với cache handling
-            var selectedRooms = new List<Room>();
-            var lockedRoomIds = new List<int>();
-            var roomTypeDetails = new List<RoomTypeQuantityDto>();
-
-            foreach (var roomTypeRequest in request.RoomTypes)
-            {
-                int roomTypeId = roomTypeRequest.RoomTypeId;
-                int quantity = roomTypeRequest.Quantity;
-
-                // Lấy thông tin RoomType
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
-                if (roomType == null)
-                {
-                    // Release all locked rooms
-                    _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
-
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = $"Loại phòng ID {roomTypeId} không tồn tại",
-                        StatusCode = StatusCodes.Status404NotFound
-                    };
-                }
-
-                // Tìm phòng available
-                var availableRooms = await FindAvailableRoomsByTypeAsync(roomTypeId, quantity, request.CheckInDate, request.CheckOutDate);
-
-                if (availableRooms.Count < quantity)
-                {
-                    // Release all locked rooms
-                    _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
-
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = $"Không đủ phòng {roomType.TypeName}. Yêu cầu: {quantity}, Còn trống: {availableRooms.Count}",
-                        StatusCode = StatusCodes.Status409Conflict
-                    };
-                }
-
-                // Lock các phòng đã chọn với cache handling để tránh tranh chấp
-                foreach (var room in availableRooms.Take(quantity))
-                {
-                    var lockKey = $"{room.RoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                    var locked = _cacheHelper.TryAcquireLock(CachePrefix.RoomBookingLock, lockKey, lockId);
-
-                    if (!locked)
-                    {
-                        // Release all previously locked rooms
-                        _cacheHelper.ReleaseAllBookingLocks(lockedRoomIds, request.CheckInDate, request.CheckOutDate, lockId);
-
-                        return new ResultModel
-                        {
-                            IsSuccess = false,
-                            Message = $"Phòng {room.RoomName} đang được đặt bởi người khác. Vui lòng thử lại!",
-                            StatusCode = StatusCodes.Status409Conflict
-                        };
-                    }
-
-                    lockedRoomIds.Add(room.RoomId);
-                    selectedRooms.Add(room);
-                }
-
-                roomTypeDetails.Add(new RoomTypeQuantityDto
-                {
-                    RoomTypeId = roomTypeId,
-                    RoomTypeName = roomType.TypeName,
-                    RoomTypeCode = roomType.TypeCode,
-                    Quantity = quantity,
-                    PricePerNight = roomType.BasePriceNight
-                });
-            }
-
-            // 5. Calculate total amount and prepare booking rooms
-            decimal totalAmount = 0;
-            var numberOfNights = (request.CheckOutDate - request.CheckInDate).Days;
-            numberOfNights = numberOfNights == 0 ? 1 : numberOfNights;
-            var bookingRoomsToAdd = new List<BookingRoom>();
-
-            foreach (var room in selectedRooms)
-            {
-                // Lấy RoomType để lấy BasePriceNight
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
-                if (roomType == null) continue;
-
-                // Tính giá có áp dụng điều chỉnh theo ngày lễ
-                var roomSubTotal = await CalculateRoomPriceWithHolidayAsync(
-                    room.RoomId, 
-                    request.CheckInDate, 
-                    request.CheckOutDate, 
-                    roomType.BasePriceNight
-                );
-                
-                totalAmount += roomSubTotal;
-
-                bookingRoomsToAdd.Add(new BookingRoom
-                {
-                    RoomId = room.RoomId,
-                    PricePerNight = roomType.BasePriceNight, // Giá gốc để tham khảo
-                    NumberOfNights = numberOfNights,
-                    SubTotal = roomSubTotal, // Tổng tiền đã bao gồm điều chỉnh ngày lễ
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate
-                });
-            }
-
-            // 6. Create booking
-            var booking = new Booking
-            {
-                CustomerId = userId,
-                CheckInDate = request.CheckInDate,
-                CheckOutDate = request.CheckOutDate,
-                TotalAmount = totalAmount,
-                DepositAmount = totalAmount * 0.3m, // 30% deposit
-                SpecialRequests = request.SpecialRequests,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = userId
-            };
-
-            // Get status codes
-            var unpaidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
-            var unpaidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "DepositStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
-            
-            // BookingType luôn là "Online" cho web booking - tìm với ignore case
-            var bookingTypeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "BookingType" && 
-                c.CodeName.ToLower() == "online")).FirstOrDefault();
-
-            if (unpaidStatus != null) booking.PaymentStatusId = unpaidStatus.CodeId;
-            if (unpaidDepositStatus != null) booking.DepositStatusId = unpaidDepositStatus.CodeId;
-            if (bookingTypeCode != null) booking.BookingTypeId = bookingTypeCode.CodeId;
-
-            await _unitOfWork.Bookings.AddAsync(booking);
-            await _unitOfWork.SaveChangesAsync();
-
-            // 7. Create booking rooms (OrderDetail pattern)
-            foreach (var bookingRoom in bookingRoomsToAdd)
-            {
-                bookingRoom.BookingId = booking.BookingId;
-                await _unitOfWork.BookingRooms.AddAsync(bookingRoom);
-            }
-            await _unitOfWork.SaveChangesAsync();
-
-            // 8. Create PayOS payment link
-            string paymentUrl = string.Empty;
-            long orderCode = 0;
-            try
-            {
-                orderCode = long.Parse(DateTimeOffset.Now.ToString("yyMMddHHmmss"));
-                var returnUrl = _configuration["PayOS:ReturnUrl"] ?? "http://localhost:5173/payment/callback";
-                var cancelUrl = (_configuration["PayOS:CancelUrl"] ?? "http://localhost:5173/payment/cancel") + $"?bookingId={booking.BookingId}";
-
-                var roomNames = string.Join(", ", selectedRooms.Select(r => r.RoomName));
-                
-                // PayOS giới hạn description tối đa 25 ký tự
-                var description = $"Dat phong #{booking.BookingId}";
-                if (description.Length > 25)
-                {
-                    description = description.Substring(0, 25);
-                }
-
-                // Set expiration time to 30 minutes from now (use UTC to avoid timezone issues)
-                var expiredAt = (int)DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
-
-                var paymentData = new PaymentData(
-                    orderCode: orderCode,
-                    amount: (int)booking.DepositAmount,
-                    description: description,
-                    items: new List<ItemData>
-                    {
-                        new ItemData($"Booking #{booking.BookingId}", 1, (int)booking.DepositAmount)
-                    },
-                    cancelUrl: cancelUrl,
-                    returnUrl: returnUrl,
-                    expiredAt: expiredAt
-                );
-
-                var createPayment = await _payOS.createPaymentLink(paymentData);
-                paymentUrl = createPayment.checkoutUrl;
-
-                // Save payment info to cache
-                _cacheHelper.Set(CachePrefix.BookingPayment, booking.BookingId.ToString(), new
-                {
-                    BookingId = booking.BookingId,
-                    OrderCode = orderCode,
-                    Amount = booking.DepositAmount,
-                    LockId = lockId,
-                    RoomIds = lockedRoomIds,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate
-                });
-            }
-            catch (Exception ex)
-            {
-                // Rollback: Delete booking rooms first, then booking, then release locks
-                var bookingRoomsToDelete = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId);
-                foreach (var bookingRoom in bookingRoomsToDelete)
-                {
-                    await _unitOfWork.BookingRooms.DeleteAsync(bookingRoom);
-                }
-                
-                await _unitOfWork.Bookings.DeleteAsync(booking);
-                await _unitOfWork.SaveChangesAsync();
-
-                // Release room locks
-                foreach (var roomId in lockedRoomIds)
-                {
-                    var releaseLockKey = $"{roomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                    _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                }
-
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = $"Lỗi tạo link thanh toán: {ex.Message}",
-                    StatusCode = StatusCodes.Status500InternalServerError
-                };
-            }
-
-            // 9. Create Transaction record
-            var paymentMethodCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentMethod" && c.CodeName == "EWallet")).FirstOrDefault();
-            var transactionStatusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Pending")).FirstOrDefault();
-
-            if (paymentMethodCode != null && transactionStatusCode != null && unpaidStatus != null)
-            {
-                var transaction = new BusinessTransaction
-                {
-                    BookingId = booking.BookingId,
-                    TotalAmount = booking.TotalAmount,
-                    PaidAmount = 0,
-                    DepositAmount = booking.DepositAmount,
-                    PaymentMethodId = paymentMethodCode.CodeId,
-                    PaymentStatusId = unpaidStatus.CodeId,
-                    TransactionStatusId = transactionStatusCode.CodeId,
-                    OrderCode = orderCode.ToString(),
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = userId
-                };
-                await _unitOfWork.Transactions.AddAsync(transaction);
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            // 10. Enqueue message to process booking
-            var message = new BookingQueueMessage
-            {
-                MessageType = BookingMessageType.CreateBooking,
-                Data = new BookingMessage
-                {
-                    BookingId = booking.BookingId,
-                    CustomerId = customer.CustomerId,
-                    RoomIds = lockedRoomIds,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
-                    TotalAmount = totalAmount,
-                    LockId = lockId
-                }
-            };
-
-            await _queueService.EnqueueAsync(message);
-
-            // 11. Schedule auto-cancel after 15 minutes if not paid
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(TimeSpan.FromMinutes(1));//test 1 minute
-                var paymentInfo = _cacheHelper.Get<object>(CachePrefix.BookingPayment, booking.BookingId.ToString());
-                if (paymentInfo != null)
-                {
-                    // Payment not completed, cancel booking
-                    var cancelMessage = new BookingQueueMessage
-                    {
-                        MessageType = BookingMessageType.CancelBooking,
-                        Data = new BookingMessage
-                        {
-                            BookingId = booking.BookingId,
-                            RoomIds = lockedRoomIds,
-                            CheckInDate = request.CheckInDate,
-                            CheckOutDate = request.CheckOutDate,
-                            LockId = lockId
-                        }
-                    };
-                    await _queueService.EnqueueAsync(cancelMessage);
-                }
-            });
-
             return new ResultModel
             {
-                IsSuccess = true,
-                Message = "Tạo booking thành công. Vui lòng thanh toán trong 15 phút!",
-                Data = new BookingDto
-                {
-                    BookingId = booking.BookingId,
-                    CustomerId = customer.CustomerId,
-                    CustomerName = customer.FullName,
-                    RoomIds = lockedRoomIds,
-                    RoomNames = selectedRooms.Select(r => r.RoomName).ToList(),
-                    RoomTypeDetails = roomTypeDetails,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
-                    TotalAmount = totalAmount,
-                    DepositAmount = booking.DepositAmount,
-                    PaymentUrl = paymentUrl,
-                    CreatedAt = booking.CreatedAt
-                },
-                StatusCode = StatusCodes.Status201Created
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
             };
         }
+    }
 
-        /// <summary>
-        /// Tạo booking cho guest (không cần đăng nhập) - Tự động tạo hoặc tìm customer
-        /// </summary>
-        public async Task<ResultModel> CreateGuestBookingAsync(CreateGuestBookingRequest request)
+    /// <summary>
+    /// Tạo booking cho customer đã có tài khoản
+    /// </summary>
+    public async Task<ResultModel> CreateBookingAsync(CreateBookingRequest request, int userId)
+    {
+        try
         {
-            // 1. Validate input
-            if (string.IsNullOrWhiteSpace(request.FullName) || 
-                string.IsNullOrWhiteSpace(request.Email) || 
-                string.IsNullOrWhiteSpace(request.PhoneNumber))
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Vui lòng cung cấp đầy đủ: Họ tên, Email và Số điện thoại",
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
-
-            // 2. Validate dates
+            // 1. Validate
             if (request.CheckInDate <= DateTime.UtcNow)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Ngày check-in phải sau thời điểm hiện tại",
-                    StatusCode = StatusCodes.Status400BadRequest
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-in phải sau thời điểm hiện tại"
                 };
             }
 
@@ -659,457 +159,628 @@ namespace AppBackend.Services.Services.BookingServices
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Ngày check-out phải sau ngày check-in",
-                    StatusCode = StatusCodes.Status400BadRequest
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-out phải sau ngày check-in"
                 };
             }
 
-            // Validate RoomTypes
-            if (!request.RoomTypes.Any())
+            // 2. Lấy customer từ userId
+            var account = await _unitOfWork.Accounts.GetByIdAsync(userId);
+            if (account == null)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Vui lòng chọn ít nhất một loại phòng",
-                    StatusCode = StatusCodes.Status400BadRequest
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy tài khoản"
                 };
             }
 
-            // 3. Tạo Account và Customer mới cho Guest
-            Customer? customer = null;
-            string? newAccountPassword = null;
-            
-            // Kiểm tra xem email đã tồn tại trong hệ thống chưa
-            var existingAccount = await _unitOfWork.Accounts.GetByEmailAsync(request.Email);
-            
-            if (existingAccount != null)
-            {
-                // Nếu account đã tồn tại, lấy customer liên kết
-                var existingCustomers = await _unitOfWork.Customers.FindAsync(c => c.AccountId == existingAccount.AccountId);
-                customer = existingCustomers.FirstOrDefault();
-                
-                if (customer != null)
-                {
-                    // Cập nhật thông tin customer nếu cần
-                    bool needUpdate = false;
-                    
-                    if (!string.IsNullOrEmpty(request.FullName) && customer.FullName != request.FullName)
-                    {
-                        customer.FullName = request.FullName;
-                        needUpdate = true;
-                    }
-                    
-                    if (!string.IsNullOrEmpty(request.PhoneNumber) && customer.PhoneNumber != request.PhoneNumber)
-                    {
-                        customer.PhoneNumber = request.PhoneNumber;
-                        needUpdate = true;
-                    }
-
-                    if (!string.IsNullOrEmpty(request.IdentityCard) && customer.IdentityCard != request.IdentityCard)
-                    {
-                        customer.IdentityCard = request.IdentityCard;
-                        needUpdate = true;
-                    }
-
-                    if (!string.IsNullOrEmpty(request.Address) && customer.Address != request.Address)
-                    {
-                        customer.Address = request.Address;
-                        needUpdate = true;
-                    }
-
-                    if (needUpdate)
-                    {
-                        customer.UpdatedAt = DateTime.UtcNow;
-                        await _unitOfWork.Customers.UpdateAsync(customer);
-                        await _unitOfWork.SaveChangesAsync();
-                    }
-                }
-            }
-            else
-            {
-                // Tạo Account mới với mật khẩu mặc định "123456"
-                newAccountPassword = "123456";
-                var hashedPassword = _accountHelper.HashPassword(newAccountPassword);
-                
-                var newAccount = new Account
-                {
-                    Username = request.Email, // Sử dụng email làm username
-                    Email = request.Email,
-                    PasswordHash = hashedPassword,
-                    IsLocked = false,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = null
-                };
-                
-                await _unitOfWork.Accounts.AddAsync(newAccount);
-                await _unitOfWork.SaveChangesAsync();
-                
-                // Gán role User cho account mới
-                var userRole = await _unitOfWork.Roles.GetRoleByRoleValueAsync(RoleEnums.User.ToString());
-                if (userRole != null)
-                {
-                    var accountRole = new AccountRole
-                    {
-                        AccountId = newAccount.AccountId,
-                        RoleId = userRole.RoleId
-                    };
-                    await _unitOfWork.Accounts.AddAccountRoleAsync(accountRole);
-                    await _unitOfWork.SaveChangesAsync();
-                }
-                
-                // Tạo Customer mới và liên kết với Account
-                customer = new Customer
-                {
-                    AccountId = newAccount.AccountId,
-                    FullName = request.FullName,
-                    PhoneNumber = request.PhoneNumber,
-                    IdentityCard = request.IdentityCard,
-                    Address = request.Address,
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = null
-                };
-                
-                await _unitOfWork.Customers.AddAsync(customer);
-                await _unitOfWork.SaveChangesAsync();
-            }
-            
+            var customer = (await _unitOfWork.Customers.FindAsync(c => c.AccountId == userId)).FirstOrDefault();
             if (customer == null)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Không thể tạo thông tin khách hàng",
-                    StatusCode = StatusCodes.Status500InternalServerError
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy thông tin khách hàng"
                 };
             }
 
-            // 4. Generate unique lock ID
-            var lockId = Guid.NewGuid().ToString();
-
-            // 5. Tìm phòng available cho từng loại phòng và lock chúng
+            // 3. Tìm phòng available
             var selectedRooms = new List<Room>();
-            var lockedRoomIds = new List<int>();
             var roomTypeDetails = new List<RoomTypeQuantityDto>();
+            decimal totalAmount = 0;
 
             foreach (var roomTypeRequest in request.RoomTypes)
             {
-                int roomTypeId = roomTypeRequest.RoomTypeId;
-                int quantity = roomTypeRequest.Quantity;
-
-                // Lấy thông tin RoomType
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeId);
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeRequest.RoomTypeId);
                 if (roomType == null)
                 {
-                    // Release all locked rooms
-                    foreach (var lockedRoomId in lockedRoomIds)
-                    {
-                        var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                        _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                    }
-
                     return new ResultModel
                     {
                         IsSuccess = false,
-                        Message = $"Loại phòng ID {roomTypeId} không tồn tại",
-                        StatusCode = StatusCodes.Status404NotFound
+                        StatusCode = StatusCodes.Status404NotFound,
+                        Message = $"Không tìm thấy loại phòng ID: {roomTypeRequest.RoomTypeId}"
                     };
                 }
 
                 // Tìm phòng available
-                var availableRooms = await FindAvailableRoomsByTypeAsync(roomTypeId, quantity, request.CheckInDate, request.CheckOutDate);
+                var availableRooms = await _bookingHelper.FindAvailableRoomsByTypeAsync(
+                    roomTypeRequest.RoomTypeId,
+                    roomTypeRequest.Quantity,
+                    request.CheckInDate,
+                    request.CheckOutDate
+                );
 
-                if (availableRooms.Count < quantity)
+                if (availableRooms.Count < roomTypeRequest.Quantity)
                 {
-                    // Release all locked rooms
-                    foreach (var lockedRoomId in lockedRoomIds)
-                    {
-                        var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                        _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                    }
-
                     return new ResultModel
                     {
                         IsSuccess = false,
-                        Message = $"Không đủ phòng {roomType.TypeName}. Yêu cầu: {quantity}, Còn trống: {availableRooms.Count}",
-                        StatusCode = StatusCodes.Status409Conflict
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = $"Không đủ phòng {roomType.TypeName}. Còn {availableRooms.Count}/{roomTypeRequest.Quantity}"
                     };
                 }
 
-                // Lock các phòng đã chọn với cache handling để tránh tranh chấp
-                foreach (var room in availableRooms.Take(quantity))
+                // Chọn phòng
+                selectedRooms.AddRange(availableRooms);
+
+                // Tính giá
+                decimal roomTypeTotal = 0;
+                foreach (var room in availableRooms)
                 {
-                    var lockKey = $"{room.RoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                    var locked = _cacheHelper.TryAcquireLock(CachePrefix.RoomBookingLock, lockKey, lockId);
-
-                    if (!locked)
-                    {
-                        // Release all previously locked rooms
-                        foreach (var lockedRoomId in lockedRoomIds)
-                        {
-                            var releaseLockKey = $"{lockedRoomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                            _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                        }
-
-                        return new ResultModel
-                        {
-                            IsSuccess = false,
-                            Message = $"Phòng {room.RoomName} đang được đặt bởi người khác. Vui lòng thử lại!",
-                            StatusCode = StatusCodes.Status409Conflict
-                        };
-                    }
-
-                    lockedRoomIds.Add(room.RoomId);
-                    selectedRooms.Add(room);
+                    var roomPrice = await _bookingHelper.CalculateRoomPriceWithHolidayAsync(
+                        room.RoomId,
+                        request.CheckInDate,
+                        request.CheckOutDate,
+                        roomType.BasePriceNight
+                    );
+                    roomTypeTotal += roomPrice;
                 }
+
+                totalAmount += roomTypeTotal;
 
                 roomTypeDetails.Add(new RoomTypeQuantityDto
                 {
-                    RoomTypeId = roomTypeId,
+                    RoomTypeId = roomType.RoomTypeId,
                     RoomTypeName = roomType.TypeName,
                     RoomTypeCode = roomType.TypeCode,
-                    Quantity = quantity,
-                    PricePerNight = roomType.BasePriceNight
-                });
-            }
-
-            // 6. Calculate total amount and prepare booking rooms
-            decimal totalAmount = 0;
-            var numberOfNights = (request.CheckOutDate - request.CheckInDate).Days;
-            var bookingRoomsToAdd = new List<BookingRoom>();
-
-            foreach (var room in selectedRooms)
-            {
-                // Lấy RoomType để lấy BasePriceNight
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
-                if (roomType == null) continue;
-
-                // Tính giá có áp dụng điều chỉnh theo ngày lễ
-                var roomSubTotal = await CalculateRoomPriceWithHolidayAsync(
-                    room.RoomId, 
-                    request.CheckInDate, 
-                    request.CheckOutDate, 
-                    roomType.BasePriceNight
-                );
-                
-                totalAmount += roomSubTotal;
-
-                bookingRoomsToAdd.Add(new BookingRoom
-                {
-                    RoomId = room.RoomId,
+                    Quantity = roomTypeRequest.Quantity,
                     PricePerNight = roomType.BasePriceNight,
-                    NumberOfNights = numberOfNights,
-                    SubTotal = roomSubTotal,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate
+                    SubTotal = roomTypeTotal
                 });
             }
 
-            // 7. Create booking
+            // 4. Tính deposit (30%)
+            decimal depositAmount = totalAmount * 0.3m;
+
+            // 5. Lấy status codes
+            var pendingStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "Pending")).FirstOrDefault();
+            var onlineType = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingType" && c.CodeName == "Online")).FirstOrDefault();
+
+            if (pendingStatus == null || onlineType == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi cấu hình hệ thống: Thiếu status codes"
+                };
+            }
+
+            // 6. Tạo booking trong database
             var booking = new Booking
             {
                 CustomerId = customer.CustomerId,
                 CheckInDate = request.CheckInDate,
                 CheckOutDate = request.CheckOutDate,
                 TotalAmount = totalAmount,
-                DepositAmount = totalAmount * 0.3m, // 30% deposit
+                DepositAmount = depositAmount,
+                StatusId = pendingStatus.CodeId,
+                BookingTypeId = onlineType.CodeId,
                 SpecialRequests = request.SpecialRequests,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = null
+                CreatedBy = userId
             };
-
-            // Get status codes
-            var unpaidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
-            var unpaidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "DepositStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
-            
-            // BookingType luôn là "Online" cho web booking - tìm với ignore case
-            var bookingTypeCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "BookingType" && 
-                c.CodeName.ToLower() == "online")).FirstOrDefault();
-
-            if (unpaidStatus != null) booking.PaymentStatusId = unpaidStatus.CodeId;
-            if (unpaidDepositStatus != null) booking.DepositStatusId = unpaidDepositStatus.CodeId;
-            if (bookingTypeCode != null) booking.BookingTypeId = bookingTypeCode.CodeId;
 
             await _unitOfWork.Bookings.AddAsync(booking);
             await _unitOfWork.SaveChangesAsync();
 
-            // 8. Create booking rooms
-            foreach (var bookingRoom in bookingRoomsToAdd)
+            // 7. Tạo BookingRooms
+            var numberOfNights = _bookingHelper.CalculateNumberOfNights(request.CheckInDate, request.CheckOutDate);
+            foreach (var room in selectedRooms)
             {
-                bookingRoom.BookingId = booking.BookingId;
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
+                var pricePerNight = roomType?.BasePriceNight ?? 0;
+                
+                var bookingRoom = new BookingRoom
+                {
+                    BookingId = booking.BookingId,
+                    RoomId = room.RoomId,
+                    PricePerNight = pricePerNight,
+                    NumberOfNights = numberOfNights,
+                    SubTotal = pricePerNight * numberOfNights,
+                    CheckInDate = request.CheckInDate,
+                    CheckOutDate = request.CheckOutDate
+                };
                 await _unitOfWork.BookingRooms.AddAsync(bookingRoom);
             }
             await _unitOfWork.SaveChangesAsync();
 
-            // 9. Create PayOS payment link
-            string paymentUrl = string.Empty;
-            long orderCode = 0;
-            try
+            // 8. Tạo QR Code để thanh toán
+            var transactionRef = _qrPaymentHelper.GenerateTransactionRef(booking.BookingId);
+            var description = $"Dat coc booking {booking.BookingId}";
+            var qrPaymentInfo = await _qrPaymentHelper.GenerateQRPaymentInfoAsync(
+                _unitOfWork,
+                _configuration,
+                depositAmount,
+                description,
+                transactionRef
+            );
+
+            // 9. Lưu thông tin vào cache để tracking
+            _cacheHelper.Set(CachePrefix.BookingPayment, booking.BookingId.ToString(), new
             {
-                orderCode = long.Parse(DateTimeOffset.Now.ToString("yyMMddHHmmss"));
-                var returnUrl = _configuration["PayOS:ReturnUrl"] ?? "http://localhost:5173/payment/callback";
-                var cancelUrl = (_configuration["PayOS:CancelUrl"] ?? "http://localhost:5173/payment/cancel") + $"?bookingId={booking.BookingId}";
+                booking.BookingId,
+                TransactionRef = transactionRef,
+                RoomIds = selectedRooms.Select(r => r.RoomId).ToList(),
+                request.CheckInDate,
+                request.CheckOutDate,
+                Amount = depositAmount
+            }, TimeSpan.FromMinutes(15));
 
-                var roomNames = string.Join(", ", selectedRooms.Select(r => r.RoomName));
-                
-                // PayOS giới hạn description tối đa 25 ký tự
-                var description = $"Dat phong #{booking.BookingId}";
-                if (description.Length > 25)
-                {
-                    description = description.Substring(0, 25);
-                }
+            // 10. Schedule timeout check - Tự động cancel nếu không thanh toán sau 15 phút
+            _timeoutChecker.ScheduleTimeoutCheck(booking.BookingId, delayMinutes: 15);
 
-                // Set expiration time to 30 minutes from now (use UTC to avoid timezone issues)
-                var expiredAt = (int)DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
+            // 11. Generate booking token
+            var bookingToken = _tokenHelper.EncodeBookingId(booking.BookingId);
 
-                var paymentData = new PaymentData(
-                    orderCode: orderCode,
-                    amount: (int)booking.DepositAmount,
-                    description: description,
-                    items: new List<ItemData>
-                    {
-                        new ItemData($"Booking #{booking.BookingId}", 1, (int)booking.DepositAmount)
-                    },
-                    cancelUrl: cancelUrl,
-                    returnUrl: returnUrl,
-                    expiredAt: expiredAt
-                );
-
-                var createPayment = await _payOS.createPaymentLink(paymentData);
-                paymentUrl = createPayment.checkoutUrl;
-
-                // Save payment info to cache
-                _cacheHelper.Set(CachePrefix.BookingPayment, booking.BookingId.ToString(), new
-                {
-                    BookingId = booking.BookingId,
-                    OrderCode = orderCode,
-                    Amount = booking.DepositAmount,
-                    LockId = lockId,
-                    RoomIds = lockedRoomIds,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate
-                });
-            }
-            catch (Exception ex)
+            // 12. Return response với QR payment info
+            var response = new BookingDto
             {
-                // Rollback: Delete booking rooms first, then booking, then release locks
-                var bookingRoomsToDelete = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId);
-                foreach (var bookingRoom in bookingRoomsToDelete)
-                {
-                    await _unitOfWork.BookingRooms.DeleteAsync(bookingRoom);
-                }
-                
-                await _unitOfWork.Bookings.DeleteAsync(booking);
-                await _unitOfWork.SaveChangesAsync();
-
-                // Release room locks
-                foreach (var roomId in lockedRoomIds)
-                {
-                    var releaseLockKey = $"{roomId}_{request.CheckInDate:yyyyMMdd}_{request.CheckOutDate:yyyyMMdd}";
-                    _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, releaseLockKey, lockId);
-                }
-
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = $"Lỗi tạo link thanh toán: {ex.Message}",
-                    StatusCode = StatusCodes.Status500InternalServerError
-                };
-            }
-
-            // 9. Create Transaction record
-            var paymentMethodCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentMethod" && c.CodeName == "EWallet")).FirstOrDefault();
-            var transactionStatusCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Pending")).FirstOrDefault();
-
-            if (paymentMethodCode != null && transactionStatusCode != null && unpaidStatus != null)
-            {
-                var transaction = new BusinessTransaction
-                {
-                    BookingId = booking.BookingId,
-                    TotalAmount = booking.TotalAmount,
-                    PaidAmount = 0,
-                    DepositAmount = booking.DepositAmount,
-                    PaymentMethodId = paymentMethodCode.CodeId,
-                    PaymentStatusId = unpaidStatus.CodeId,
-                    TransactionStatusId = transactionStatusCode.CodeId,
-                    OrderCode = orderCode.ToString(),
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = null
-                };
-                await _unitOfWork.Transactions.AddAsync(transaction);
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            // 10. Enqueue message to process booking
-            var message = new BookingQueueMessage
-            {
-                MessageType = BookingMessageType.CreateBooking,
-                Data = new BookingMessage
-                {
-                    BookingId = booking.BookingId,
-                    CustomerId = customer.CustomerId,
-                    RoomIds = lockedRoomIds,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
-                    TotalAmount = totalAmount,
-                    LockId = lockId
-                }
+                BookingId = booking.BookingId,
+                CustomerId = customer.CustomerId,
+                CustomerName = customer.FullName,
+                RoomIds = selectedRooms.Select(r => r.RoomId).ToList(),
+                RoomNames = selectedRooms.Select(r => r.RoomName).ToList(),
+                RoomTypeDetails = roomTypeDetails,
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalAmount = totalAmount,
+                DepositAmount = depositAmount,
+                PaymentStatus = "Pending",
+                BookingType = "Online",
+                SpecialRequests = request.SpecialRequests,
+                CreatedAt = booking.CreatedAt,
+                OrderCode = transactionRef
             };
-
-            await _queueService.EnqueueAsync(message);
-
-            // 11. Schedule auto-cancel after 15 minutes if not paid
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(TimeSpan.FromMinutes(1));//test 1 minute
-                var paymentInfo = _cacheHelper.Get<object>(CachePrefix.BookingPayment, booking.BookingId.ToString());
-                if (paymentInfo != null)
-                {
-                    // Payment not completed, cancel booking
-                    var cancelMessage = new BookingQueueMessage
-                    {
-                        MessageType = BookingMessageType.CancelBooking,
-                        Data = new BookingMessage
-                        {
-                            BookingId = booking.BookingId,
-                            RoomIds = lockedRoomIds,
-                            CheckInDate = request.CheckInDate,
-                            CheckOutDate = request.CheckOutDate,
-                            LockId = lockId
-                        }
-                    };
-                    await _queueService.EnqueueAsync(cancelMessage);
-                }
-            });
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Tạo booking thành công. Vui lòng thanh toán trong 15 phút!",
-                Data = new BookingDto
+                StatusCode = StatusCodes.Status201Created,
+                Message = "Tạo booking thành công. Vui lòng quét mã QR để thanh toán trong 15 phút!",
+                Data = new
                 {
-                    BookingId = booking.BookingId,
-                    CustomerId = customer.CustomerId,
-                    CustomerName = customer.FullName,
-                    RoomIds = lockedRoomIds,
-                    RoomNames = selectedRooms.Select(r => r.RoomName).ToList(),
-                    RoomTypeDetails = roomTypeDetails,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
-                    TotalAmount = totalAmount,
-                    DepositAmount = booking.DepositAmount,
-                    PaymentUrl = paymentUrl,
-                    CreatedAt = booking.CreatedAt
-                },
-                StatusCode = StatusCodes.Status201Created
+                    Booking = response,
+                    BookingToken = bookingToken,
+                    QRPayment = qrPaymentInfo,
+                    PaymentDeadline = DateTime.UtcNow.AddMinutes(15)
+                }
             };
         }
+        catch (Exception ex)
+        {
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
 
-        public async Task<ResultModel> GetBookingByIdAsync(int bookingId)
+    /// <summary>
+    /// Tạo booking cho khách vãng lai (không cần tài khoản)
+    /// </summary>
+    public async Task<ResultModel> CreateGuestBookingAsync(CreateGuestBookingRequest request)
+    {
+        try
+        {
+            // 1. Validate request
+            if (request == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Request không hợp lệ"
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.FullName))
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Họ tên không được để trống"
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Số điện thoại không được để trống"
+                };
+            }
+
+            if (request.RoomTypes == null || request.RoomTypes.Count == 0)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Phải chọn ít nhất một loại phòng"
+                };
+            }
+
+            if (request.CheckInDate <= DateTime.UtcNow)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-in phải sau thời điểm hiện tại"
+                };
+            }
+
+            if (request.CheckOutDate <= request.CheckInDate)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-out phải sau ngày check-in"
+                };
+            }
+
+            // 2. Tìm hoặc tạo customer
+            // Chỉ tìm kiếm theo email nếu email không rỗng
+            var existingCustomer = string.IsNullOrWhiteSpace(request.Email)
+                ? (await _unitOfWork.Customers.FindAsync(c =>
+                    c.PhoneNumber == request.PhoneNumber
+                )).FirstOrDefault()
+                : (await _unitOfWork.Customers.FindAsync(c =>
+                    c.PhoneNumber == request.PhoneNumber ||
+                    (c.Account != null && c.Account.Email == request.Email)
+                )).FirstOrDefault();
+
+            Customer customer;
+            if (existingCustomer != null)
+            {
+                customer = existingCustomer;
+                // Cập nhật thông tin customer nếu khác
+                if (!string.IsNullOrEmpty(request.FullName) && customer.FullName != request.FullName)
+                    customer.FullName = request.FullName;
+                if (!string.IsNullOrEmpty(request.IdentityCard) && customer.IdentityCard != request.IdentityCard)
+                    customer.IdentityCard = request.IdentityCard;
+                if (!string.IsNullOrEmpty(request.Address) && customer.Address != request.Address)
+                    customer.Address = request.Address;
+                await _unitOfWork.Customers.UpdateAsync(customer);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            else
+            {
+                // Tạo customer mới - Nếu có email thì tạo luôn tài khoản
+                Account? newAccount = null;
+                
+                if (!string.IsNullOrWhiteSpace(request.Email))
+                {
+                    // Kiểm tra email đã tồn tại chưa
+                    var existingAccount = (await _unitOfWork.Accounts.FindAsync(a => a.Email == request.Email)).FirstOrDefault();
+                    
+                    if (existingAccount == null)
+                    {
+                        // Tạo tài khoản mới cho guest với password random
+                        var randomPassword = Guid.NewGuid().ToString("N").Substring(0, 12) + "Aa@1"; // Password phức tạp
+                        newAccount = new Account
+                        {
+                            Username = request.Email.Split('@')[0] + "_" + DateTime.UtcNow.Ticks.ToString().Substring(0, 6),
+                            Email = request.Email,
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(randomPassword, 12),
+                            IsLocked = false,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _unitOfWork.Accounts.AddAsync(newAccount);
+                        await _unitOfWork.SaveChangesAsync();
+                        
+                        // Gán role User cho guest account
+                        var userRole = (await _unitOfWork.Roles.FindAsync(r => r.RoleValue == "User")).FirstOrDefault();
+                        if (userRole != null)
+                        {
+                            var accountRole = new AccountRole
+                            {
+                                AccountId = newAccount.AccountId,
+                                RoleId = userRole.RoleId
+                            };
+                            await _unitOfWork.Roles.AddAccountRoleAsync(newAccount.AccountId, userRole.RoleId);
+                            await _unitOfWork.SaveChangesAsync();
+                        }
+                        
+                        _logger.LogInformation("[CreateGuestBooking] Created new account for guest with email: {Email}", request.Email);
+                    }
+                    else
+                    {
+                        newAccount = existingAccount;
+                        _logger.LogInformation("[CreateGuestBooking] Found existing account for email: {Email}", request.Email);
+                    }
+                }
+                
+                customer = new Customer
+                {
+                    FullName = request.FullName,
+                    PhoneNumber = request.PhoneNumber,
+                    IdentityCard = request.IdentityCard,
+                    Address = request.Address,
+                    AccountId = newAccount?.AccountId, // Liên kết với account nếu có
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _unitOfWork.Customers.AddAsync(customer);
+                await _unitOfWork.SaveChangesAsync();
+                
+                // Gửi email welcome cho guest nếu có email
+                if (newAccount != null && !string.IsNullOrWhiteSpace(request.Email))
+                {
+                    try
+                    {
+                        // TODO: Implement welcome email with login instructions
+                        _logger.LogInformation("[CreateGuestBooking] Welcome email should be sent to: {Email}", request.Email);
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogError(emailEx, "[CreateGuestBooking] Failed to send welcome email");
+                    }
+                }
+            }
+
+            // 3. Tìm phòng available
+            var selectedRooms = new List<Room>();
+            var roomTypeDetails = new List<RoomTypeQuantityDto>();
+            decimal totalAmount = 0;
+
+            foreach (var roomTypeRequest in request.RoomTypes)
+            {
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeRequest.RoomTypeId);
+                if (roomType == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status404NotFound,
+                        Message = $"Không tìm thấy loại phòng ID: {roomTypeRequest.RoomTypeId}"
+                    };
+                }
+
+                var availableRooms = await _bookingHelper.FindAvailableRoomsByTypeAsync(
+                    roomTypeRequest.RoomTypeId,
+                    roomTypeRequest.Quantity,
+                    request.CheckInDate,
+                    request.CheckOutDate
+                );
+
+                if (availableRooms.Count < roomTypeRequest.Quantity)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = $"Không đủ phòng {roomType.TypeName}"
+                    };
+                }
+
+                // Chọn phòng
+                selectedRooms.AddRange(availableRooms);
+
+                // Tính giá
+                decimal roomTypeTotal = 0;
+                foreach (var room in availableRooms)
+                {
+                    var roomPrice = await _bookingHelper.CalculateRoomPriceWithHolidayAsync(
+                        room.RoomId,
+                        request.CheckInDate,
+                        request.CheckOutDate,
+                        roomType.BasePriceNight
+                    );
+                    roomTypeTotal += roomPrice;
+                }
+
+                totalAmount += roomTypeTotal;
+
+                roomTypeDetails.Add(new RoomTypeQuantityDto
+                {
+                    RoomTypeId = roomType.RoomTypeId,
+                    RoomTypeName = roomType.TypeName,
+                    RoomTypeCode = roomType.TypeCode,
+                    Quantity = roomTypeRequest.Quantity,
+                    PricePerNight = roomType.BasePriceNight,
+                    SubTotal = roomTypeTotal
+                });
+            }
+
+            // 4. Tính deposit (30%)
+            decimal depositAmount = totalAmount * 0.3m;
+
+            // 5. Lấy status codes
+            var pendingStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "Pending")).FirstOrDefault();
+            var onlineType = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingType" && c.CodeName == "Online")).FirstOrDefault();
+
+            if (pendingStatus == null || onlineType == null)
+            {
+                _logger.LogError("[CreateGuestBooking] Missing status codes: Pending={0}, Online={1}", 
+                    pendingStatus == null ? "NULL" : pendingStatus.CodeId.ToString(),
+                    onlineType == null ? "NULL" : onlineType.CodeId.ToString());
+                
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi cấu hình hệ thống: Thiếu status codes (Pending hoặc Online)"
+                };
+            }
+
+            // 6. Tạo booking trong database
+            var booking = new Booking
+            {
+                CustomerId = customer.CustomerId,
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalAmount = totalAmount,
+                DepositAmount = depositAmount,
+                StatusId = pendingStatus.CodeId,
+                BookingTypeId = onlineType.CodeId,
+                SpecialRequests = request.SpecialRequests,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _unitOfWork.Bookings.AddAsync(booking);
+            await _unitOfWork.SaveChangesAsync();
+
+            var numberOfNights2 = _bookingHelper.CalculateNumberOfNights(request.CheckInDate, request.CheckOutDate);
+            foreach (var room in selectedRooms)
+            {
+                if (room == null)
+                {
+                    _logger.LogWarning("[CreateGuestBooking] Encountered null room in selectedRooms");
+                    continue;
+                }
+
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
+                if (roomType == null)
+                {
+                    _logger.LogWarning("[CreateGuestBooking] Room {0} has invalid RoomTypeId {1}", room.RoomId, room.RoomTypeId);
+                    continue;
+                }
+
+                var pricePerNight = roomType.BasePriceNight;
+                
+                var bookingRoom = new BookingRoom
+                {
+                    BookingId = booking.BookingId,
+                    RoomId = room.RoomId,
+                    PricePerNight = pricePerNight,
+                    NumberOfNights = numberOfNights2,
+                    SubTotal = pricePerNight * numberOfNights2,
+                    CheckInDate = request.CheckInDate,
+                    CheckOutDate = request.CheckOutDate
+                };
+                await _unitOfWork.BookingRooms.AddAsync(bookingRoom);
+            }
+            await _unitOfWork.SaveChangesAsync();
+
+            // 8. Tạo QR Code để thanh toán
+            var transactionRef = _qrPaymentHelper.GenerateTransactionRef(booking.BookingId);
+            var description = $"Dat coc booking {booking.BookingId}";
+            
+            QRPaymentInfoDto? qrPaymentInfo = null;
+            try
+            {
+                qrPaymentInfo = await _qrPaymentHelper.GenerateQRPaymentInfoAsync(
+                    _unitOfWork,
+                    _configuration,
+                    depositAmount,
+                    description,
+                    transactionRef
+                );
+                
+                if (qrPaymentInfo == null)
+                {
+                    _logger.LogWarning("[CreateGuestBooking] QR Payment generation returned null, continuing without QR info");
+                }
+            }
+            catch (Exception qrEx)
+            {
+                _logger.LogError(qrEx, "[CreateGuestBooking] Exception in QR generation");
+                // Continue even if QR generation fails - booking is still valid
+            }
+
+            // 9. Lưu thông tin vào cache để tracking
+            _cacheHelper.Set(CachePrefix.BookingPayment, booking.BookingId.ToString(), new
+            {
+                booking.BookingId,
+                TransactionRef = transactionRef,
+                RoomIds = selectedRooms.Select(r => r.RoomId).ToList(),
+                request.CheckInDate,
+                request.CheckOutDate,
+                Amount = depositAmount
+            }, TimeSpan.FromMinutes(15));
+
+            // 10. Schedule timeout check - Tự động cancel nếu không thanh toán sau 15 phút
+            _timeoutChecker.ScheduleTimeoutCheck(booking.BookingId, delayMinutes: 15);
+
+            // 11. Generate booking token
+            var bookingToken = _tokenHelper.EncodeBookingId(booking.BookingId);
+
+            // 12. Return response với QR payment info
+            var response = new BookingDto
+            {
+                BookingId = booking.BookingId,
+                CustomerId = customer.CustomerId,
+                CustomerName = customer.FullName,
+                RoomIds = selectedRooms.Select(r => r.RoomId).ToList(),
+                RoomNames = selectedRooms.Select(r => r.RoomName).ToList(),
+                RoomTypeDetails = roomTypeDetails,
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalAmount = totalAmount,
+                DepositAmount = depositAmount,
+                PaymentStatus = "Pending",
+                BookingType = "Online",
+                SpecialRequests = request.SpecialRequests,
+                CreatedAt = booking.CreatedAt,
+                OrderCode = transactionRef
+            };
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = StatusCodes.Status201Created,
+                Message = "Tạo booking thành công. Vui lòng quét mã QR để thanh toán trong 15 phút!",
+                Data = new
+                {
+                    Booking = response,
+                    BookingToken = bookingToken,
+                    QRPayment = qrPaymentInfo,
+                    PaymentDeadline = DateTime.UtcNow.AddMinutes(15)
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[CreateGuestBooking] Unexpected error: {0}", ex.Message);
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Lấy thông tin booking theo ID
+    /// </summary>
+    public async Task<ResultModel> GetBookingByIdAsync(int bookingId)
+    {
+        try
         {
             var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
             if (booking == null)
@@ -1117,154 +788,207 @@ namespace AppBackend.Services.Services.BookingServices
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Booking không tồn tại",
-                    StatusCode = StatusCodes.Status404NotFound
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
                 };
             }
 
             var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
             var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-            var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-            var rooms = await Task.WhenAll(roomIds.Select(id => _unitOfWork.Rooms.GetByIdAsync(id)));
-            var roomNames = rooms.Where(r => r != null).Select(r => r!.RoomName).ToList();
+            var rooms = new List<Room>();
+            var roomTypeDetails = new List<RoomTypeQuantityDto>();
 
-            var paymentStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId ?? 0);
-            var depositStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId ?? 0);
-            var bookingType = await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId ?? 0);
+            foreach (var br in bookingRooms)
+            {
+                var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
+                if (room != null)
+                {
+                    rooms.Add(room);
+                }
+            }
+
+            // Group by room type
+            var roomsByType = rooms.GroupBy(r => r.RoomTypeId);
+            foreach (var group in roomsByType)
+            {
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(group.Key);
+                if (roomType != null)
+                {
+                    roomTypeDetails.Add(new RoomTypeQuantityDto
+                    {
+                        RoomTypeId = roomType.RoomTypeId,
+                        RoomTypeName = roomType.TypeName,
+                        RoomTypeCode = roomType.TypeCode,
+                        Quantity = group.Count(),
+                        PricePerNight = roomType.BasePriceNight
+                    });
+                }
+            }
+
+            var statusCode = booking.StatusId.HasValue
+                ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
+                : null;
+            var bookingTypeCode = booking.BookingTypeId.HasValue
+                ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value)
+                : null;
+
+            var response = new BookingDto
+            {
+                BookingId = booking.BookingId,
+                CustomerId = booking.CustomerId,
+                CustomerName = customer?.FullName ?? "",
+                RoomIds = rooms.Select(r => r.RoomId).ToList(),
+                RoomNames = rooms.Select(r => r.RoomName).ToList(),
+                RoomTypeDetails = roomTypeDetails,
+                CheckInDate = booking.CheckInDate,
+                CheckOutDate = booking.CheckOutDate,
+                TotalAmount = booking.TotalAmount,
+                DepositAmount = booking.DepositAmount,
+                PaymentStatus = statusCode?.CodeValue ?? "Unknown",
+                BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
+                SpecialRequests = booking.SpecialRequests,
+                CreatedAt = booking.CreatedAt
+            };
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Data = new BookingDto
-                {
-                    BookingId = booking.BookingId,
-                    CustomerId = booking.CustomerId,
-                    CustomerName = customer?.FullName ?? "",
-                    RoomIds = roomIds,
-                    RoomNames = roomNames,
-                    CheckInDate = booking.CheckInDate,
-                    CheckOutDate = booking.CheckOutDate,
-                    TotalAmount = booking.TotalAmount,
-                    DepositAmount = booking.DepositAmount,
-                    PaymentStatus = paymentStatus?.CodeValue ?? "",
-                    DepositStatus = depositStatus?.CodeValue ?? "",
-                    BookingType = bookingType?.CodeValue ?? "",
-                    SpecialRequests = booking.SpecialRequests,
-                    CreatedAt = booking.CreatedAt
-                },
-                StatusCode = StatusCodes.Status200OK
+                StatusCode = StatusCodes.Status200OK,
+                Data = response
             };
         }
-
-        public async Task<ResultModel> GetBookingByTokenAsync(string token)
+        catch (Exception ex)
         {
-            try
+            return new ResultModel
             {
-                // Decode token to get bookingId
-                var bookingId = _bookingTokenHelper.DecodeBookingToken(token);
-                
-                // Use existing method to get booking details
-                return await GetBookingByIdAsync(bookingId);
-            }
-            catch (Exception ex)
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = $"Token không hợp lệ: {ex.Message}",
-                    StatusCode = StatusCodes.Status400BadRequest
-                };
-            }
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
         }
+    }
 
-        public async Task<ResultModel> ConfirmPaymentAsync(ConfirmPaymentRequest request)
+    /// <summary>
+    /// Lấy booking theo token (dành cho guest)
+    /// </summary>
+    public async Task<ResultModel> GetBookingByTokenAsync(string token)
+    {
+        try
         {
-            // Get payment info from cache
-            var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, request.BookingId.ToString());
-            if (paymentInfo == null)
+            var bookingId = _tokenHelper.DecodeBookingToken(token);
+            return await GetBookingByIdAsync(bookingId);
+        }
+        catch (Exception ex)
+        {
+            return new ResultModel
             {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Thông tin thanh toán không tồn tại hoặc đã hết hạn",
-                    StatusCode = StatusCodes.Status404NotFound
-                };
-            }
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status400BadRequest,
+                Message = $"Token không hợp lệ: {ex.Message}"
+            };
+        }
+    }
 
-            // Verify payment with PayOS
-            try
-            {
-                var paymentLinkInfo = await _payOS.getPaymentLinkInformation(long.Parse(request.OrderCode));
-                
-                if (paymentLinkInfo.status != "PAID")
-                {
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = "Thanh toán chưa hoàn tất",
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
-                }
-            }
-            catch (Exception ex)
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = $"Lỗi xác thực thanh toán: {ex.Message}",
-                    StatusCode = StatusCodes.Status500InternalServerError
-                };
-            }
-
-            // Update booking status
+    /// <summary>
+    /// Xử lý thanh toán (webhook từ PayOS hoặc manual confirm)
+    /// Chuyển từ Pending → DepositPaid hoặc hủy booking
+    /// </summary>
+    public async Task<ResultModel> ProcessPaymentAsync(ConfirmPaymentRequest request)
+    {
+        try
+        {
             var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId);
             if (booking == null)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Booking không tồn tại",
-                    StatusCode = StatusCodes.Status404NotFound
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
                 };
             }
 
-            var paidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "DepositStatus" && c.CodeName == "Paid")).FirstOrDefault();
+            var cacheKey = request.BookingId.ToString();
 
-            if (paidDepositStatus != null)
+            if (request.IsCancel)
             {
-                booking.DepositStatusId = paidDepositStatus.CodeId;
+                // Hủy booking
+                var cancelledStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                    c.CodeType == "BookingStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+
+                if (cancelledStatus != null)
+                {
+                    booking.StatusId = cancelledStatus.CodeId;
+                    booking.UpdatedAt = DateTime.UtcNow;
+                    await _unitOfWork.Bookings.UpdateAsync(booking);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                _cacheHelper.Remove(CachePrefix.BookingPayment, cacheKey);
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    StatusCode = StatusCodes.Status200OK,
+                    Message = "Đã hủy booking thành công."
+                };
             }
 
+            // Khách thông báo đã chuyển khoản → Chuyển sang PendingConfirmation
+            var pendingConfirmationStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "PendingConfirmation")).FirstOrDefault();
+
+            if (pendingConfirmationStatus == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi: Không tìm thấy status PendingConfirmation"
+                };
+            }
+
+            booking.StatusId = pendingConfirmationStatus.CodeId;
             booking.UpdatedAt = DateTime.UtcNow;
             await _unitOfWork.Bookings.UpdateAsync(booking);
             await _unitOfWork.SaveChangesAsync();
 
-            // Enqueue message to confirm payment and release locks
-            var message = new BookingQueueMessage
+            // Gửi email cho manager để kiểm tra bill ngân hàng
+            try
             {
-                MessageType = BookingMessageType.ConfirmPayment,
-                Data = new BookingMessage
-                {
-                    BookingId = request.BookingId,
-                    LockId = paymentInfo.LockId,
-                    RoomIds = paymentInfo.RoomIds,
-                    CheckInDate = paymentInfo.CheckInDate,
-                    CheckOutDate = paymentInfo.CheckOutDate
-                }
-            };
-
-            await _queueService.EnqueueAsync(message);
+                await _emailService.SendPaymentConfirmationRequestEmailToManagerAsync(request.BookingId);
+                _logger.LogInformation("[ProcessPayment] Payment confirmation request sent to manager for booking {BookingId}", request.BookingId);
+            }
+            catch (Exception emailEx)
+            {
+                _logger.LogError(emailEx, "[ProcessPayment] Failed to send email to manager for booking {BookingId}", request.BookingId);
+            }
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Xác nhận thanh toán thành công",
-                StatusCode = StatusCodes.Status200OK
+                StatusCode = StatusCodes.Status200OK,
+                Message = "Cảm ơn bạn đã thông báo thanh toán. Quản lý sẽ kiểm tra bill ngân hàng và xác nhận trong thời gian sớm nhất."
             };
         }
+        catch (Exception ex)
+        {
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
 
-        public async Task<ResultModel> CancelBookingAsync(int bookingId, int userId)
+    /// <summary>
+    /// Manager kiểm tra bill ngân hàng và xác nhận thanh toán
+    /// Chuyển status từ PendingConfirmation → Confirmed
+    /// </summary>
+    public async Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId)
+    {
+        try
         {
             var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
             if (booking == null)
@@ -1272,113 +996,160 @@ namespace AppBackend.Services.Services.BookingServices
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = "Booking không tồn tại",
-                    StatusCode = StatusCodes.Status404NotFound
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
                 };
             }
 
-            // ✅ FIX: Update trạng thái Transaction thành "Cancelled"
-            var cancelledTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
-            
-            if (cancelledTransactionStatus != null)
-            {
-                // Update tất cả transactions của booking này thành Cancelled
-                var transactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId);
-                foreach (var transaction in transactions)
-                {
-                    transaction.TransactionStatusId = cancelledTransactionStatus.CodeId;
-                    transaction.UpdatedAt = DateTime.UtcNow;
-                    transaction.UpdatedBy = userId;
-                    await _unitOfWork.Transactions.UpdateAsync(transaction);
-                }
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            // ✅ FIX: Update trạng thái Booking PaymentStatus thành "Cancelled"
-            var cancelledPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
-            
-            if (cancelledPaymentStatus != null)
-            {
-                booking.PaymentStatusId = cancelledPaymentStatus.CodeId;
-                booking.UpdatedAt = DateTime.UtcNow;
-                booking.UpdatedBy = userId;
-                await _unitOfWork.Bookings.UpdateAsync(booking);
-                await _unitOfWork.SaveChangesAsync();
-            }
-
-            // Get payment info from cache
-            var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
-            
-            // Get booking rooms
+            // Lấy thông tin phòng đã đặt
             var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-            var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-
-            // Release room locks nếu có
-            if (paymentInfo != null && !string.IsNullOrEmpty(paymentInfo.LockId?.ToString()))
+            if (bookingRooms == null || !bookingRooms.Any())
             {
-                _cacheHelper.ReleaseAllBookingLocks(roomIds, booking.CheckInDate, booking.CheckOutDate, paymentInfo.LockId.ToString());
-            }
-            
-            // Remove payment info from cache
-            _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
-
-            // Enqueue cancel message
-            var message = new BookingQueueMessage
-            {
-                MessageType = BookingMessageType.CancelBooking,
-                Data = new BookingMessage
+                return new ResultModel
                 {
-                    BookingId = bookingId,
-                    RoomIds = roomIds,
-                    CheckInDate = booking.CheckInDate,
-                    CheckOutDate = booking.CheckOutDate,
-                    LockId = paymentInfo?.LockId?.ToString() ?? ""
-                }
-            };
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy thông tin phòng đã đặt"
+                };
+            }
 
-            await _queueService.EnqueueAsync(message);
+            // Tính tổng số tiền và deposit từ thông tin phòng
+            decimal totalAmount = 0;
+            foreach (var br in bookingRooms)
+            {
+                var room = await _unitOfWork.Rooms.GetSingleAsync(
+                    r => r.RoomId == br.RoomId,
+                    r => r.RoomType);
+                if (room != null)
+                {
+                    totalAmount += room.RoomType.BasePriceNight * br.NumberOfNights;
+                }
+            }
+            decimal depositAmount = totalAmount * 0.3m;
+
+            // Cập nhật thông tin booking
+            booking.TotalAmount = totalAmount;
+            booking.DepositAmount = depositAmount;
+
+            // Chuyển trạng thái booking từ PendingConfirmation → Confirmed
+            var confirmedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "Confirmed")).FirstOrDefault();
+
+            if (confirmedStatus == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi: Không tìm thấy status Confirmed"
+                };
+            }
+
+            booking.StatusId = confirmedStatus.CodeId;
+            booking.UpdatedAt = DateTime.UtcNow;
+            await _unitOfWork.Bookings.UpdateAsync(booking);
+
+            // Tạo transaction record
+            var completedPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentStatus" && c.CodeName == "Completed")).FirstOrDefault();
+            var paymentMethodCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentMethod" && c.CodeName == "Bank")).FirstOrDefault();
+
+            var newTransaction = new AppBackend.BusinessObjects.Models.Transaction
+            {
+                BookingId = booking.BookingId,
+                TotalAmount = booking.DepositAmount,
+                PaidAmount = booking.DepositAmount,
+                PaymentMethodId = paymentMethodCode?.CodeId ?? 0,
+                PaymentStatusId = completedPaymentStatus?.CodeId ?? 0,
+                OrderCode = "", // Không cần OrderCode ở đây
+                CreatedAt = DateTime.UtcNow
+            };
+            await _unitOfWork.Transactions.AddAsync(newTransaction);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Gửi email thông báo xác nhận booking đến khách hàng
+            try
+            {
+                await _emailService.SendBookingConfirmationEmailAsync(booking.BookingId);
+                _logger.LogInformation("[ConfirmOnlineBooking] Booking confirmation email sent to customer for booking {BookingId}", booking.BookingId);
+            }
+            catch (Exception emailEx)
+            {
+                _logger.LogError(emailEx, "[ConfirmOnlineBooking] Failed to send booking confirmation email for booking {BookingId}", booking.BookingId);
+                // Không throw exception - chỉ ghi log lỗi gửi email
+            }
 
             return new ResultModel
             {
                 IsSuccess = true,
-                Message = "Hủy booking thành công. Transaction và Booking đã được cập nhật trạng thái 'Cancelled'",
-                StatusCode = StatusCodes.Status200OK
+                StatusCode = StatusCodes.Status200OK,
+                Message = "Xác nhận thanh toán thành công. Booking đã được xác nhận."
             };
         }
-
-        public async Task<ResultModel> GetMyBookingsAsync(int customerId)
+        catch (Exception ex)
         {
-            var bookings = await _unitOfWork.Bookings.FindAsync(b => b.CustomerId == customerId);
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Lấy danh sách booking của user
+    /// </summary>
+    public async Task<ResultModel> GetMyBookingsByAccountIdAsync(int accountId)
+    {
+        try
+        {
+            var customer = (await _unitOfWork.Customers.FindAsync(c => c.AccountId == accountId)).FirstOrDefault();
+            if (customer == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy thông tin khách hàng"
+                };
+            }
+
+            var bookings = await _unitOfWork.Bookings.FindAsync(b => b.CustomerId == customer.CustomerId);
             var bookingDtos = new List<BookingDto>();
 
             foreach (var booking in bookings.OrderByDescending(b => b.CreatedAt))
             {
-                var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
                 var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == booking.BookingId);
-                var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-                var rooms = await Task.WhenAll(roomIds.Select(id => _unitOfWork.Rooms.GetByIdAsync(id)));
-                var roomNames = rooms.Where(r => r != null).Select(r => r!.RoomName).ToList();
+                var rooms = new List<Room>();
 
-                var paymentStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.PaymentStatusId ?? 0);
-                var depositStatus = await _unitOfWork.CommonCodes.GetByIdAsync(booking.DepositStatusId ?? 0);
-                var bookingType = await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId ?? 0);
+                foreach (var br in bookingRooms)
+                {
+                    var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
+                    if (room != null) rooms.Add(room);
+                }
+
+                var statusCode = booking.StatusId.HasValue
+                    ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
+                    : null;
+                var bookingTypeCode = booking.BookingTypeId.HasValue
+                    ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value)
+                    : null;
 
                 bookingDtos.Add(new BookingDto
                 {
                     BookingId = booking.BookingId,
                     CustomerId = booking.CustomerId,
-                    CustomerName = customer?.FullName ?? "",
-                    RoomIds = roomIds,
-                    RoomNames = roomNames,
+                    CustomerName = customer.FullName,
+                    RoomIds = rooms.Select(r => r.RoomId).ToList(),
+                    RoomNames = rooms.Select(r => r.RoomName).ToList(),
                     CheckInDate = booking.CheckInDate,
                     CheckOutDate = booking.CheckOutDate,
                     TotalAmount = booking.TotalAmount,
                     DepositAmount = booking.DepositAmount,
-                    PaymentStatus = paymentStatus?.CodeValue ?? "",
-                    DepositStatus = depositStatus?.CodeValue ?? "",
-                    BookingType = bookingType?.CodeValue ?? "",
+                    PaymentStatus = statusCode?.CodeValue ?? "Unknown",
+                    BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
                     SpecialRequests = booking.SpecialRequests,
                     CreatedAt = booking.CreatedAt
                 });
@@ -1387,294 +1158,99 @@ namespace AppBackend.Services.Services.BookingServices
             return new ResultModel
             {
                 IsSuccess = true,
+                StatusCode = StatusCodes.Status200OK,
                 Data = bookingDtos,
-                StatusCode = StatusCodes.Status200OK
+                Message = $"Tìm thấy {bookingDtos.Count} booking"
             };
         }
-
-        public async Task<ResultModel> GetMyBookingsByAccountIdAsync(int accountId)
+        catch (Exception ex)
         {
-            // First, get customer by accountId
-            var customers = await _unitOfWork.Customers.FindAsync(c => c.AccountId == accountId);
-            var customer = customers.FirstOrDefault();
-            
-            if (customer == null)
+            return new ResultModel
             {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = "Không tìm thấy thông tin khách hàng",
-                    StatusCode = StatusCodes.Status404NotFound
-                };
-            }
-            
-            // Use existing GetMyBookingsAsync method
-            return await GetMyBookingsAsync(customer.CustomerId);
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
         }
+    }
 
-        /// <summary>
-        /// Webhook handler - Xác nhận thanh toán và gửi email
-        /// </summary>
-        public async Task<ResultModel> HandlePayOSWebhookAsync(PayOSWebhookRequest request)
+    /// <summary>
+    /// Lấy thông tin QR payment theo BookingId
+    /// Nhân viên chỉ cần BookingId để lấy QR code hiển thị cho khách
+    /// </summary>
+    public async Task<ResultModel> GetQRPaymentInfoAsync(int bookingId)
+    {
+        try
         {
-            try
-            {
-                // 1. Verify webhook từ PayOS SDK - sử dụng WebhookType
-                WebhookType webhookBody = new WebhookType(
-                    code: request.Code,
-                    desc: request.Desc,
-                    data: new WebhookData(
-                        orderCode: request.Data.OrderCode,
-                        amount: request.Data.Amount,
-                        description: request.Data.Description ?? "",
-                        accountNumber: request.Data.AccountNumber ?? "",
-                        reference: request.Data.Reference ?? "",
-                        transactionDateTime: request.Data.TransactionDateTime ?? "",
-                        currency: request.Data.Currency ?? "VND",
-                        paymentLinkId: request.Data.PaymentLinkId ?? "",
-                        code: request.Data.Code ?? "00",
-                        desc: request.Data.Desc ?? "",
-                        counterAccountBankId: request.Data.CounterAccountBankId,
-                        counterAccountBankName: request.Data.CounterAccountBankName,
-                        counterAccountName: request.Data.CounterAccountName,
-                        counterAccountNumber: request.Data.CounterAccountNumber,
-                        virtualAccountName: request.Data.VirtualAccountName,
-                        virtualAccountNumber: request.Data.VirtualAccountNumber
-                    ),
-                    signature: request.Signature,
-                    success: request.Success
-                );
-
-                var webhookData = _payOS.verifyPaymentWebhookData(webhookBody);
-                
-                if (webhookData == null || webhookData.code != "00")
-                {
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = "Thanh toán không thành công hoặc webhook không hợp lệ",
-                        StatusCode = StatusCodes.Status400BadRequest
-                    };
-                }
-
-                // 2. Tìm BookingId từ OrderCode
-                long orderCode = webhookData.orderCode;
-                var bookingId = await FindBookingIdByOrderCodeAsync(orderCode);
-
-                if (bookingId == 0)
-                {
-                    bookingId = _cacheHelper.GetCustom<int>($"order_{orderCode}");
-                }
-
-                if (bookingId == 0)
-                {
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = "Không tìm thấy booking từ orderCode",
-                        StatusCode = StatusCodes.Status200OK
-                    };
-                }
-
-                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
-                if (booking == null)
-                {
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = "Booking không tồn tại",
-                        StatusCode = StatusCodes.Status200OK
-                    };
-                }
-
-                var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
-                var paidDepositStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "DepositStatus" && c.CodeName == "Paid")).FirstOrDefault();
-
-                if (paidDepositStatus != null)
-                {
-                    booking.DepositStatusId = paidDepositStatus.CodeId;
-                    booking.UpdatedAt = DateTime.UtcNow;
-                    await _unitOfWork.Bookings.UpdateAsync(booking);
-                    await _unitOfWork.SaveChangesAsync();
-                }
-
-                var transaction = (await _unitOfWork.Transactions.FindAsync(t => 
-                    t.BookingId == bookingId && t.OrderCode == orderCode.ToString())).FirstOrDefault();
-
-                if (transaction != null && paidStatus != null)
-                {
-                    transaction.PaidAmount = webhookData.amount;
-                    transaction.PaymentStatusId = paidStatus.CodeId;
-                    transaction.TransactionRef = webhookData.reference;
-                    transaction.UpdatedAt = DateTime.UtcNow;
-                    await _unitOfWork.Transactions.UpdateAsync(transaction);
-                    await _unitOfWork.SaveChangesAsync();
-                }
-
-                var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
-                string? newAccountPassword = paymentInfo?.NewAccountPassword;
-
-                try
-                {
-                    await _emailService.SendBookingConfirmationEmailAsync(bookingId, newAccountPassword);
-                }
-                catch (Exception emailEx)
-                {
-                    Console.WriteLine($"Failed to send confirmation email: {emailEx.Message}");
-                }
-
-                if (paymentInfo != null)
-                {
-                    var message = new BookingQueueMessage
-                    {
-                        MessageType = BookingMessageType.ConfirmPayment,
-                        Data = new BookingMessage
-                        {
-                            BookingId = bookingId,
-                            LockId = paymentInfo.LockId,
-                            RoomIds = paymentInfo.RoomIds,
-                            CheckInDate = paymentInfo.CheckInDate,
-                            CheckOutDate = paymentInfo.CheckOutDate
-                        }
-                    };
-
-                    await _queueService.EnqueueAsync(message);
-
-                    _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
-                }
-
-                _cacheHelper.RemoveCustom($"order_{orderCode}");
-
-                return new ResultModel
-                {
-                    IsSuccess = true,
-                    Message = "Xác nhận thanh toán thành công",
-                    Data = new { BookingId = bookingId },
-                    StatusCode = StatusCodes.Status200OK
-                };
-            }
-            catch (Exception ex)
+            var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+            if (booking == null)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
-                    Message = $"Lỗi xử lý webhook: {ex.Message}",
-                    StatusCode = StatusCodes.Status500InternalServerError
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
                 };
             }
+
+            // Only allow QR payment for Pending bookings
+            var statusCode = booking.StatusId.HasValue
+                ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
+                : null;
+
+            if (statusCode == null || statusCode.CodeName != "Pending")
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Chỉ hỗ trợ QR payment cho booking đang ở trạng thái Pending"
+                };
+            }
+
+            var transactionRef = _qrPaymentHelper.GenerateTransactionRef(booking.BookingId);
+            var description = $"Dat coc booking {booking.BookingId}";
+            var qrPaymentInfo = await _qrPaymentHelper.GenerateQRPaymentInfoAsync(
+                _unitOfWork,
+                _configuration,
+                booking.DepositAmount,
+                description,
+                transactionRef
+            );
+
+            if (qrPaymentInfo == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Không thể tạo QR payment do lỗi cấu hình ngân hàng"
+                };
+            }
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = StatusCodes.Status200OK,
+                Message = "Lấy thông tin QR payment thành công",
+                Data = new
+                {
+                    BookingId = bookingId,
+                    TotalAmount = booking.TotalAmount,
+                    DepositAmount = booking.DepositAmount,
+                    QRPayment = qrPaymentInfo,
+                    PaymentDeadline = booking.CreatedAt.AddMinutes(15)
+                }
+            };
         }
-
-        /// <summary>
-        /// Hủy cache booking và release room locks khi user hủy thanh toán
-        /// FE gọi API này khi user click "Cancel" hoặc thoát khỏi trang thanh toán
-        /// </summary>
-        public async Task<ResultModel> CancelBookingCacheAsync(int bookingId)
+        catch (Exception ex)
         {
-            try
+            return new ResultModel
             {
-                // 1. Lấy thông tin booking từ cache
-                var paymentInfo = _cacheHelper.Get<dynamic>(CachePrefix.BookingPayment, bookingId.ToString());
-                
-                if (paymentInfo == null)
-                {
-                    return new ResultModel
-                    {
-                        IsSuccess = false,
-                        Message = "Không tìm thấy thông tin booking trong cache (có thể đã hết hạn hoặc đã thanh toán)",
-                        StatusCode = StatusCodes.Status404NotFound
-                    };
-                }
-
-                // 2. Release tất cả room locks
-                string lockId = paymentInfo.LockId;
-                List<int> roomIds = paymentInfo.RoomIds;
-                DateTime checkInDate = paymentInfo.CheckInDate;
-                DateTime checkOutDate = paymentInfo.CheckOutDate;
-
-                int releasedCount = 0;
-                foreach (var roomId in roomIds)
-                {
-                    var lockKey = $"{roomId}_{checkInDate:yyyyMMdd}_{checkOutDate:yyyyMMdd}";
-                    var released = _cacheHelper.ReleaseLock(CachePrefix.RoomBookingLock, lockKey, lockId);
-                    if (released)
-                    {
-                        releasedCount++;
-                    }
-                }
-
-                // 3. Xóa payment info từ cache
-                _cacheHelper.Remove(CachePrefix.BookingPayment, bookingId.ToString());
-
-                // 4. Xóa orderCode cache nếu có
-                long? orderCode = paymentInfo.OrderCode;
-                if (orderCode.HasValue)
-                {
-                    _cacheHelper.RemoveCustom($"order_{orderCode.Value}");
-                }
-
-                // 5. (Optional) Xóa booking record khỏi DB nếu chưa thanh toán
-                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
-                if (booking != null)
-                {
-                    // Kiểm tra xem đã có transaction Completed chưa
-                    var completedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
-
-                    var hasCompletedTransaction = false;
-                    if (completedStatus != null)
-                    {
-                        var transactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId);
-                        hasCompletedTransaction = transactions.Any(t => t.TransactionStatusId == completedStatus.CodeId);
-                    }
-
-                    // Chỉ xóa nếu chưa thanh toán
-                    if (!hasCompletedTransaction)
-                    {
-                        // Xóa BookingRooms trước
-                        var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-                        foreach (var bookingRoom in bookingRooms)
-                        {
-                            await _unitOfWork.BookingRooms.DeleteAsync(bookingRoom);
-                        }
-
-                        // Xóa Transactions
-                        var transactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId);
-                        foreach (var transaction in transactions)
-                        {
-                            await _unitOfWork.Transactions.DeleteAsync(transaction);
-                        }
-
-                        // Xóa Booking
-                        await _unitOfWork.Bookings.DeleteAsync(booking);
-                        await _unitOfWork.SaveChangesAsync();
-                    }
-                }
-
-                return new ResultModel
-                {
-                    IsSuccess = true,
-                    Message = $"Đã hủy booking và giải phóng {releasedCount}/{roomIds.Count} phòng thành công",
-                    Data = new
-                    {
-                        BookingId = bookingId,
-                        ReleasedRooms = releasedCount,
-                        TotalRooms = roomIds.Count,
-                        RoomIds = roomIds
-                    },
-                    StatusCode = StatusCodes.Status200OK
-                };
-            }
-            catch (Exception ex)
-            {
-                return new ResultModel
-                {
-                    IsSuccess = false,
-                    Message = $"Lỗi khi hủy booking cache: {ex.Message}",
-                    StatusCode = StatusCodes.Status500InternalServerError
-                };
-            }
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
         }
     }
 }

@@ -164,11 +164,11 @@ namespace AppBackend.Services.MessageQueue
                     
                     // Update booking payment status to cancelled
                     var cancelledPaymentStatus = (await unitOfWork.CommonCodes.FindAsync(c =>
-                        c.CodeType == "PaymentStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
+                        c.CodeType == "BookingStatus" && c.CodeName == "Cancelled")).FirstOrDefault();
                     
                     if (cancelledPaymentStatus != null)
                     {
-                        booking.PaymentStatusId = cancelledPaymentStatus.CodeId;
+                        booking.StatusId = cancelledPaymentStatus.CodeId;
                         booking.UpdatedAt = DateTime.UtcNow;
                         await unitOfWork.Bookings.UpdateAsync(booking);
                     }

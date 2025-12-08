@@ -1,0 +1,383 @@
+###############################################################################
+# LUỒNG API ĐẶT PHÒNG HOÀN CHỈNH - TỪ GUEST BOOKING ĐẾN MANAGER CONFIRM
+# Updated: December 7, 2025
+###############################################################################
+
+# === TỔNG QUAN LUỒNG ===
+# 
+# BƯỚC 1: Guest/User tạo booking → Status: Pending
+# BƯỚC 2: Guest báo đã chuyển khoản → Status: PendingConfirmation (trên màn hình QR thêm 2 button tôi đã chuyển khoản hoặc huỷ -> redirect trang FE nào thì tuỳ)
+# BƯỚC 3: Manager kiểm tra bill ngân hàng và confirm → Status: Confirmed
+# BƯỚC 4 (Optional): Manager hủy booking nếu không nhận được tiền → Status: Cancelled
+#
+# === TRẠNG THÁI BOOKING ===
+# - Pending: Vừa tạo booking, đang chờ khách chuyển khoản (15 phút tự động hủy)
+# - PendingConfirmation: Khách đã báo chuyển khoản, chờ manager kiểm tra
+# - Confirmed: Manager đã xác nhận nhận được tiền cọc
+# - Cancelled: Booking bị hủy (timeout hoặc không thanh toán)
+# - CheckedIn: Khách đã check-in tại khách sạn
+# - Completed: Đã check-out, hoàn thành
+#
+###############################################################################
+
+@baseUrl = http://localhost:8080
+@managerToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjIiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoibWFuYWdlciIsImh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vd3MvMjAwOC8wNi9pZGVudGl0eS9jbGFpbXMvcm9sZSI6Ik1hbmFnZXIiLCJqdGkiOiIyOTBmYWNhZi04NDUxLTQxOWYtYTlkYi00MWIwZTkxZGQyYmEiLCJuYmYiOjE3NjUwODU0MTAsImV4cCI6MTc2NTA4NzIxMCwiaXNzIjoiQXBwQmFja2VuZCIsImF1ZCI6IkFwcEJhY2tlbmRVc2VycyJ9.t1hMRUoNf39AfPaBdo6P59N8Y5Sqk2cgvNNZOlDKQIc
+
+###############################################################################
+# BƯỚC 1: GUEST TẠO BOOKING
+###############################################################################
+
+### 1.1. Kiểm tra phòng trống trước khi đặt
+POST {{baseUrl}}/api/Booking/check-availability
+Content-Type: application/json
+
+{
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-12-20T14:00:00Z",
+  "checkOutDate": "2025-12-22T12:00:00Z"
+}
+
+# Response mong đợi:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "data": {
+#     "isAllAvailable": true,
+#     "checkInDate": "2025-12-20T14:00:00Z",
+#     "checkOutDate": "2025-12-22T12:00:00Z",
+#     "totalNights": 2,
+#     "roomTypes": [
+#       {
+#         "roomTypeId": 1,
+#         "roomTypeName": "Phòng Tiêu Chuẩn",
+#         "availableCount": 5,
+#         "requestedQuantity": 1,
+#         "isAvailable": true,
+#         "basePriceNight": 800000
+#       }
+#     ]
+#   }
+# }
+
+###############################################################################
+
+### 1.2. Guest tạo booking (KHÔNG CẦN ĐĂNG NHẬP)
+# Nếu có email → Tự động tạo tài khoản cho guest
+POST {{baseUrl}}/api/Booking/guest
+Content-Type: application/json
+
+{
+  "fullName": "Nguyen Van A",
+  "email": "nguyenvana@example.com",
+  "phoneNumber": "0987654321",
+  "identityCard": "012345678901",
+  "address": "123 Nguyen Trai, Ha Noi",
+  "roomTypes": [
+    {
+      "roomTypeId": 1,
+      "quantity": 1
+    }
+  ],
+  "checkInDate": "2025-12-20T14:00:00Z",
+  "checkOutDate": "2025-12-22T12:00:00Z",
+  "specialRequests": "Tầng cao, view đẹp"
+}
+
+# Response mong đợi:
+# {
+#   "isSuccess": true,
+#   "statusCode": 201,
+#   "message": "Tạo booking thành công. Vui lòng quét mã QR để thanh toán trong 15 phút!",
+#   "data": {
+#     "booking": {
+#       "bookingId": 123,
+#       "customerId": 45,
+#       "customerName": "Nguyen Van A",
+#       "roomIds": [101],
+#       "roomNames": ["101"],
+#       "checkInDate": "2025-12-20T14:00:00Z",
+#       "checkOutDate": "2025-12-22T12:00:00Z",
+#       "totalAmount": 1600000,
+#       "depositAmount": 480000,
+#       "paymentStatus": "Pending",
+#       "bookingType": "Online",
+#       "orderCode": "TRX000123251207123456"
+#     },
+#     "bookingToken": "abc123xyz789",
+#     "qrPayment": {
+#       "qrCodeUrl": "https://img.vietqr.io/image/MB-8366925012003-compact2.jpg?amount=480000&addInfo=Dat%20coc%20booking%20123&accountName=StayHub",
+#       "bankName": "MB Bank",
+#       "bankCode": "MB",
+#       "accountNumber": "8366925012003",
+#       "accountName": "StayHub",
+#       "amount": 480000,
+#       "description": "Dat coc booking 123",
+#       "transactionRef": "TRX000123251207123456"
+#     },
+#     "paymentDeadline": "2025-12-07T12:15:00Z"
+#   }
+# }
+
+# ⚠️ LƯU Ý:
+# - Lưu lại bookingId = 123 và bookingToken để dùng cho các bước tiếp theo
+# - QR code có hiệu lực 15 phút
+# - Nếu có email, hệ thống tự động tạo tài khoản với:
+#   + Username: nguyenvana_123456 (email + timestamp)
+#   + Password: Random (sẽ gửi email hướng dẫn reset password)
+#   + Role: User
+#   + Customer.AccountId được liên kết với Account mới tạo
+
+###############################################################################
+# BƯỚC 2: GUEST QUÉT QR VÀ CHUYỂN KHOẢN
+###############################################################################
+
+# Guest quét QR code và chuyển khoản qua app ngân hàng
+# Nội dung chuyển khoản: "Dat coc booking 123"
+# Số tiền: 480,000 VNĐ
+
+###############################################################################
+
+### 2.1. Guest xác nhận đã chuyển khoản
+POST {{baseUrl}}/api/Booking/confirm-payment
+Content-Type: application/json
+
+{
+  "bookingId": 123,
+  "isCancel": false
+}
+
+# Response mong đợi:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Cảm ơn bạn đã thông báo thanh toán. Quản lý sẽ kiểm tra bill ngân hàng và xác nhận trong thời gian sớm nhất."
+# }
+
+# ⚠️ SAU BƯỚC NÀY:
+# - Booking status chuyển từ "Pending" → "PendingConfirmation"
+# - Hệ thống gửi email cho Manager để kiểm tra bill ngân hàng
+# - Guest nhận email thông báo đang chờ xác nhận
+
+###############################################################################
+
+### 2.2. (Optional) Guest kiểm tra trạng thái booking qua token
+GET {{baseUrl}}/api/Booking/mybooking/abc123xyz789
+
+# Response:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "data": {
+#     "bookingId": 123,
+#     "customerName": "Nguyen Van A",
+#     "paymentStatus": "Chờ xác nhận",
+#     "roomNames": ["101"],
+#     "checkInDate": "2025-12-20T14:00:00Z",
+#     "checkOutDate": "2025-12-22T12:00:00Z",
+#     "totalAmount": 1600000,
+#     "depositAmount": 480000
+#   }
+# }
+
+###############################################################################
+# BƯỚC 3: MANAGER KIỂM TRA VÀ XÁC NHẬN THANH TOÁN
+###############################################################################
+
+### 3.1. Manager đăng nhập (nếu chưa có token)
+POST {{baseUrl}}/api/Auth/login
+Content-Type: application/json
+
+{
+  "username": "manager",
+  "password": "Manager@123"
+}
+
+# Lưu lại token từ response để dùng cho các API tiếp theo
+
+###############################################################################
+
+### 3.2. Manager xem danh sách booking chờ xác nhận
+# (Giả sử có API list bookings với filter status)
+GET {{baseUrl}}/api/BookingManagement/bookings?status=PendingConfirmation
+Authorization: Bearer {{managerToken}}
+
+###############################################################################
+
+### 3.3. Manager xem chi tiết booking
+GET {{baseUrl}}/api/BookingManagement/123
+Authorization: Bearer {{managerToken}}
+
+# Response:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "data": {
+#     "bookingId": 123,
+#     "customerId": 45,
+#     "customerName": "Nguyen Van A",
+#     "customerEmail": "nguyenvana@example.com",
+#     "customerPhone": "0987654321",
+#     "paymentStatus": "Chờ xác nhận",
+#     "totalAmount": 1600000,
+#     "depositAmount": 480000,
+#     "roomNames": ["101"]
+#   }
+# }
+
+###############################################################################
+
+### 3.4. Manager kiểm tra bill ngân hàng (Thủ công qua app ngân hàng)
+# - Kiểm tra có giao dịch chuyển khoản 480,000 VNĐ không
+# - Kiểm tra nội dung: "Dat coc booking 123"
+# - Kiểm tra người chuyển (tên hoặc SĐT khớp không)
+
+###############################################################################
+
+### 3.5. Manager XÁC NHẬN đã nhận được tiền (QUAN TRỌNG NHẤT)
+POST {{baseUrl}}/api/BookingManagement/123/confirm-payment
+Authorization: Bearer {{managerToken}}
+
+# Response mong đợi:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Xác nhận thanh toán thành công. Email xác nhận đã được gửi đến khách hàng."
+# }
+
+# ⚠️ SAU BƯỚC NÀY:
+# - Booking status chuyển từ "PendingConfirmation" → "Confirmed"
+# - Booking.TotalAmount và DepositAmount được tính lại (nếu cần)
+# - Hệ thống gửi email xác nhận booking cho khách hàng
+# - Phòng chính thức được đặt, không còn available cho người khác
+
+###############################################################################
+
+### 3.6. (Optional) Manager HỦY booking nếu không nhận được tiền
+DELETE {{baseUrl}}/api/BookingManagement/123/cancel
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{
+  "reason": "Không nhận được chuyển khoản sau 24h"
+}
+
+# Response:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "message": "Đã hủy booking thành công"
+# }
+
+# ⚠️ SAU BƯỚC NÀY:
+# - Booking status → "Cancelled"
+# - Phòng trở lại available
+# - Gửi email thông báo hủy cho khách
+
+###############################################################################
+# BƯỚC 4: GUEST KIỂM TRA TRẠNG THÁI SAU KHI MANAGER CONFIRM
+###############################################################################
+
+### 4.1. Guest kiểm tra booking đã được confirm
+GET {{baseUrl}}/api/Booking/mybooking/abc123xyz789
+
+# Response:
+# {
+#   "isSuccess": true,
+#   "statusCode": 200,
+#   "data": {
+#     "bookingId": 123,
+#     "customerName": "Nguyen Van A",
+#     "paymentStatus": "Đã xác nhận",  ← ĐÃ THAY ĐỔI
+#     "roomNames": ["101"],
+#     "checkInDate": "2025-12-20T14:00:00Z",
+#     "checkOutDate": "2025-12-22T12:00:00Z",
+#     "totalAmount": 1600000,
+#     "depositAmount": 480000
+#   }
+# }
+
+###############################################################################
+# TỔNG KẾT LUỒNG
+###############################################################################
+
+# ✅ LUỒNG THÀNH CÔNG:
+# Guest tạo booking (Pending) 
+#   → Guest quét QR chuyển khoản 
+#   → Guest confirm đã chuyển (PendingConfirmation)
+#   → Manager kiểm tra bill ngân hàng
+#   → Manager confirm payment (Confirmed)
+#   → Guest nhận email xác nhận
+#   → Check-in ngày 20/12 (CheckedIn)
+#   → Check-out ngày 22/12 (Completed)
+
+# ❌ LUỒNG HỦY (Timeout):
+# Guest tạo booking (Pending)
+#   → Guest KHÔNG quét QR / KHÔNG chuyển khoản
+#   → Sau 15 phút: Tự động hủy (Cancelled)
+#   → Phòng trở lại available
+
+# ❌ LUỒNG HỦY (Manager từ chối):
+# Guest tạo booking (Pending)
+#   → Guest báo đã chuyển (PendingConfirmation)
+#   → Manager kiểm tra KHÔNG thấy tiền
+#   → Manager hủy booking (Cancelled)
+#   → Guest nhận email thông báo hủy
+
+###############################################################################
+# CÁC API QUAN TRỌNG
+###############################################################################
+
+# 1. POST /api/Booking/guest
+#    - Guest tạo booking (không cần đăng nhập)
+#    - Trả về QR payment info
+#    - Tự động tạo tài khoản nếu có email
+
+# 2. POST /api/Booking/confirm-payment
+#    - Guest xác nhận đã chuyển khoản
+#    - Status: Pending → PendingConfirmation
+
+# 3. POST /api/BookingManagement/{id}/confirm-payment
+#    - Manager xác nhận đã nhận tiền
+#    - Status: PendingConfirmation → Confirmed
+#    - ⚠️ API QUAN TRỌNG NHẤT
+
+# 4. GET /api/Booking/mybooking/{token}
+#    - Guest kiểm tra trạng thái booking
+#    - Không cần đăng nhập
+
+# 5. DELETE /api/BookingManagement/{id}/cancel
+#    - Manager hủy booking
+#    - Status: Any → Cancelled
+
+###############################################################################
+# MẸO VÀ LƯU Ý
+###############################################################################
+
+# 💡 BEST PRACTICES:
+# - Luôn kiểm tra availability trước khi tạo booking
+# - Lưu bookingToken để guest có thể tra cứu không cần đăng nhập
+# - Manager nên confirm trong vòng 24h để tránh khách hàng chờ lâu
+# - Có thể setup webhook từ ngân hàng để tự động confirm (nâng cao)
+
+# 🔒 BẢO MẬT:
+# - BookingToken được mã hóa, chỉ dùng để xem thông tin booking
+# - Manager phải có role "Manager" hoặc "Admin" mới confirm được
+# - Guest không thể tự confirm booking của mình
+
+# 📧 EMAIL:
+# - Guest nhận email sau khi tạo booking (kèm QR code)
+# - Guest nhận email sau khi báo đã chuyển khoản
+# - Manager nhận email khi guest báo đã chuyển khoản
+# - Guest nhận email xác nhận sau khi manager confirm
+
+# ⏱️ TIMEOUT:
+# - Booking Pending: Tự động hủy sau 15 phút nếu không thanh toán
+# - Booking PendingConfirmation: KHÔNG tự động hủy, chờ manager xác nhận
+
+###############################################################################
+

@@ -10,7 +10,6 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/rooms")]
-    [Authorize]
     public class RoomManagementController : BaseApiController
     {
         private readonly IRoomManagementService _roomManagementService;
