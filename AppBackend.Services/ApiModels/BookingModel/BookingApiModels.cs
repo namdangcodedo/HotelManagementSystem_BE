@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using AppBackend.BusinessObjects.Dtos;
 
 namespace AppBackend.Services.ApiModels.BookingModel
@@ -496,5 +497,53 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public string Status { get; set; } = string.Empty;
         public List<string> Amenities { get; set; } = new List<string>();
         public List<string> Images { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// Request để thêm dịch vụ vào booking trong quá trình khách ở
+    /// </summary>
+    public class AddBookingServiceRequest
+    {
+        /// <summary>
+        /// Booking ID
+        /// </summary>
+        [Required]
+        public int BookingId { get; set; }
+
+        /// <summary>
+        /// Danh sách dịch vụ cần thêm
+        /// </summary>
+        [Required]
+        public List<BookingServiceItem> Services { get; set; } = new List<BookingServiceItem>();
+    }
+
+    /// <summary>
+    /// Thông tin dịch vụ cần thêm vào booking
+    /// </summary>
+    public class BookingServiceItem
+    {
+        /// <summary>
+        /// Service ID
+        /// </summary>
+        [Required]
+        public int ServiceId { get; set; }
+
+        /// <summary>
+        /// Số lượng
+        /// </summary>
+        [Required]
+        [Range(1, int.MaxValue, ErrorMessage = "Số lượng phải lớn hơn 0")]
+        public int Quantity { get; set; }
+
+        /// <summary>
+        /// BookingRoomId nếu dịch vụ gắn với phòng cụ thể (VD: minibar, giặt ủi theo phòng)
+        /// Null nếu là dịch vụ chung cho booking (VD: spa, massage)
+        /// </summary>
+        public int? BookingRoomId { get; set; }
+
+        /// <summary>
+        /// Ghi chú cho dịch vụ
+        /// </summary>
+        public string? Note { get; set; }
     }
 }
