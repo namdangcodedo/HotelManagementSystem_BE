@@ -50,7 +50,7 @@ public class HotelManagementContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseSqlServer("Server=103.38.236.148,1423;Database=hotel_management;User Id=sa;Password=123456789a@;TrustServerCertificate=True;");
+            optionsBuilder.UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=hotel_management;User Id=sa;Password=123456789a@;TrustServerCertificate=True;");
         }
     }
 

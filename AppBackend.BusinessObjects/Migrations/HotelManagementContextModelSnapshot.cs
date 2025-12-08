@@ -484,6 +484,53 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.ToTable("ChatSession");
                 });
 
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.Property<int>("CommentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("CommentId"));
+
+                    b.Property<int?>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(640)
+                        .HasColumnType("nvarchar(640)");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CreatedTime")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReplyId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RoomId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CommentId");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("ReplyId");
+
+                    b.HasIndex("RoomId");
+
+                    b.ToTable("Comment");
+                });
+
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.CommonCode", b =>
                 {
                     b.Property<int>("CodeId")
@@ -1623,6 +1670,27 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Account");
                 });
 
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
+                        .WithMany("Comments")
+                        .HasForeignKey("AccountId");
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Comment", "Reply")
+                        .WithMany("InverseReply")
+                        .HasForeignKey("ReplyId");
+
+                    b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
+                        .WithMany("Comments")
+                        .HasForeignKey("RoomId");
+
+                    b.Navigation("Account");
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("Room");
+                });
+
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Account", "Account")
@@ -1928,6 +1996,8 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     b.Navigation("AccountRoles");
 
+                    b.Navigation("Comments");
+
                     b.Navigation("Customer");
 
                     b.Navigation("Employee");
@@ -1959,6 +2029,11 @@ namespace AppBackend.BusinessObjects.Migrations
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.ChatSession", b =>
                 {
                     b.Navigation("ChatMessages");
+                });
+
+            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Comment", b =>
+                {
+                    b.Navigation("InverseReply");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
@@ -1996,6 +2071,8 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("BookingRooms");
 
                     b.Navigation("Bookings");
+
+                    b.Navigation("Comments");
 
                     b.Navigation("HousekeepingTasks");
 

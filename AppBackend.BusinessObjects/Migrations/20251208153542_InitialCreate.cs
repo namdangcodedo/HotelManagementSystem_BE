@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace AppBackend.BusinessObjects.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -528,6 +528,42 @@ namespace AppBackend.BusinessObjects.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Comment",
+                columns: table => new
+                {
+                    CommentId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoomId = table.Column<int>(type: "int", nullable: true),
+                    ReplyId = table.Column<int>(type: "int", nullable: true),
+                    AccountId = table.Column<int>(type: "int", nullable: true),
+                    Content = table.Column<string>(type: "nvarchar(640)", maxLength: 640, nullable: true),
+                    Rating = table.Column<int>(type: "int", nullable: true),
+                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Comment", x => x.CommentId);
+                    table.ForeignKey(
+                        name: "FK_Comment_Account_AccountId",
+                        column: x => x.AccountId,
+                        principalTable: "Account",
+                        principalColumn: "AccountId");
+                    table.ForeignKey(
+                        name: "FK_Comment_Comment_ReplyId",
+                        column: x => x.ReplyId,
+                        principalTable: "Comment",
+                        principalColumn: "CommentId");
+                    table.ForeignKey(
+                        name: "FK_Comment_Room_RoomId",
+                        column: x => x.RoomId,
+                        principalTable: "Room",
+                        principalColumn: "RoomId");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "HolidayPricings",
                 columns: table => new
                 {
@@ -1021,6 +1057,21 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "AccountId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Comment_AccountId",
+                table: "Comment",
+                column: "AccountId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Comment_ReplyId",
+                table: "Comment",
+                column: "ReplyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Comment_RoomId",
+                table: "Comment",
+                column: "RoomId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CommonCode_CodeType_CodeValue",
                 table: "CommonCode",
                 columns: new[] { "CodeType", "CodeValue" },
@@ -1231,6 +1282,9 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "ChatMessage");
+
+            migrationBuilder.DropTable(
+                name: "Comment");
 
             migrationBuilder.DropTable(
                 name: "EmpAttendInfo");
