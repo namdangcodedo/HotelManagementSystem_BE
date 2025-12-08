@@ -91,10 +91,20 @@ namespace AppBackend.ApiCore.Extension
                     // PaymentMethod
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Tiền mặt", CodeName = "Cash" , Description = "Thanh toán bằng tiền mặt", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Thẻ ngân hàng", CodeName = "Card" , Description = "Thanh toán bằng thẻ ATM/Credit", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "Bank" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
+                    new CommonCode { CodeType = "PaymentMethod", CodeValue = "Chuyển khoản", CodeName = "BankTransfer" , Description = "Chuyển khoản ngân hàng", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "Ví điện tử", CodeName = "EWallet" , Description = "Ví điện tử (Momo, ZaloPay, VNPay)", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "PaymentMethod", CodeValue = "PayOS", CodeName = "PayOS" , Description = "Cổng thanh toán PayOS", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    
+
+                    // PaymentStatus - QUAN TRỌNG cho giao dịch thanh toán
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán đầy đủ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Chưa thanh toán", CodeName = "Unpaid" , Description = "Chưa thanh toán", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Thanh toán hoàn tất", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
+                    new CommonCode { CodeType = "PaymentStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
+
+                    // DepositStatus - QUAN TRỌNG cho tiền cọc
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã thanh toán", CodeName = "Paid" , Description = "Đã thanh toán tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
+                    new CommonCode { CodeType = "DepositStatus", CodeValue = "Đã hoàn tiền", CodeName = "Refunded" , Description = "Đã hoàn lại tiền cọc", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
+
                     // TransactionStatus
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang xử lý", CodeName = "Pending" , Description = "Giao dịch đang được xử lý", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Hoàn thành", CodeName = "Completed" , Description = "Giao dịch thành công", IsActive = true, CreatedAt = DateTime.UtcNow },

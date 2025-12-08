@@ -1,3 +1,4 @@
+using AppBackend.BusinessObjects.Data;
 using AppBackend.BusinessObjects.Enums;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
@@ -6,29 +7,36 @@ using AppBackend.Services.ApiModels.BookingModel;
 using AppBackend.Services.Helpers;
 using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace AppBackend.Services.Services.BookingServices;
 
 public class BookingManagementService : IBookingManagementService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly HotelManagementContext _context;
     private readonly CacheHelper _cacheHelper;
     private readonly BookingHelperService _bookingHelper;
     private readonly QRPaymentHelper _qrPaymentHelper;
     private readonly IEmailService _emailService;
+    private readonly ILogger<BookingManagementService> _logger;
 
     public BookingManagementService(
         IUnitOfWork unitOfWork,
+        HotelManagementContext context,
         CacheHelper cacheHelper,
         BookingHelperService bookingHelper,
         QRPaymentHelper qrPaymentHelper,
-        IEmailService emailService)
+        IEmailService emailService,
+        ILogger<BookingManagementService> logger)
     {
         _unitOfWork = unitOfWork;
+        _context = context;
         _cacheHelper = cacheHelper;
         _bookingHelper = bookingHelper;
         _qrPaymentHelper = qrPaymentHelper;
         _emailService = emailService;
+        _logger = logger;
     }
 
     public async Task<ResultModel> CreateOfflineBookingAsync(CreateOfflineBookingRequest request, int employeeId)
@@ -1140,9 +1148,10 @@ public class BookingManagementService : IBookingManagementService
     /// <summary>
     /// Manager/Admin xác nhận đã nhận được tiền cọc từ khách (sau khi check bill ngân hàng)
     /// Chuyển status từ Pending hoặc PendingConfirmation → Confirmed
+    /// Tạo Transaction ghi nhận deposit đã nhận
     /// Gửi email cảm ơn + thông tin đặt phòng chi tiết cho khách
     /// </summary>
-    public async Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId)
+    public async Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId, int? confirmedBy = null)
     {
         try
         {
@@ -1220,6 +1229,42 @@ public class BookingManagementService : IBookingManagementService
             booking.StatusId = confirmedStatus.CodeId;
             booking.UpdatedAt = DateTime.UtcNow;
             await _unitOfWork.Bookings.UpdateAsync(booking);
+
+            // ===== TẠO TRANSACTION CHO DEPOSIT =====
+            // Lấy payment status và transaction status
+            var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
+            var completedTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
+
+            // Lấy payment method (giả sử QR hoặc BankTransfer)
+            var bankTransferMethod = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentMethod" && c.CodeName == "BankTransfer")).FirstOrDefault();
+
+            if (paidStatus != null && completedTransactionStatus != null && bankTransferMethod != null)
+            {
+                // Tạo transaction cho deposit
+                var depositTransaction = new Transaction
+                {
+                    BookingId = booking.BookingId,
+                    TotalAmount = totalAmount,
+                    PaidAmount = depositAmount, // Deposit amount đã trả
+                    DepositAmount = depositAmount,
+                    DepositStatusId = paidStatus.CodeId,
+                    DepositDate = DateTime.UtcNow,
+                    PaymentMethodId = bankTransferMethod.CodeId,
+                    PaymentStatusId = paidStatus.CodeId,
+                    TransactionStatusId = completedTransactionStatus.CodeId,
+                    TransactionRef = $"DEPOSIT-{booking.BookingId}-{DateTime.UtcNow.Ticks}",
+                    CreatedAt = DateTime.UtcNow,
+                    CreatedBy = confirmedBy, // Manager/Admin xác nhận deposit
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = confirmedBy
+                };
+
+                await _unitOfWork.Transactions.AddAsync(depositTransaction);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             // Gửi email cảm ơn + thông tin đặt phòng chi tiết cho khách hàng
@@ -1331,6 +1376,142 @@ public class BookingManagementService : IBookingManagementService
         }
         catch (Exception ex)
         {
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Thêm dịch vụ vào booking trong quá trình khách ở
+    /// Dùng để add services như: minibar, giặt ủi, spa, massage, room service, v.v.
+    /// </summary>
+    public async Task<ResultModel> AddServicesToBookingAsync(AddBookingServiceRequest request, int? employeeId = null)
+    {
+        try
+        {
+            // 1. Validate booking exists
+            var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId);
+            if (booking == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
+                };
+            }
+
+            // 2. Validate booking status (chỉ add service khi booking đã Confirmed hoặc CheckedIn)
+            var confirmedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "Confirmed")).FirstOrDefault();
+            var checkedInStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "CheckedIn")).FirstOrDefault();
+
+            if (booking.StatusId != confirmedStatus?.CodeId && booking.StatusId != checkedInStatus?.CodeId)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Chỉ có thể thêm dịch vụ cho booking đã xác nhận hoặc đã check-in"
+                };
+            }
+
+            // 3. Add services
+            var addedServices = new List<object>();
+
+            foreach (var serviceItem in request.Services)
+            {
+                // Validate service exists
+                var service = await _context.Services.FindAsync(serviceItem.ServiceId);
+                if (service == null || !service.IsActive)
+                {
+                    _logger.LogWarning("Service {ServiceId} không tồn tại hoặc không active", serviceItem.ServiceId);
+                    continue;
+                }
+
+                if (serviceItem.BookingRoomId.HasValue)
+                {
+                    // Dịch vụ gắn với phòng cụ thể (minibar, giặt ủi theo phòng, v.v.)
+                    var bookingRoom = booking.BookingRooms.FirstOrDefault(br => br.BookingRoomId == serviceItem.BookingRoomId.Value);
+                    if (bookingRoom == null)
+                    {
+                        _logger.LogWarning("BookingRoom {BookingRoomId} không tồn tại trong booking {BookingId}",
+                            serviceItem.BookingRoomId.Value, request.BookingId);
+                        continue;
+                    }
+
+                    var bookingRoomService = new BookingRoomService
+                    {
+                        BookingRoomId = serviceItem.BookingRoomId.Value,
+                        ServiceId = serviceItem.ServiceId,
+                        PriceAtTime = service.Price,
+                        Quantity = serviceItem.Quantity
+                    };
+
+                    await _context.BookingRoomServices.AddAsync(bookingRoomService);
+
+                    addedServices.Add(new
+                    {
+                        ServiceName = service.ServiceName,
+                        RoomId = bookingRoom.RoomId,
+                        Quantity = serviceItem.Quantity,
+                        Price = service.Price,
+                        SubTotal = service.Price * serviceItem.Quantity,
+                        Type = "RoomService"
+                    });
+                }
+                else
+                {
+                    // Dịch vụ chung cho booking (spa, massage, v.v.)
+                    var bookingService = new BusinessObjects.Models.BookingService
+                    {
+                        BookingId = booking.BookingId,
+                        ServiceId = serviceItem.ServiceId,
+                        Quantity = serviceItem.Quantity,
+                        PriceAtTime = service.Price,
+                        TotalPrice = service.Price * serviceItem.Quantity,
+                        ServiceDate = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        CreatedBy = employeeId
+                    };
+
+                    await _context.BookingServices.AddAsync(bookingService);
+
+                    addedServices.Add(new
+                    {
+                        ServiceName = service.ServiceName,
+                        Quantity = serviceItem.Quantity,
+                        Price = service.Price,
+                        SubTotal = service.Price * serviceItem.Quantity,
+                        Type = "BookingService"
+                    });
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = StatusCodes.Status200OK,
+                Message = $"Đã thêm {addedServices.Count} dịch vụ vào booking",
+                Data = new
+                {
+                    BookingId = request.BookingId,
+                    AddedServices = addedServices,
+                    AddedBy = employeeId,
+                    AddedAt = DateTime.UtcNow
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi thêm dịch vụ vào booking {BookingId}", request.BookingId);
             return new ResultModel
             {
                 IsSuccess = false,

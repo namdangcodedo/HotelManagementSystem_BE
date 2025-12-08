@@ -266,8 +266,11 @@ namespace AppBackend.ApiCore.Controllers
         [Authorize(Roles = "Receptionist,Manager,Admin")]
         public async Task<IActionResult> ConfirmPayment(int bookingId)
         {
-            // Gọi service ConfirmOnlineBookingAsync đã có sẵn trong BookingService
-            var result = await _bookingManagementService.ConfirmOnlineBookingAsync(bookingId);
+            // Get current user (Manager/Admin confirming the deposit)
+            var confirmedBy = CurrentUserId > 0 ? CurrentUserId : (int?)null;
+
+            // Gọi service ConfirmOnlineBookingAsync - tạo Transaction cho deposit
+            var result = await _bookingManagementService.ConfirmOnlineBookingAsync(bookingId, confirmedBy);
             return StatusCode(result.StatusCode, result);
         }
 
@@ -357,6 +360,94 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> QuickSearchCustomer([FromQuery] string searchKey)
         {
             var result = await _bookingManagementService.QuickSearchCustomerAsync(searchKey);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
+        /// Add dịch vụ vào booking trong quá trình khách ở
+        /// </summary>
+        /// <remarks>
+        /// API để thêm các dịch vụ vào booking trong quá trình khách ở (sau khi check-in hoặc confirmed).
+        ///
+        /// ### Workflow:
+        /// 1. Khách ở trong khách sạn và sử dụng các dịch vụ: minibar, giặt ủi, spa, massage, v.v.
+        /// 2. Nhân viên sử dụng API này để add các services vào booking
+        /// 3. Services sẽ được tính vào hóa đơn khi checkout
+        /// 4. API preview checkout sẽ hiển thị tất cả services đã add
+        ///
+        /// ### Service Types:
+        /// - **Room Service** (có `bookingRoomId`): Dịch vụ gắn với phòng cụ thể (minibar, giặt ủi theo phòng, late checkout)
+        /// - **Booking Service** (`bookingRoomId = null`): Dịch vụ chung cho booking (spa, massage, tour, ăn uống)
+        ///
+        /// ### Example Request:
+        /// ```json
+        /// {
+        ///   "bookingId": 123,
+        ///   "services": [
+        ///     {
+        ///       "serviceId": 5,
+        ///       "quantity": 2,
+        ///       "bookingRoomId": 456,
+        ///       "note": "Minibar - 2 bia Heineken"
+        ///     },
+        ///     {
+        ///       "serviceId": 12,
+        ///       "quantity": 1,
+        ///       "bookingRoomId": null,
+        ///       "note": "Massage 60 phút"
+        ///     }
+        ///   ]
+        /// }
+        /// ```
+        ///
+        /// ### Response:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Đã thêm 2 dịch vụ vào booking",
+        ///   "data": {
+        ///     "bookingId": 123,
+        ///     "addedServices": [
+        ///       {
+        ///         "serviceName": "Minibar",
+        ///         "roomId": 201,
+        ///         "quantity": 2,
+        ///         "price": 50000,
+        ///         "subTotal": 100000,
+        ///         "type": "RoomService"
+        ///       },
+        ///       {
+        ///         "serviceName": "Massage 60 phút",
+        ///         "quantity": 1,
+        ///         "price": 500000,
+        ///         "subTotal": 500000,
+        ///         "type": "BookingService"
+        ///       }
+        ///     ],
+        ///     "addedBy": 3,
+        ///     "addedAt": "2025-12-08T10:30:00Z"
+        ///   }
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("{bookingId}/services")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> AddServicesToBooking(int bookingId, [FromBody] AddBookingServiceRequest request)
+        {
+            // Validate request
+            if (request == null || request.Services == null || !request.Services.Any())
+            {
+                return ValidationError("Danh sách dịch vụ không hợp lệ");
+            }
+
+            // Ensure bookingId in route matches request
+            request.BookingId = bookingId;
+
+            // Get current employee ID
+            var employeeId = CurrentUserId > 0 ? CurrentUserId : (int?)null;
+
+            var result = await _bookingManagementService.AddServicesToBookingAsync(request, employeeId);
             return StatusCode(result.StatusCode, result);
         }
     }

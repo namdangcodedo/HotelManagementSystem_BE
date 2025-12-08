@@ -19,6 +19,7 @@ using AppBackend.Services.Services.DashboardServices;
 using AppBackend.Services.Services.RoomManagement;
 using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.BackgroundJobs;
+using AppBackend.Services.Services.CheckoutServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -56,6 +57,7 @@ public static class ServicesConfig
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<IRoomManagementService, RoomManagementService>();
+        services.AddScoped<ICheckoutService, CheckoutService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
