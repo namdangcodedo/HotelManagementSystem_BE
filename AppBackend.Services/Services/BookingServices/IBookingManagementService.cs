@@ -30,5 +30,8 @@ namespace AppBackend.Services.Services.BookingServices
 
         // Add Services to Booking During Stay
         Task<ResultModel> AddServicesToBookingAsync(AddBookingServiceRequest request, int? employeeId = null);
+        
+        // Check-in Booking - Change status to CheckedIn
+        Task<ResultModel> CheckInBookingAsync(int bookingId, int employeeId);
     }
 }

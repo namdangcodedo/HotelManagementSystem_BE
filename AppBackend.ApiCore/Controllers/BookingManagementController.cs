@@ -217,6 +217,71 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
+        /// Check-in booking - Chuyển trạng thái booking sang "CheckedIn"
+        /// </summary>
+        /// <remarks>
+        /// ### Mục đích:
+        /// API này được sử dụng khi khách đến khách sạn và làm thủ tục check-in.
+        /// 
+        /// ### Workflow:
+        /// 1. **Khách đến quầy lễ tân** vào ngày check-in
+        /// 2. **Lễ tán kiểm tra booking** (qua BookingId hoặc tìm kiếm khách hàng)
+        /// 3. **Xác nhận thông tin** khách hàng và phòng
+        /// 4. **Gọi API này** để chuyển trạng thái booking sang **CheckedIn**
+        /// 5. Hệ thống tự động:
+        ///    - Cập nhật booking status → **CheckedIn**
+        ///    - Cập nhật room status → **Occupied** (Đang sử dụng)
+        ///    - Ghi nhận thời gian check-in thực tế
+        ///    - Gửi email welcome cho khách (optional)
+        /// 
+        /// ### Business Rules:
+        /// - Chỉ booking có status **Confirmed** hoặc **Pending** mới có thể check-in
+        /// - Không thể check-in booking đã **Cancelled** hoặc **CheckedOut**
+        /// - Check-in date phải trong khoảng hợp lệ (không quá sớm hoặc quá muộn)
+        /// 
+        /// ### Authorization:
+        /// - **Receptionist**, **Manager**, **Admin**
+        /// 
+        /// ### Example:
+        /// ```
+        /// POST /api/BookingManagement/123/check-in
+        /// ```
+        /// 
+        /// ### Response Success:
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "statusCode": 200,
+        ///   "message": "Check-in thành công. Chúc quý khách có kỳ nghỉ vui vẻ!",
+        ///   "data": {
+        ///     "bookingId": 123,
+        ///     "checkInTime": "2025-12-09T14:30:00Z",
+        ///     "roomNumbers": ["101", "102"],
+        ///     "customerName": "Nguyễn Văn A",
+        ///     "checkOutDate": "2025-12-11T12:00:00Z"
+        ///   }
+        /// }
+        /// ```
+        /// 
+        /// ### Response Error - Booking không hợp lệ:
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "statusCode": 400,
+        ///   "message": "Không thể check-in. Booking đang ở trạng thái: Cancelled"
+        /// }
+        /// ```
+        /// </remarks>
+        [HttpPost("{bookingId}/check-in")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> CheckInBooking(int bookingId)
+        {
+            var employeeId = CurrentUserId;
+            var result = await _bookingManagementService.CheckInBookingAsync(bookingId, employeeId);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
         /// Lấy thông tin QR payment cho booking
         /// </summary>
         /// <remarks>

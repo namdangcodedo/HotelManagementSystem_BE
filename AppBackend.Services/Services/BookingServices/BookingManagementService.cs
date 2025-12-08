@@ -615,6 +615,8 @@ public class BookingManagementService : IBookingManagementService
                     CheckOutDate = booking.CheckOutDate,
                     TotalAmount = booking.TotalAmount,
                     DepositAmount = booking.DepositAmount,
+                    PaymentStatusId = booking.StatusId,
+                    BookingTypeId = booking.BookingTypeId,
                     PaymentStatus = statusCode?.CodeValue ?? "Unknown",
                     BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
                     SpecialRequests = booking.SpecialRequests,
@@ -1512,6 +1514,157 @@ public class BookingManagementService : IBookingManagementService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Lỗi khi thêm dịch vụ vào booking {BookingId}", request.BookingId);
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Check-in booking - Chuyển trạng thái sang CheckedIn và cập nhật room status
+    /// </summary>
+    public async Task<ResultModel> CheckInBookingAsync(int bookingId, int employeeId)
+    {
+        try
+        {
+            // 1. Lấy booking và kiểm tra tồn tại
+            var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+            if (booking == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy booking"
+                };
+            }
+
+            // 2. Lấy thông tin status hiện tại
+            var currentStatus = booking.StatusId.HasValue
+                ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
+                : null;
+
+            // 3. Kiểm tra status hợp lệ - Chỉ cho phép check-in nếu status là Confirmed hoặc Pending
+            if (currentStatus == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Booking không có trạng thái hợp lệ"
+                };
+            }
+
+            var allowedStatuses = new[] { "Confirmed", "Pending" };
+            if (!allowedStatuses.Contains(currentStatus.CodeName))
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = $"Không thể check-in. Booking đang ở trạng thái: {currentStatus.CodeValue}"
+                };
+            }
+
+            // 4. Lấy status CheckedIn từ CommonCode
+            var checkedInStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" && c.CodeName == "CheckedIn")).FirstOrDefault();
+
+            if (checkedInStatus == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi: Không tìm thấy status CheckedIn trong hệ thống"
+                };
+            }
+
+            // 5. Lấy danh sách phòng của booking
+            var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
+            if (!bookingRooms.Any())
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status404NotFound,
+                    Message = "Không tìm thấy thông tin phòng của booking"
+                };
+            }
+
+            // 6. Lấy status Occupied (Đang sử dụng) cho Room
+            var occupiedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "RoomStatus" && c.CodeName == "Occupied")).FirstOrDefault();
+
+            if (occupiedStatus == null)
+            {
+                _logger.LogWarning("[CheckIn] Không tìm thấy RoomStatus 'Occupied', tiếp tục check-in booking");
+            }
+
+            var roomNumbers = new List<string>();
+
+            // 7. Cập nhật status của từng phòng sang Occupied
+            foreach (var bookingRoom in bookingRooms)
+            {
+                var room = await _unitOfWork.Rooms.GetByIdAsync(bookingRoom.RoomId);
+                if (room != null)
+                {
+                    roomNumbers.Add(room.RoomName);
+
+                    if (occupiedStatus != null)
+                    {
+                        room.StatusId = occupiedStatus.CodeId;
+                        room.UpdatedAt = DateTime.UtcNow;
+                        await _unitOfWork.Rooms.UpdateAsync(room);
+                    }
+                }
+            }
+
+            // 8. Cập nhật status booking sang CheckedIn
+            booking.StatusId = checkedInStatus.CodeId;
+            booking.UpdatedAt = DateTime.UtcNow;
+            booking.UpdatedBy = employeeId;
+            await _unitOfWork.Bookings.UpdateAsync(booking);
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // 9. Lấy thông tin customer
+            var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
+
+            // 10. (Optional) Gửi email welcome cho khách
+            try
+            {
+                // TODO: Implement welcome email when guest checks in
+                _logger.LogInformation("[CheckIn] Check-in email should be sent to customer {CustomerId} for booking {BookingId}",
+                    booking.CustomerId, bookingId);
+            }
+            catch (Exception emailEx)
+            {
+                _logger.LogError(emailEx, "[CheckIn] Failed to send check-in email for booking {BookingId}", bookingId);
+            }
+
+            // 11. Return response
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = StatusCodes.Status200OK,
+                Message = "Check-in thành công. Chúc quý khách có kỳ nghỉ vui vẻ!",
+                Data = new
+                {
+                    BookingId = bookingId,
+                    CheckInTime = DateTime.UtcNow,
+                    RoomNumbers = roomNumbers,
+                    CustomerName = customer?.FullName ?? "N/A",
+                    CheckOutDate = booking.CheckOutDate
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[CheckIn] Lỗi khi check-in booking {BookingId}", bookingId);
             return new ResultModel
             {
                 IsSuccess = false,

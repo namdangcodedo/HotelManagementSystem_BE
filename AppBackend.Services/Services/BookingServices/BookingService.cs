@@ -144,15 +144,15 @@ public class BookingService : IBookingService
         try
         {
             // 1. Validate
-            var todayStart = DateTime.UtcNow.Date;
+            var today = DateTime.UtcNow.Date;
 
-            if (request.CheckInDate < todayStart)
+            if (request.CheckInDate.Date < today)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Message = "Ngày check-in phải sau thời điểm hiện tại"
+                    Message = "Ngày check-in không được ở trong quá khứ"
                 };
             }
 
@@ -433,13 +433,15 @@ public class BookingService : IBookingService
                 };
             }
 
-            if (request.CheckInDate <= DateTime.UtcNow)
+            var today = DateTime.UtcNow.Date;
+
+            if (request.CheckInDate.Date < today)
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Message = "Ngày check-in phải sau thời điểm hiện tại"
+                    Message = "Ngày check-in không được ở trong quá khứ"
                 };
             }
 
