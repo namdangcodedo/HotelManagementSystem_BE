@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AppBackend.BusinessObjects.Enums;
 
 namespace AppBackend.BusinessObjects.Models;
 
@@ -21,6 +22,12 @@ public partial class CommentDTO
     public DateTime? UpdatedAt { get; set; }
 
     public string? Status { get; set; }
+    
+    // Thông tin người dùng
+    public string? UserFullName { get; set; }
+    public string? UserEmail { get; set; }
+    public string? UserType { get; set; } // "Customer" hoặc "Employee"
+    
     public virtual ICollection<CommentDTO> InverseReply { get; set; } = new List<CommentDTO>();
     public virtual CommentDTO? Reply { get; set; }
 }

@@ -66,7 +66,26 @@ namespace AppBackend.Services.Mappings
             #endregion
 
             #region Comment
-            CreateMap<Comment, CommentDTO>().ReverseMap();
+            CreateMap<Comment, CommentDTO>()
+                .ForMember(dest => dest.UserFullName, opt => opt.MapFrom(src => 
+                    src.Account != null 
+                        ? (src.Account.Customer != null 
+                            ? src.Account.Customer.FullName 
+                            : src.Account.Employee != null 
+                                ? src.Account.Employee.FullName 
+                                : null)
+                        : null))
+                .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => 
+                    src.Account != null ? src.Account.Email : null))
+                .ForMember(dest => dest.UserType, opt => opt.MapFrom(src => 
+                    src.Account != null 
+                        ? (src.Account.Customer != null 
+                            ? "Customer" 
+                            : src.Account.Employee != null 
+                                ? "Employee" 
+                                : null)
+                        : null))
+                .ReverseMap();
             CreateMap<Comment, PostCommentRequest>().ReverseMap();
             #endregion
         }

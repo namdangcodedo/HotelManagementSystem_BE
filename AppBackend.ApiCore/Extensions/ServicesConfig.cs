@@ -20,6 +20,7 @@ using AppBackend.Services.Services.RoomManagement;
 using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.BackgroundJobs;
 using AppBackend.Services.Services.CheckoutServices;
+using AppBackend.Services.Services.CommentService;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -58,6 +59,7 @@ public static class ServicesConfig
         services.AddScoped<IAttendaceService, AttendanceService>();
         services.AddScoped<IRoomManagementService, RoomManagementService>();
         services.AddScoped<ICheckoutService, CheckoutService>();
+        services.AddScoped<ICommentService, CommentService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
