@@ -68,6 +68,7 @@ namespace AppBackend.Repositories.Repositories.CommentRepo
                 .Include(c => c.Account)
                     .ThenInclude(a => a.Employee)
                 .Include(c => c.RoomType)
+                .Where(c => c.Status == "Approved") // Chỉ lấy comment đã duyệt
                 .AsQueryable();
 
             // Filter by RoomTypeId
@@ -125,7 +126,7 @@ namespace AppBackend.Repositories.Repositories.CommentRepo
                     .ThenInclude(a => a.Customer)
                 .Include(c => c.Account)
                     .ThenInclude(a => a.Employee)
-                .Where(c => c.ReplyId == comment.CommentId)
+                .Where(c => c.ReplyId == comment.CommentId && c.Status == "Approved") // Chỉ lấy reply đã duyệt
                 .OrderBy(c => c.CreatedDate)
                 .ThenBy(c => c.CreatedTime)
                 .ToListAsync();

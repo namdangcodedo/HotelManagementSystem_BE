@@ -5,8 +5,10 @@ using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.CommentModel;
 using AppBackend.Services.Helpers;
+using AppBackend.Services.Services.AI;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,11 +21,19 @@ namespace AppBackend.Services.Services.CommentService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly ICommentModerationService _moderationService;
+        private readonly ILogger<CommentService> _logger;
 
-        public CommentService(IUnitOfWork unitOfWork, IMapper mapper)
+        public CommentService(
+            IUnitOfWork unitOfWork, 
+            IMapper mapper,
+            ICommentModerationService moderationService,
+            ILogger<CommentService> logger)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _moderationService = moderationService;
+            _logger = logger;
         }
 
         public async Task<ResultModel> AddComment(AddCommentRequest request, int accountId)
@@ -69,6 +79,10 @@ namespace AppBackend.Services.Services.CommentService
                 }
             }
 
+            // === KIỂM DUYỆT BÌNH LUẬN BẰNG GEMINI AI ===
+            _logger.LogInformation("Analyzing comment with AI moderation service...");
+            var moderationResult = await _moderationService.AnalyzeCommentAsync(request.Content, request.Rating);
+
             var now = DateTime.UtcNow;
             var comment = new Comment
             {
@@ -79,20 +93,44 @@ namespace AppBackend.Services.Services.CommentService
                 Rating = request.Rating,
                 CreatedDate = now.Date,
                 CreatedTime = now,
-                Status = CommentStatus.Approved.ToString(), // Default to approved
+                Status = moderationResult.Status, // Sử dụng status từ AI moderation
                 UpdatedAt = now
             };
 
             await _unitOfWork.Comments.AddAsync(comment);
             await _unitOfWork.SaveChangesAsync();
 
+            // Trả về message khác nhau tuỳ vào kết quả kiểm duyệt
+            string message;
+            if (moderationResult.Status == "Approved")
+            {
+                message = "Thêm bình luận thành công";
+            }
+            else if (moderationResult.Status == "Rejected")
+            {
+                message = $"Bình luận bị từ chối: {moderationResult.Reason}";
+            }
+            else // Pending
+            {
+                message = "Bình luận đang chờ kiểm duyệt";
+            }
+
+            _logger.LogInformation("Comment {CommentId} created with status: {Status}. Reason: {Reason}", 
+                comment.CommentId, moderationResult.Status, moderationResult.Reason);
+
             return new ResultModel
             {
-                IsSuccess = true,
-                ResponseCode = CommonMessageConstants.SUCCESS,
-                Message = "Thêm bình luận thành công",
-                Data = comment.CommentId,
-                StatusCode = StatusCodes.Status201Created
+                IsSuccess = moderationResult.Status != "Rejected", // Rejected = false
+                ResponseCode = moderationResult.Status == "Rejected" ? "REJECTED" : CommonMessageConstants.SUCCESS,
+                Message = message,
+                Data = new
+                {
+                    commentId = comment.CommentId,
+                    status = moderationResult.Status,
+                    reason = moderationResult.Reason,
+                    toxicityScore = moderationResult.ToxicityScore
+                },
+                StatusCode = moderationResult.Status == "Rejected" ? StatusCodes.Status403Forbidden : StatusCodes.Status201Created
             };
         }
 

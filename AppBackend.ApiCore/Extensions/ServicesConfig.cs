@@ -21,6 +21,7 @@ using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.BackgroundJobs;
 using AppBackend.Services.Services.CheckoutServices;
 using AppBackend.Services.Services.CommentService;
+using AppBackend.Services.Services.AI;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -60,6 +61,7 @@ public static class ServicesConfig
         services.AddScoped<IRoomManagementService, RoomManagementService>();
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<ICommentModerationService, CommentModerationService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();

@@ -126,6 +126,13 @@ POST /api/Comment
 ### Mô tả
 Thêm bình luận mới hoặc reply cho một bình luận đã có. User phải đăng nhập.
 
+**🤖 AI Moderation**: Bình luận sẽ được tự động phân tích bằng Gemini AI để kiểm duyệt nội dung:
+- ✅ **Approved**: Bình luận được chấp nhận và hiển thị công khai
+- ❌ **Rejected**: Bình luận bị từ chối (toxic, spam, phá hoại)
+- ⏳ **Pending**: Bình luận cần kiểm duyệt thủ công
+
+**Lưu ý**: Phản hồi tiêu cực mang tính **XÂY DỰNG** vẫn được approve. Chỉ những bình luận thực sự toxic, spam mới bị reject.
+
 ### Authentication
 **Yêu cầu đăng nhập** - Gửi JWT token trong header
 
@@ -169,51 +176,61 @@ Authorization: Bearer {access_token}
 }
 ```
 
-### Response Success (201 Created)
+### Response Success (201 Created) - Approved
 
+**Comment được chấp nhận:**
 ```json
 {
   "isSuccess": true,
   "responseCode": "SUCCESS",
   "message": "Thêm bình luận thành công",
-  "data": 25,
+  "data": {
+    "commentId": 25,
+    "status": "Approved",
+    "reason": "Bình luận phù hợp",
+    "toxicityScore": 0.1
+  },
   "statusCode": 201
 }
 ```
 
-*Lưu ý: `data` trả về là `commentId` của comment vừa tạo*
+### Response Success (201 Created) - Pending
 
-### Response Error (401 Unauthorized)
-
+**Comment cần kiểm duyệt:**
 ```json
 {
-  "message": "Không thể xác thực người dùng"
+  "isSuccess": true,
+  "responseCode": "SUCCESS",
+  "message": "Bình luận đang chờ kiểm duyệt",
+  "data": {
+    "commentId": 26,
+    "status": "Pending",
+    "reason": "Cần xem xét thêm",
+    "toxicityScore": 0.5
+  },
+  "statusCode": 201
 }
 ```
 
-### Response Error (404 Not Found)
+### Response Error (403 Forbidden) - Rejected
 
-**Không tìm thấy loại phòng:**
-```json
-{
-  "isSuccess": false,
-  "responseCode": "NOT_FOUND",
-  "message": "Không tìm thấy loại phòng",
-  "data": null,
-  "statusCode": 404
-}
-```
-
-**Không tìm thấy comment cha:**
+**Comment bị từ chối do nội dung không phù hợp:**
 ```json
 {
   "isSuccess": false,
-  "responseCode": "NOT_FOUND",
-  "message": "Không tìm thấy bình luận cha",
-  "data": null,
-  "statusCode": 404
+  "responseCode": "REJECTED",
+  "message": "Bình luận bị từ chối: Nội dung chứa ngôn từ không phù hợp",
+  "data": {
+    "commentId": 27,
+    "status": "Rejected",
+    "reason": "Nội dung chứa ngôn từ không phù hợp",
+    "toxicityScore": 0.9
+  },
+  "statusCode": 403
 }
 ```
+
+*Lưu ý: Comment bị rejected vẫn được lưu vào DB nhưng có status="Rejected" và không hiển thị công khai*
 
 ---
 
@@ -755,17 +772,57 @@ async function handleApiCall(apiFunction) {
 1. **Authentication**: Token phải được gửi trong header `Authorization: Bearer {token}` cho các API cần đăng nhập
 2. **Date Format**: Tất cả datetime đều sử dụng format ISO 8601 (UTC)
 3. **Rating**: Chỉ comment gốc mới có rating, reply không có rating
-4. **Status**: Comment mặc định có status là "Approved" khi tạo mới
+4. **Status**: Comment mặc định được phân tích bởi AI, có thể nhận status: "Approved", "Rejected", hoặc "Pending"
 5. **Pagination**: Default là page 1, size 10. Tối đa 100 items/page
 6. **Reply Depth**: Default là 3 levels, có thể điều chỉnh qua `MaxReplyDepth`
 7. **Hidden Comments**: Comment bị ẩn vẫn tồn tại trong DB nhưng không hiển thị cho user thông thường
+8. **🤖 AI Moderation**: 
+   - Sử dụng Google Gemini AI để phân tích nội dung bình luận
+   - Tự động phát hiện: toxic language, spam, nội dung phá hoại
+   - Phản hồi tiêu cực **mang tính xây dựng** vẫn được approve
+   - Rating thấp (1-2 sao) kèm góp ý hợp lý → APPROVED
+   - Chỉ reject những bình luận thực sự có vấn đề
+   - Nếu AI không chắc chắn → set status "Pending" để admin review
+
+---
+
+## AI Moderation Details
+
+### Tiêu chí đánh giá của AI:
+
+| Loại | Hành động | Ví dụ |
+|------|-----------|-------|
+| 🟢 **Constructive Feedback** | ✅ APPROVED | "Phòng đẹp nhưng cách âm chưa tốt lắm, hy vọng khách sạn cải thiện" |
+| 🟢 **Positive Review** | ✅ APPROVED | "Dịch vụ tuyệt vời, nhân viên thân thiện!" |
+| 🟡 **Low Rating + Valid Reason** | ✅ APPROVED | "2 sao vì phòng có mùi hôi và wifi yếu" |
+| 🔴 **Toxic Language** | ❌ REJECTED | Ngôn từ thô tục, xúc phạm, đe dọa |
+| 🔴 **Spam** | ❌ REJECTED | Quảng cáo, nội dung không liên quan |
+| 🔴 **Destructive** | ❌ REJECTED | Phá hoại danh tiếng không có căn cứ |
+| 🟡 **Unclear Intent** | ⏳ PENDING | AI không chắc chắn → cần admin review |
+
+### Toxicity Score:
+- **0.0 - 0.3**: Nội dung an toàn → Approved
+- **0.4 - 0.6**: Cần xem xét → Pending
+- **0.7 - 1.0**: Nội dung không phù hợp → Rejected
+
+### Fallback Mechanism:
+Nếu Gemini AI không khả dụng:
+- Comment tự động được set status "Pending"
+- Admin cần kiểm duyệt thủ công
+- Hệ thống vẫn hoạt động bình thường
 
 ---
 
 ## Changelog
 
+- **v1.1.0** (2024-12-10): AI Moderation Update
+  - 🤖 Thêm tự động kiểm duyệt bình luận bằng Gemini AI
+  - Phát hiện toxic content, spam, nội dung phá hoại
+  - Support cho constructive criticism
+  - Trả về toxicity score và lý do reject
+  
 - **v1.0.0** (2024-12-09): Initial release
   - GET comments endpoint
-  - POST add comment endpoint
+  - POST add comment endpoint  
   - PUT update comment endpoint
   - PATCH hide comment endpoint
