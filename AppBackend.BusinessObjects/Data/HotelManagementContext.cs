@@ -19,7 +19,6 @@ public class HotelManagementContext : DbContext
     public virtual DbSet<Customer> Customers { get; set; }
     public virtual DbSet<Employee> Employees { get; set; }
     public virtual DbSet<EmployeeSchedule> EmployeeSchedules { get; set; }
-    public virtual DbSet<Feedback> Feedbacks { get; set; }
     public virtual DbSet<Holiday> Holidays { get; set; }
     public virtual DbSet<HolidayPricing> HolidayPricings { get; set; }
     public virtual DbSet<HousekeepingTask> HousekeepingTasks { get; set; }
@@ -106,37 +105,61 @@ public class HotelManagementContext : DbContext
             .WithMany(h => h.HolidayPricings)
             .HasForeignKey(hp => hp.HolidayId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<HolidayPricing>()
-            .HasOne(hp => hp.Room)
-            .WithMany()
-            .HasForeignKey(hp => hp.RoomId)
+        modelBuilder.Entity<SalaryRecord>()
+            .HasOne(s => s.Employee)
+            .WithMany(e => e.SalaryRecords)
+            .HasForeignKey(s => s.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<HolidayPricing>()
-            .HasOne(hp => hp.Service)
-            .WithMany()
-            .HasForeignKey(hp => hp.ServiceId)
+        modelBuilder.Entity<PayrollDisbursement>()
+            .HasOne(p => p.Employee)
+            .WithMany(e => e.PayrollDisbursements)
+            .HasForeignKey(p => p.EmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Room>()
-            .HasOne(r => r.Status)
+        modelBuilder.Entity<HousekeepingTask>()
+            .HasOne(h => h.TaskType)
             .WithMany()
-            .HasForeignKey(r => r.StatusId)
+            .HasForeignKey(h => h.TaskTypeId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Room>()
-            .HasOne(r => r.RoomType)
+
+        modelBuilder.Entity<HousekeepingTask>()
+            .HasOne(h => h.Status)
             .WithMany()
-            .HasForeignKey(r => r.RoomTypeId)
+            .HasForeignKey(h => h.StatusId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Booking>()
-            .HasOne(b => b.Status)
-            .WithMany()
-            .HasForeignKey(b => b.StatusId)
-            .OnDelete(DeleteBehavior.Restrict);
+
+        // Xóa các cấu hình .WithMany() không cần thiết gây ra duplicate tables
+        // EF Core có thể tự động xác định các mối quan hệ này từ Data Annotations
         
-        modelBuilder.Entity<Booking>()
-            .HasOne(b => b.BookingType)
-            .WithMany()
-            .HasForeignKey(b => b.BookingTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<HolidayPricing>()
+        //     .HasOne(hp => hp.Room)
+        //     .WithMany()
+        //     .HasForeignKey(hp => hp.RoomId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<HolidayPricing>()
+        //     .HasOne(hp => hp.Service)
+        //     .WithMany()
+        //     .HasForeignKey(hp => hp.ServiceId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Room>()
+        //     .HasOne(r => r.Status)
+        //     .WithMany()
+        //     .HasForeignKey(r => r.StatusId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Room>()
+        //     .HasOne(r => r.RoomType)
+        //     .WithMany()
+        //     .HasForeignKey(r => r.RoomTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Booking>()
+        //     .HasOne(b => b.Status)
+        //     .WithMany()
+        //     .HasForeignKey(b => b.StatusId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Booking>()
+        //     .HasOne(b => b.BookingType)
+        //     .WithMany()
+        //     .HasForeignKey(b => b.BookingTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Transaction>()
             .HasOne(t => t.PaymentMethod)
             .WithMany()
@@ -157,72 +180,40 @@ public class HotelManagementContext : DbContext
             .WithMany()
             .HasForeignKey(t => t.DepositStatusId)
             .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<SalaryRecord>()
-            .HasOne(s => s.Employee)
-            .WithMany(e => e.SalaryRecords)
-            .HasForeignKey(s => s.EmployeeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<PayrollDisbursement>()
-            .HasOne(p => p.Employee)
-            .WithMany(e => e.PayrollDisbursements)
-            .HasForeignKey(p => p.EmployeeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<PayrollDisbursement>()
-            .HasOne(p => p.Status)
-            .WithMany()
-            .HasForeignKey(p => p.StatusId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<HousekeepingTask>()
-            .HasOne(h => h.TaskType)
-            .WithMany()
-            .HasForeignKey(h => h.TaskTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<HousekeepingTask>()
-            .HasOne(h => h.Status)
-            .WithMany()
-            .HasForeignKey(h => h.StatusId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Feedback>()
-            .HasOne(f => f.FeedbackType)
-            .WithMany()
-            .HasForeignKey(f => f.FeedbackTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Feedback>()
-            .HasOne(f => f.Status)
-            .WithMany()
-            .HasForeignKey(f => f.StatusId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Employee>()
-            .HasOne(e => e.EmployeeType)
-            .WithMany()
-            .HasForeignKey(e => e.EmployeeTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Notification>()
-            .HasOne(n => n.NotificationType)
-            .WithMany()
-            .HasForeignKey(n => n.NotificationTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<RoomType>()
-               .HasMany(d => d.Rooms);
-        modelBuilder.Entity<SalaryInfo>()
-            .HasOne(s => s.Employee)
-            .WithMany(e => e.SalaryInfos)
-            .HasForeignKey(s => s.EmployeeId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<Comment>(entity =>
-        {
-
-            entity.Property(e => e.Content).HasMaxLength(640);
-
-            entity.HasOne(d => d.Account).WithMany(p => p.Comments)
-                .HasForeignKey(d => d.AccountId);
-
-            entity.HasOne(d => d.Reply).WithMany(p => p.InverseReply)
-                .HasForeignKey(d => d.ReplyId);
-
-            entity.HasOne(d => d.RoomType).WithMany(p => p.Comments)
-                .HasForeignKey(d => d.RoomTypeId);
-        });
+        // modelBuilder.Entity<PayrollDisbursement>()
+        //     .HasOne(p => p.Status)
+        //     .WithMany()
+        //     .HasForeignKey(p => p.StatusId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<HousekeepingTask>()
+        //     .HasOne(h => h.TaskType)
+        //     .WithMany()
+        //     .HasForeignKey(h => h.TaskTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<HousekeepingTask>()
+        //     .HasOne(h => h.Status)
+        //     .WithMany()
+        //     .HasForeignKey(h => h.StatusId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Feedback>()
+        //     .HasOne(f => f.FeedbackType)
+        //     .WithMany()
+        //     .HasForeignKey(f => f.FeedbackTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Feedback>()
+        //     .HasOne(f => f.Status)
+        //     .WithMany()
+        //     .HasForeignKey(f => f.StatusId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Employee>()
+        //     .HasOne(e => e.EmployeeType)
+        //     .WithMany()
+        //     .HasForeignKey(e => e.EmployeeTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
+        // modelBuilder.Entity<Notification>()
+        //     .HasOne(n => n.NotificationType)
+        //     .WithMany()
+        //     .HasForeignKey(n => n.NotificationTypeId)
+        //     .OnDelete(DeleteBehavior.Restrict);
     }
 }

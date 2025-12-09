@@ -496,8 +496,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Content")
-                        .HasMaxLength(640)
-                        .HasColumnType("nvarchar(640)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -774,65 +773,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasIndex("EmployeeId");
 
                     b.ToTable("EmployeeSchedule");
-                });
-
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Feedback", b =>
-                {
-                    b.Property<int>("FeedbackId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("FeedbackId"));
-
-                    b.Property<int?>("BookingId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2")
-                        .HasDefaultValueSql("(getdate())");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CustomerId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FeedbackTypeId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("Rating")
-                        .HasColumnType("int");
-
-                    b.Property<int>("StatusId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Subject")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("UpdatedBy")
-                        .HasColumnType("int");
-
-                    b.HasKey("FeedbackId");
-
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("FeedbackTypeId");
-
-                    b.HasIndex("StatusId");
-
-                    b.ToTable("Feedback");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Holiday", b =>
@@ -1200,9 +1140,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Property<int>("RoomTypeId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RoomTypeId1")
-                        .HasColumnType("int");
-
                     b.Property<int>("StatusId")
                         .HasColumnType("int");
 
@@ -1215,8 +1152,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasKey("RoomId");
 
                     b.HasIndex("RoomTypeId");
-
-                    b.HasIndex("RoomTypeId1");
 
                     b.HasIndex("StatusId");
 
@@ -1597,8 +1532,7 @@ namespace AppBackend.BusinessObjects.Migrations
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "BookingType")
                         .WithMany()
-                        .HasForeignKey("BookingTypeId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("BookingTypeId");
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Customer", "Customer")
                         .WithMany("Bookings")
@@ -1612,8 +1546,7 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
                         .WithMany()
-                        .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("StatusId");
 
                     b.Navigation("BookingType");
 
@@ -1757,7 +1690,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "EmployeeType")
                         .WithMany()
                         .HasForeignKey("EmployeeTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Account");
@@ -1776,37 +1709,6 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.Navigation("Employee");
                 });
 
-            modelBuilder.Entity("AppBackend.BusinessObjects.Models.Feedback", b =>
-                {
-                    b.HasOne("AppBackend.BusinessObjects.Models.Booking", "Booking")
-                        .WithMany("Feedbacks")
-                        .HasForeignKey("BookingId");
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.Customer", "Customer")
-                        .WithMany("Feedbacks")
-                        .HasForeignKey("CustomerId");
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "FeedbackType")
-                        .WithMany()
-                        .HasForeignKey("FeedbackTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
-                        .WithMany()
-                        .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("Customer");
-
-                    b.Navigation("FeedbackType");
-
-                    b.Navigation("Status");
-                });
-
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.HolidayPricing", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.Holiday", "Holiday")
@@ -1817,13 +1719,11 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Room", "Room")
                         .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("RoomId");
 
                     b.HasOne("AppBackend.BusinessObjects.Models.Service", "Service")
                         .WithMany()
-                        .HasForeignKey("ServiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("ServiceId");
 
                     b.Navigation("Holiday");
 
@@ -1891,7 +1791,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "NotificationType")
                         .WithMany()
                         .HasForeignKey("NotificationTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Account");
@@ -1910,7 +1810,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
                         .WithMany()
                         .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Employee");
@@ -1921,19 +1821,15 @@ namespace AppBackend.BusinessObjects.Migrations
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Room", b =>
                 {
                     b.HasOne("AppBackend.BusinessObjects.Models.RoomType", "RoomType")
-                        .WithMany()
-                        .HasForeignKey("RoomTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AppBackend.BusinessObjects.Models.RoomType", null)
                         .WithMany("Rooms")
-                        .HasForeignKey("RoomTypeId1");
+                        .HasForeignKey("RoomTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("AppBackend.BusinessObjects.Models.CommonCode", "Status")
                         .WithMany()
                         .HasForeignKey("StatusId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("RoomType");
@@ -1965,7 +1861,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     b.HasOne("AppBackend.BusinessObjects.Models.Employee", "Employee")
                         .WithMany("SalaryInfos")
                         .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Employee");
@@ -2056,8 +1952,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
                     b.Navigation("BookingServices");
 
-                    b.Navigation("Feedbacks");
-
                     b.Navigation("Transactions");
                 });
 
@@ -2079,8 +1973,6 @@ namespace AppBackend.BusinessObjects.Migrations
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Customer", b =>
                 {
                     b.Navigation("Bookings");
-
-                    b.Navigation("Feedbacks");
                 });
 
             modelBuilder.Entity("AppBackend.BusinessObjects.Models.Employee", b =>

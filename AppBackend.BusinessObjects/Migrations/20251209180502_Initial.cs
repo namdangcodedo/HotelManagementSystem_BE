@@ -259,7 +259,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.EmployeeTypeId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -289,7 +289,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.NotificationTypeId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -325,7 +325,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     RoomTypeId = table.Column<int>(type: "int", nullable: true),
                     ReplyId = table.Column<int>(type: "int", nullable: true),
                     AccountId = table.Column<int>(type: "int", nullable: true),
-                    Content = table.Column<string>(type: "nvarchar(640)", maxLength: 640, nullable: true),
+                    Content = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Rating = table.Column<int>(type: "int", nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedTime = table.Column<DateTime>(type: "datetime2", nullable: true),
@@ -365,8 +365,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true),
-                    RoomTypeId1 = table.Column<int>(type: "int", nullable: true)
+                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -376,18 +375,13 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.StatusId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_Room_RoomType_RoomTypeId",
                         column: x => x.RoomTypeId,
                         principalTable: "RoomType",
                         principalColumn: "RoomTypeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Room_RoomType_RoomTypeId1",
-                        column: x => x.RoomTypeId1,
-                        principalTable: "RoomType",
-                        principalColumn: "RoomTypeId");
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -520,7 +514,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.StatusId,
                         principalTable: "CommonCode",
                         principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_PayrollDisbursement_Employee_EmployeeId",
                         column: x => x.EmployeeId,
@@ -551,7 +545,7 @@ namespace AppBackend.BusinessObjects.Migrations
                         column: x => x.EmployeeId,
                         principalTable: "Employee",
                         principalColumn: "EmployeeId",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -612,14 +606,12 @@ namespace AppBackend.BusinessObjects.Migrations
                         name: "FK_HolidayPricings_Room_RoomId",
                         column: x => x.RoomId,
                         principalTable: "Room",
-                        principalColumn: "RoomId",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "RoomId");
                     table.ForeignKey(
                         name: "FK_HolidayPricings_Service_ServiceId",
                         column: x => x.ServiceId,
                         principalTable: "Service",
-                        principalColumn: "ServiceId",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "ServiceId");
                 });
 
             migrationBuilder.CreateTable(
@@ -794,14 +786,12 @@ namespace AppBackend.BusinessObjects.Migrations
                         name: "FK_Booking_CommonCode_BookingTypeId",
                         column: x => x.BookingTypeId,
                         principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "CodeId");
                     table.ForeignKey(
                         name: "FK_Booking_CommonCode_StatusId",
                         column: x => x.StatusId,
                         principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
+                        principalColumn: "CodeId");
                     table.ForeignKey(
                         name: "FK_Booking_Customer_CustomerId",
                         column: x => x.CustomerId,
@@ -876,51 +866,6 @@ namespace AppBackend.BusinessObjects.Migrations
                         principalTable: "Service",
                         principalColumn: "ServiceId",
                         onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Feedback",
-                columns: table => new
-                {
-                    FeedbackId = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CustomerId = table.Column<int>(type: "int", nullable: true),
-                    BookingId = table.Column<int>(type: "int", nullable: true),
-                    Subject = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Content = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    Rating = table.Column<int>(type: "int", nullable: true),
-                    FeedbackTypeId = table.Column<int>(type: "int", nullable: false),
-                    StatusId = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
-                    CreatedBy = table.Column<int>(type: "int", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UpdatedBy = table.Column<int>(type: "int", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Feedback", x => x.FeedbackId);
-                    table.ForeignKey(
-                        name: "FK_Feedback_Booking_BookingId",
-                        column: x => x.BookingId,
-                        principalTable: "Booking",
-                        principalColumn: "BookingId");
-                    table.ForeignKey(
-                        name: "FK_Feedback_CommonCode_FeedbackTypeId",
-                        column: x => x.FeedbackTypeId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Feedback_CommonCode_StatusId",
-                        column: x => x.StatusId,
-                        principalTable: "CommonCode",
-                        principalColumn: "CodeId",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Feedback_Customer_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "Customer",
-                        principalColumn: "CustomerId");
                 });
 
             migrationBuilder.CreateTable(
@@ -1133,26 +1078,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 column: "EmployeeId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Feedback_BookingId",
-                table: "Feedback",
-                column: "BookingId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Feedback_CustomerId",
-                table: "Feedback",
-                column: "CustomerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Feedback_FeedbackTypeId",
-                table: "Feedback",
-                column: "FeedbackTypeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Feedback_StatusId",
-                table: "Feedback",
-                column: "StatusId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_HolidayPricings_HolidayId",
                 table: "HolidayPricings",
                 column: "HolidayId");
@@ -1226,11 +1151,6 @@ namespace AppBackend.BusinessObjects.Migrations
                 name: "IX_Room_RoomTypeId",
                 table: "Room",
                 column: "RoomTypeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Room_RoomTypeId1",
-                table: "Room",
-                column: "RoomTypeId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Room_StatusId",
@@ -1318,9 +1238,6 @@ namespace AppBackend.BusinessObjects.Migrations
 
             migrationBuilder.DropTable(
                 name: "EmployeeSchedule");
-
-            migrationBuilder.DropTable(
-                name: "Feedback");
 
             migrationBuilder.DropTable(
                 name: "HolidayPricings");

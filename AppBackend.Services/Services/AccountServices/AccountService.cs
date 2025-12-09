@@ -278,7 +278,7 @@ public class AccountService : IAccountService
         var customer = await _unitOfWork.Customers.GetSingleAsync(
             c => c.CustomerId == customerId,
             c => c.Bookings,
-            c => c.Feedbacks,
+            c => c.Account.Comments,
             c => c.Account
         );
 
@@ -301,7 +301,7 @@ public class AccountService : IAccountService
             }
         }
 
-        var totalFeedbacks = customer.Feedbacks?.Count ?? 0;
+        var totalFeedbacks = customer.Account.Comments?.Count ?? 0;
 
         // Đếm notifications
         var notifications = await _unitOfWork.Accounts.GetSingleAsync(

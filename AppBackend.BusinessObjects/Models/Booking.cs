@@ -52,6 +52,5 @@ public class Booking
   // Navigation properties
   public virtual ICollection<BookingRoom> BookingRooms { get; set; } = new List<BookingRoom>();
   public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
-  public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
   public virtual ICollection<BookingService> BookingServices { get; set; } = new List<BookingService>();
 }
