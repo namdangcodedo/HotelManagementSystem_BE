@@ -5,6 +5,7 @@ using AppBackend.BusinessObjects.Enums;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomModel;
+using AppBackend.Services.Services.MediaService;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -18,12 +19,14 @@ namespace AppBackend.Services.Services.RoomServices
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly ILogger<RoomService> _logger;
+        private readonly IMediaService _mediaService;
 
-        public RoomService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<RoomService> logger)
+        public RoomService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<RoomService> logger, IMediaService mediaService)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
+            _mediaService = mediaService;
         }
 
         #region ROOM TYPE SEARCH - FOR CUSTOMER
@@ -486,16 +489,13 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypes = roomTypes.OrderBy(rt => rt.TypeName);
             }
 
-            var totalRecords = roomTypes.Count();
-
-            var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToList();
+            // Lấy tất cả (không phân trang vì số lượng phòng ít)
+            var allRoomTypes = roomTypes.ToList();
+            var totalRecords = allRoomTypes.Count;
 
             // Map với images và đếm số phòng
             var roomTypeDtos = new List<RoomTypeWithImagesDto>();
-            foreach (var rt in pagedRoomTypes)
+            foreach (var rt in allRoomTypes)
             {
                 var images = (await _unitOfWork.Mediums.FindAsync(m =>
                     m.ReferenceTable == "RoomType" && m.ReferenceKey == rt.RoomTypeId.ToString()))
@@ -525,13 +525,14 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypeDtos.Add(dto);
             }
 
-            var pagedResponse = new PagedResponseDto<RoomTypeWithImagesDto>
+            // Trả về tất cả items (không phân trang)
+            var response = new PagedResponseDto<RoomTypeWithImagesDto>
             {
                 Items = roomTypeDtos,
                 TotalCount = totalRecords,
-                PageIndex = request.PageIndex,
-                PageSize = request.PageSize,
-                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+                PageIndex = 1,
+                PageSize = totalRecords > 0 ? totalRecords : 1,
+                TotalPages = 1
             };
 
             return new ResultModel
@@ -539,7 +540,7 @@ namespace AppBackend.Services.Services.RoomServices
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = pagedResponse,
+                Data = response,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -705,34 +706,37 @@ namespace AppBackend.Services.Services.RoomServices
             await _unitOfWork.RoomTypes.UpdateAsync(roomType);
             await _unitOfWork.SaveChangesAsync();
 
-            // Cập nhật images nếu có
-            if (request.ImageUrls != null)
+            // Cập nhật images nếu có (using new media CRUD system)
+            if (request.ImageMedia != null || request.ImageUrls != null)
             {
-                // Xóa images cũ
-                var oldImages = await _unitOfWork.Mediums.FindAsync(m =>
-                    m.ReferenceTable == "RoomType" && m.ReferenceKey == roomType.RoomTypeId.ToString());
-                foreach (var img in oldImages)
+                // Support both new ImageMedia and legacy ImageUrls for backward compatibility
+                if (request.ImageMedia != null)
                 {
-                    await _unitOfWork.Mediums.DeleteAsync(img);
+                    // Use new CRUD media system
+                    await _mediaService.ProcessMediaCrudAsync(
+                        request.ImageMedia,
+                        "RoomType",
+                        roomType.RoomTypeId,
+                        userId);
                 }
+                else if (request.ImageUrls != null)
+                {
+                    // Legacy support: convert ImageUrls to add actions
+                    var mediaCrudItems = request.ImageUrls
+                        .Select(url => new AppBackend.Services.ApiModels.Commons.MediaCrudDto
+                        {
+                            CrudKey = "add",
+                            Url = url,
+                            AltText = $"RoomType {roomType.TypeName} Image"
+                        })
+                        .ToList();
 
-                // Thêm images mới
-                int order = 0;
-                foreach (var imageUrl in request.ImageUrls)
-                {
-                    var medium = new Medium
-                    {
-                        ReferenceKey = roomType.RoomTypeId.ToString(),
-                        ReferenceTable = "RoomType",
-                        FilePath = imageUrl,
-                        Description = $"RoomType {roomType.TypeName} Image",
-                        DisplayOrder = order++,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = userId
-                    };
-                    await _unitOfWork.Mediums.AddAsync(medium);
+                    await _mediaService.ProcessMediaCrudAsync(
+                        mediaCrudItems,
+                        "RoomType",
+                        roomType.RoomTypeId,
+                        userId);
                 }
-                await _unitOfWork.SaveChangesAsync();
             }
 
             return new ResultModel

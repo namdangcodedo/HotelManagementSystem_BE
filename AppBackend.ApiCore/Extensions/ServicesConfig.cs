@@ -22,6 +22,7 @@ using AppBackend.Services.BackgroundJobs;
 using AppBackend.Services.Services.CheckoutServices;
 using AppBackend.Services.Services.CommentService;
 using AppBackend.Services.Services.AI;
+using AppBackend.Services.Services.MediaService;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -62,6 +63,7 @@ public static class ServicesConfig
         services.AddScoped<ICheckoutService, CheckoutService>();
         services.AddScoped<ICommentService, CommentService>();
         services.AddScoped<ICommentModerationService, CommentModerationService>();
+        services.AddScoped<IMediaService, MediaService>();
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
