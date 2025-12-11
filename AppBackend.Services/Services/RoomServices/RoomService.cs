@@ -943,24 +943,25 @@ namespace AppBackend.Services.Services.RoomServices
             await _unitOfWork.SaveChangesAsync();
 
             // Thêm images nếu có
-            if (request.ImageUrls != null && request.ImageUrls.Any())
+            if (request.ImageMedia != null || (request.ImageUrls != null && request.ImageUrls.Any()))
             {
-                int order = 0;
-                foreach (var imageUrl in request.ImageUrls)
+                // Preferred: use ImageMedia (client uploads to Cloudinary first and sends providerId/url + crudKey)
+                if (request.ImageMedia != null)
                 {
-                    var medium = new Medium
-                    {
-                        ReferenceKey = room.RoomId.ToString(),
-                        ReferenceTable = "Room",
-                        FilePath = imageUrl,
-                        Description = $"Room {room.RoomName} Image",
-                        DisplayOrder = order++,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = userId
-                    };
-                    await _unitOfWork.Mediums.AddAsync(medium);
+                    await _mediaService.ProcessMediaCrudAsync(request.ImageMedia, "Room", room.RoomId, userId);
                 }
-                await _unitOfWork.SaveChangesAsync();
+                else
+                {
+                    // Legacy: convert ImageUrls into add actions
+                    var mediaCrudItems = request.ImageUrls.Select(url => new AppBackend.Services.ApiModels.Commons.MediaCrudDto
+                    {
+                        CrudKey = "add",
+                        Url = url,
+                        AltText = $"Room {room.RoomName} Image"
+                    }).ToList();
+
+                    await _mediaService.ProcessMediaCrudAsync(mediaCrudItems, "Room", room.RoomId, userId);
+                }
             }
 
             return new ResultModel
@@ -969,7 +970,7 @@ namespace AppBackend.Services.Services.RoomServices
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = "Thêm phòng thành công",
                 Data = new { room.RoomId, room.RoomName },
-                StatusCode = StatusCodes.Status200OK
+                StatusCode = StatusCodes.Status201Created
             };
         }
 

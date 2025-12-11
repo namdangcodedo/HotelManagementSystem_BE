@@ -216,6 +216,16 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int RoomTypeId { get; set; }
         public int StatusId { get; set; }
         public string? Description { get; set; }
+
+        /// <summary>
+        /// New: media CRUD items (preferred). Client should upload files to Cloudinary first and send ProviderId/Url with CrudKey="add".
+        /// </summary>
+        public List<MediaCrudDto>? ImageMedia { get; set; }
+
+        /// <summary>
+        /// Deprecated: legacy list of urls. Will be treated as 'add' actions if provided.
+        /// </summary>
+        [Obsolete("Use ImageMedia instead for better control over media CRUD operations")]
         public List<string>? ImageUrls { get; set; }
     }
 
