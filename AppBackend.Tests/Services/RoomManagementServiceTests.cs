@@ -3,6 +3,7 @@ using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels.RoomManagement;
 using AppBackend.Services.Services.RoomManagement;
+using AutoMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ namespace AppBackend.Tests.Services
         private readonly HotelManagementContext _context;
         private readonly IUnitOfWork _unitOfWork;
         private readonly Mock<ILogger<RoomManagementService>> _loggerMock;
+        private readonly Mock<IMapper> _mapperMock;
         private readonly RoomManagementService _service;
 
         public RoomManagementServiceTests()
@@ -28,7 +30,8 @@ namespace AppBackend.Tests.Services
             _context = new HotelManagementContext(options);
             _unitOfWork = new AppBackend.Repositories.UnitOfWork.UnitOfWork(_context);
             _loggerMock = new Mock<ILogger<RoomManagementService>>();
-            _service = new RoomManagementService(_unitOfWork, _loggerMock.Object);
+            _mapperMock = new Mock<IMapper>();
+            _service = new RoomManagementService(_unitOfWork, _loggerMock.Object, _mapperMock.Object);
 
             // Seed test data
             SeedTestData().Wait();

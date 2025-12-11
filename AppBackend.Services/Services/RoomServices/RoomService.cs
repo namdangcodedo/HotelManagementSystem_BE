@@ -38,10 +38,9 @@ namespace AppBackend.Services.Services.RoomServices
         {
             _logger.LogInformation("=== SearchRoomTypesAsync CALLED ===");
             _logger.LogInformation("CheckInDate: {CheckIn}, CheckOutDate: {CheckOut}", request.CheckInDate, request.CheckOutDate);
-            _logger.LogInformation("NumberOfGuests: {Guests}, MinPrice: {MinPrice}, MaxPrice: {MaxPrice}", 
+            _logger.LogInformation("NumberOfGuests: {Guests}, MinPrice: {MinPrice}, MaxPrice: {MaxPrice}",
                 request.NumberOfGuests, request.MinPrice, request.MaxPrice);
-            _logger.LogInformation("OnlyActive: {OnlyActive}, PageIndex: {PageIndex}, PageSize: {PageSize}", 
-                request.OnlyActive, request.PageIndex, request.PageSize);
+            _logger.LogInformation("OnlyActive: {OnlyActive}", request.OnlyActive);
 
             var query = _unitOfWork.RoomTypes.FindAsync(rt => true);
             var roomTypes = (await query).AsQueryable();
@@ -80,38 +79,14 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypes = roomTypes.Where(rt => rt.RoomSize != null && rt.RoomSize >= request.MinRoomSize.Value);
             }
 
-            // Tìm kiếm theo tên hoặc mô tả
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                roomTypes = roomTypes.Where(rt =>
-                    rt.TypeName.Contains(request.Search) ||
-                    rt.TypeCode.Contains(request.Search) ||
-                    (rt.Description != null && rt.Description.Contains(request.Search)));
-            }
+            // Sắp xếp theo giá (mặc định)
+            roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight);
 
-            // Sắp xếp
-            if (!string.IsNullOrWhiteSpace(request.SortBy))
-            {
-                roomTypes = request.SortDesc
-                    ? roomTypes.OrderByDescending(rt => EF.Property<object>(rt, request.SortBy))
-                    : roomTypes.OrderBy(rt => EF.Property<object>(rt, request.SortBy));
-            }
-            else
-            {
-                roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight); // Mặc định sắp xếp theo giá
-            }
-
-            var totalRecords = roomTypes.Count();
-
-            // Phân trang
-            var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToList();
+            var allRoomTypes = roomTypes.ToList();
 
             // Map sang DTO với images, amenities và availability
             var roomTypeResults = new List<RoomTypeSearchResultDto>();
-            foreach (var rt in pagedRoomTypes)
+            foreach (var rt in allRoomTypes)
             {
                 // Lấy images
                 var images = (await _unitOfWork.Mediums.FindAsync(m =>
@@ -174,21 +149,12 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypeResults.Add(dto);
             }
 
-            var pagedResponse = new PagedResponseDto<RoomTypeSearchResultDto>
-            {
-                Items = roomTypeResults,
-                TotalCount = totalRecords,
-                PageIndex = request.PageIndex,
-                PageSize = request.PageSize,
-                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-            };
-
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = pagedResponse,
+                Data = roomTypeResults,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -196,12 +162,11 @@ namespace AppBackend.Services.Services.RoomServices
 
         public async Task<ResultModel> SearchRoomTypesWithRoomAsync(SearchRoomTypeRequest request)
         {
-            _logger.LogInformation("=== SearchRoomTypesAsync CALLED ===");
+            _logger.LogInformation("=== SearchRoomTypesWithRoomAsync CALLED ===");
             _logger.LogInformation("CheckInDate: {CheckIn}, CheckOutDate: {CheckOut}", request.CheckInDate, request.CheckOutDate);
             _logger.LogInformation("NumberOfGuests: {Guests}, MinPrice: {MinPrice}, MaxPrice: {MaxPrice}",
                 request.NumberOfGuests, request.MinPrice, request.MaxPrice);
-            _logger.LogInformation("OnlyActive: {OnlyActive}, PageIndex: {PageIndex}, PageSize: {PageSize}",
-                request.OnlyActive, request.PageIndex, request.PageSize);
+            _logger.LogInformation("OnlyActive: {OnlyActive}", request.OnlyActive);
 
             var query = _unitOfWork.RoomTypes.FindAsync(rt => true);
             var roomTypes = (await query).AsQueryable();
@@ -240,38 +205,14 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypes = roomTypes.Where(rt => rt.RoomSize != null && rt.RoomSize >= request.MinRoomSize.Value);
             }
 
-            // Tìm kiếm theo tên hoặc mô tả
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                roomTypes = roomTypes.Where(rt =>
-                    rt.TypeName.Contains(request.Search) ||
-                    rt.TypeCode.Contains(request.Search) ||
-                    (rt.Description != null && rt.Description.Contains(request.Search)));
-            }
+            // Sắp xếp theo giá (mặc định)
+            roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight);
 
-            // Sắp xếp
-            if (!string.IsNullOrWhiteSpace(request.SortBy))
-            {
-                roomTypes = request.SortDesc
-                    ? roomTypes.OrderByDescending(rt => EF.Property<object>(rt, request.SortBy))
-                    : roomTypes.OrderBy(rt => EF.Property<object>(rt, request.SortBy));
-            }
-            else
-            {
-                roomTypes = roomTypes.OrderBy(rt => rt.BasePriceNight); // Mặc định sắp xếp theo giá
-            }
-
-            var totalRecords = roomTypes.Count();
-
-            // Phân trang
-            var pagedRoomTypes = roomTypes
-                .Skip((request.PageIndex - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToList();
+            var allRoomTypes = roomTypes.ToList();
 
             // Map sang DTO với images, amenities và availability
             var roomTypeResults = new List<RoomTypeSearchResultDto>();
-            foreach (var rt in pagedRoomTypes)
+            foreach (var rt in allRoomTypes)
             {
                 // Lấy images
                 var images = (await _unitOfWork.Mediums.FindAsync(m =>
@@ -330,21 +271,12 @@ namespace AppBackend.Services.Services.RoomServices
                 roomTypeResults.Add(dto);
             }
 
-            var pagedResponse = new PagedResponseDto<RoomTypeSearchResultDto>
-            {
-                Items = roomTypeResults,
-                TotalCount = totalRecords,
-                PageIndex = request.PageIndex,
-                PageSize = request.PageSize,
-                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
-            };
-
             return new ResultModel
             {
                 IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = CommonMessageConstants.GET_SUCCESS,
-                Data = pagedResponse,
+                Data = roomTypeResults,
                 StatusCode = StatusCodes.Status200OK
             };
         }
@@ -1083,34 +1015,37 @@ namespace AppBackend.Services.Services.RoomServices
             await _unitOfWork.Rooms.UpdateAsync(room);
             await _unitOfWork.SaveChangesAsync();
 
-            // Cập nhật images nếu có
-            if (request.ImageUrls != null)
+            // Cập nhật images nếu có (using new media CRUD system)
+            if (request.ImageMedia != null || request.ImageUrls != null)
             {
-                // Xóa images cũ
-                var oldImages = await _unitOfWork.Mediums.FindAsync(m =>
-                    m.ReferenceTable == "Room" && m.ReferenceKey == room.RoomId.ToString());
-                foreach (var img in oldImages)
+                // Support both new ImageMedia and legacy ImageUrls for backward compatibility
+                if (request.ImageMedia != null)
                 {
-                    await _unitOfWork.Mediums.DeleteAsync(img);
+                    // Use new CRUD media system
+                    await _mediaService.ProcessMediaCrudAsync(
+                        request.ImageMedia,
+                        "Room",
+                        room.RoomId,
+                        userId);
                 }
+                else if (request.ImageUrls != null)
+                {
+                    // Legacy support: convert ImageUrls to add actions
+                    var mediaCrudItems = request.ImageUrls
+                        .Select(url => new AppBackend.Services.ApiModels.Commons.MediaCrudDto
+                        {
+                            CrudKey = "add",
+                            Url = url,
+                            AltText = $"Room {room.RoomName} Image"
+                        })
+                        .ToList();
 
-                // Thêm images mới
-                int order = 0;
-                foreach (var imageUrl in request.ImageUrls)
-                {
-                    var medium = new Medium
-                    {
-                        ReferenceKey = room.RoomId.ToString(),
-                        ReferenceTable = "Room",
-                        FilePath = imageUrl,
-                        Description = $"Room {room.RoomName} Image",
-                        DisplayOrder = order++,
-                        CreatedAt = DateTime.UtcNow,
-                        CreatedBy = userId
-                    };
-                    await _unitOfWork.Mediums.AddAsync(medium);
+                    await _mediaService.ProcessMediaCrudAsync(
+                        mediaCrudItems,
+                        "Room",
+                        room.RoomId,
+                        userId);
                 }
-                await _unitOfWork.SaveChangesAsync();
             }
 
             return new ResultModel

@@ -9,7 +9,7 @@ namespace AppBackend.ApiCore.Controllers
     /// API quản lý phòng - Chuyển đổi trạng thái, sơ đồ phòng, tìm kiếm
     /// </summary>
     [ApiController]
-    [Route("api/rooms")]
+    [Route("api/RoomManagement")]
     public class RoomManagementController : BaseApiController
     {
         private readonly IRoomManagementService _roomManagementService;
@@ -20,12 +20,129 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Tìm kiếm và lọc phòng (All roles)
+        /// [PUBLIC/ADMIN] Tìm kiếm và lọc phòng theo keyword, loại phòng, trạng thái
         /// </summary>
-        /// <param name="request">Tiêu chí tìm kiếm</param>
-        /// <returns>Danh sách phòng có phân trang</returns>
-        /// <response code="200">Lấy danh sách thành công</response>
+        /// <param name="request">Tiêu chí tìm kiếm (không phân trang - trả về tất cả kết quả)</param>
+        /// <returns>Danh sách phòng phù hợp với filter</returns>
+        /// <response code="200">Tìm kiếm thành công</response>
+        /// <remarks>
+        /// ## 📋 Query Parameters
+        ///
+        /// | Parameter | Type | Required | Mô tả |
+        /// |-----------|------|----------|-------|
+        /// | `roomName` | string | ❌ | Tìm kiếm theo tên phòng (VD: "Phòng 101", "101") |
+        /// | `roomTypeId` | int | ❌ | Lọc theo ID loại phòng |
+        /// | `statusId` | int | ❌ | Lọc theo ID trạng thái (từ CommonCodes) |
+        /// | `floor` | int | ❌ | Lọc theo tầng (VD: 1, 2, 3...) |
+        /// | `minPrice` | decimal | ❌ | Giá tối thiểu mỗi đêm |
+        /// | `maxPrice` | decimal | ❌ | Giá tối đa mỗi đêm |
+        ///
+        /// ## 🔄 Ví dụ Request
+        ///
+        /// ```
+        /// # Tìm tất cả phòng
+        /// GET /api/rooms/search
+        ///
+        /// # Tìm phòng có tên chứa "101"
+        /// GET /api/rooms/search?roomName=101
+        ///
+        /// # Tìm phòng trạng thái "Available" (StatusId=1) của tầng 1
+        /// GET /api/rooms/search?statusId=1&floor=1
+        ///
+        /// # Tìm phòng loại "Deluxe" (RoomTypeId=3) có giá 1-2 triệu
+        /// GET /api/rooms/search?roomTypeId=3&minPrice=1000000&maxPrice=2000000
+        ///
+        /// # Combo: tầng 2 + loại phòng + trạng thái + tên
+        /// GET /api/rooms/search?floor=2&roomTypeId=2&statusId=2&roomName=Phòng
+        /// ```
+        ///
+        /// ## 📤 Response Success (200)
+        ///
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "responseCode": "SUCCESS",
+        ///   "message": "Tìm thấy 5 phòng",
+        ///   "statusCode": 200,
+        ///   "data": {
+        ///     "rooms": [
+        ///       {
+        ///         "roomId": 1,
+        ///         "roomName": "Phòng 101",
+        ///         "roomTypeId": 1,
+        ///         "roomTypeName": "Deluxe",
+        ///         "roomTypeCode": "DLX",
+        ///         "basePriceNight": 1500000,
+        ///         "statusId": 1,
+        ///         "status": "Available",
+        ///         "statusCode": "AVAILABLE",
+        ///         "description": "Phòng hướng biển với view tuyệt đẹp",
+        ///         "maxOccupancy": 2,
+        ///         "roomSize": 35.5,
+        ///         "numberOfBeds": 1,
+        ///         "bedType": "King",
+        ///         "images": [
+        ///           "https://example.com/room101-1.jpg",
+        ///           "https://example.com/room101-2.jpg"
+        ///         ],
+        ///         "createdAt": "2024-01-15T10:30:00Z",
+        ///         "updatedAt": "2025-12-11T14:20:00Z"
+        ///       },
+        ///       {
+        ///         "roomId": 2,
+        ///         "roomName": "Phòng 102",
+        ///         "roomTypeId": 1,
+        ///         "roomTypeName": "Deluxe",
+        ///         "roomTypeCode": "DLX",
+        ///         "basePriceNight": 1500000,
+        ///         "statusId": 3,
+        ///         "status": "Occupied",
+        ///         "statusCode": "OCCUPIED",
+        ///         "description": "Phòng hướng biển",
+        ///         "maxOccupancy": 2,
+        ///         "roomSize": 35.5,
+        ///         "numberOfBeds": 1,
+        ///         "bedType": "King",
+        ///         "images": [],
+        ///         "createdAt": "2024-01-15T10:30:00Z",
+        ///         "updatedAt": "2025-12-11T14:20:00Z"
+        ///       }
+        ///     ],
+        ///     "totalRecords": 2,
+        ///     "pageNumber": 1,
+        ///     "pageSize": 2,
+        ///     "totalPages": 1
+        ///   }
+        /// }
+        /// ```
+        ///
+        /// ## ❌ Response Error (400)
+        ///
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "responseCode": "INVALID_INPUT",
+        ///   "message": "Dữ liệu không hợp lệ",
+        ///   "statusCode": 400
+        /// }
+        /// ```
+        ///
+        /// ## 💡 Status Codes Thường Dùng (từ CommonCodes)
+        ///
+        /// | StatusId | Status | Code | Mô tả |
+        /// |----------|--------|------|-------|
+        /// | 1 | Available | AVAILABLE | Phòng trống, sẵn sàng cho khách |
+        /// | 2 | Booked | BOOKED | Phòng đã được đặt |
+        /// | 3 | Occupied | OCCUPIED | Khách đang sử dụng phòng |
+        /// | 4 | Cleaning | CLEANING | Phòng đang được dọn dẹp |
+        /// | 5 | Maintenance | MAINTENANCE | Phòng đang bảo trì |
+        /// | 6 | PendingInspection | PENDING_INSPECTION | Chờ kiểm tra |
+        /// | 7 | OutOfService | OUT_OF_SERVICE | Phòng ngừng hoạt động tạm thời |
+        ///
+        /// 💡 **Lấy danh sách Status động:** `GET /api/commoncode?codeType=RoomStatus`
+        /// </remarks>
         [HttpGet("search")]
+        [AllowAnonymous]
         [ProducesResponseType(typeof(RoomListResponse), 200)]
         public async Task<IActionResult> SearchRooms([FromQuery] SearchRoomsRequest request)
         {
@@ -34,66 +151,55 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
-        /// Lấy sơ đồ phòng theo tầng (All roles)
-        /// </summary>
-        /// <param name="floor">Số tầng (null = tất cả tầng)</param>
-        /// <returns>Sơ đồ phòng với trạng thái</returns>
-        /// <response code="200">Lấy sơ đồ thành công</response>
-        /// <remarks>
-        /// Trả về sơ đồ phòng để hiển thị UI dạng grid/map.
-        /// 
-        /// **Ví dụ:**
-        /// - GET /api/rooms/map → Tất cả tầng
-        /// - GET /api/rooms/map?floor=1 → Chỉ tầng 1
-        /// - GET /api/rooms/map?floor=2 → Chỉ tầng 2
-        /// </remarks>
-        [HttpGet("map")]
-        [ProducesResponseType(typeof(List<RoomMapResponse>), 200)]
-        public async Task<IActionResult> GetRoomMap([FromQuery] int? floor = null)
-        {
-            var result = await _roomManagementService.GetRoomMapAsync(floor);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Lấy chi tiết một phòng (All roles)
+        /// [PUBLIC/ADMIN] Lấy chi tiết của một phòng cụ thể
         /// </summary>
         /// <param name="id">Room ID</param>
-        /// <returns>Thông tin chi tiết phòng</returns>
-        /// <response code="200">Lấy thông tin thành công</response>
+        /// <returns>Chi tiết phòng</returns>
+        /// <response code="200">Lấy thành công</response>
         /// <response code="404">Không tìm thấy phòng</response>
+        /// <remarks>
+        /// Lấy toàn bộ thông tin chi tiết của 1 phòng bao gồm:
+        /// - Thông tin cơ bản (tên, loại phòng, trạng thái, giá)
+        /// - Mô tả, kích thước, số giường
+        /// - Hình ảnh, amenities
+        /// - Thời gian tạo/cập nhật
+        ///
+        /// ## 📤 Response Example
+        /// ```json
+        /// {
+        ///   "roomId": 101,
+        ///   "roomName": "Phòng 101",
+        ///   "roomTypeId": 1,
+        ///   "roomTypeName": "Deluxe",
+        ///   "roomTypeCode": "DLX",
+        ///   "basePriceNight": 1500000,
+        ///   "statusId": 1,
+        ///   "status": "Available",
+        ///   "statusCode": "AVL",
+        ///   "description": "Phòng hướng biển với view tuyệt đẹp",
+        ///   "maxOccupancy": 2,
+        ///   "roomSize": 35.5,
+        ///   "numberOfBeds": 1,
+        ///   "bedType": "King",
+        ///   "images": [
+        ///     {
+        ///       "mediumId": 1,
+        ///       "filePath": "https://example.com/room101-1.jpg",
+        ///       "description": "Room photo",
+        ///       "displayOrder": 1
+        ///     }
+        ///   ],
+        ///   "createdAt": "2024-01-15T10:30:00Z",
+        ///   "updatedAt": "2025-12-11T14:20:00Z"
+        /// }
+        /// ```
+        /// </remarks>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         [ProducesResponseType(typeof(RoomDetailDto), 200)]
         public async Task<IActionResult> GetRoomDetail(int id)
         {
             var result = await _roomManagementService.GetRoomDetailAsync(id);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Lấy thống kê trạng thái phòng (All roles)
-        /// </summary>
-        /// <returns>Tổng hợp số lượng phòng theo trạng thái</returns>
-        /// <response code="200">Lấy thống kê thành công</response>
-        [HttpGet("stats")]
-        public async Task<IActionResult> GetRoomStatusSummary()
-        {
-            var result = await _roomManagementService.GetRoomStatusSummaryAsync();
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Lấy danh sách trạng thái có thể chuyển đổi (theo role hiện tại)
-        /// </summary>
-        /// <param name="id">Room ID</param>
-        /// <returns>Danh sách trạng thái có thể chuyển</returns>
-        /// <response code="200">Lấy danh sách thành công</response>
-        /// <response code="404">Không tìm thấy phòng</response>
-        [HttpGet("{id}/available-status")]
-        public async Task<IActionResult> GetAvailableStatusTransitions(int id)
-        {
-            var userRole = CurrentUserRoles.FirstOrDefault() ?? "User";
-            var result = await _roomManagementService.GetAvailableStatusTransitionsAsync(id, userRole);
             return HandleResult(result);
         }
 

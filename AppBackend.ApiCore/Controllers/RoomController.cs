@@ -19,15 +19,153 @@ namespace AppBackend.ApiCore.Controllers
             _roomService = roomService;
         }
 
-        #region ROOM TYPE SEARCH - FOR CUSTOMER
+        #region ROOM TYPE CUSTOMER SEARCH
 
         /// <summary>
-        /// [PUBLIC] Tìm kiếm loại phòng cho customer với các filter (giá, số người, loại giường...)
+        /// [PUBLIC] Tìm kiếm loại phòng theo ngày check-in/out với số lượng phòng khả dụng
         /// </summary>
-        /// <param name="request">Thông tin tìm kiếm và filter</param>
-        /// <returns>Danh sách loại phòng phù hợp với availability</returns>
+        /// <param name="request">Query parameters: checkInDate, checkOutDate (required), numberOfGuests, minPrice, maxPrice, bedType, minRoomSize, onlyActive (optional)</param>
+        /// <returns>Danh sách loại phòng với số lượng phòng khả dụng cho khoảng thời gian đó</returns>
         /// <response code="200">Tìm kiếm thành công</response>
-        [HttpGet("search")]
+        /// <response code="400">CheckInDate hoặc CheckOutDate không hợp lệ</response>
+        /// <remarks>
+        /// ## 📋 Query Parameters
+        ///
+        /// | Parameter | Type | Required | Mô tả |
+        /// |-----------|------|----------|-------|
+        /// | `checkInDate` | datetime | ✅ **YES** | Ngày nhận phòng (format: yyyy-MM-dd, VD: 2025-12-20) |
+        /// | `checkOutDate` | datetime | ✅ **YES** | Ngày trả phòng (format: yyyy-MM-dd, VD: 2025-12-22) |
+        /// | `numberOfGuests` | int | ❌ | Số lượng khách (lọc phòng có sức chứa >= con số này) |
+        /// | `minPrice` | decimal | ❌ | Giá tối thiểu mỗi đêm (VD: 500000) |
+        /// | `maxPrice` | decimal | ❌ | Giá tối đa mỗi đêm (VD: 2000000) |
+        /// | `bedType` | string | ❌ | Loại giường (King, Queen, Twin, Double...) |
+        /// | `minRoomSize` | decimal | ❌ | Diện tích tối thiểu m² (VD: 30) |
+        /// | `onlyActive` | bool | ❌ | Chỉ hiển thị phòng active (default: true) |
+        ///
+        /// ## 🔄 Ví dụ Request
+        ///
+        /// ```
+        /// # Tìm tất cả phòng khả dụng từ 20/12 đến 22/12
+        /// GET /api/room/types/search?checkInDate=2025-12-20&checkOutDate=2025-12-22
+        ///
+        /// # Tìm phòng cho 2 khách, giá 500k-2M, từ 20/12 đến 22/12
+        /// GET /api/room/types/search?checkInDate=2025-12-20&checkOutDate=2025-12-22&numberOfGuests=2&minPrice=500000&maxPrice=2000000
+        ///
+        /// # Tìm phòng King giá 1-2M từ 20/12 đến 23/12
+        /// GET /api/room/types/search?checkInDate=2025-12-20&checkOutDate=2025-12-23&bedType=King&minPrice=1000000&maxPrice=2000000
+        ///
+        /// # Tìm phòng 3+ khách, diện tích 40m² từ 20/12 đến 25/12
+        /// GET /api/room/types/search?checkInDate=2025-12-20&checkOutDate=2025-12-25&numberOfGuests=3&minRoomSize=40
+        /// ```
+        ///
+        /// ## 📤 Response Success (200)
+        ///
+        /// ```json
+        /// {
+        ///   "isSuccess": true,
+        ///   "responseCode": "SUCCESS",
+        ///   "message": "Tìm thấy 5 loại phòng khả dụng từ 2025-12-20 đến 2025-12-22",
+        ///   "statusCode": 200,
+        ///   "data": [
+        ///     {
+        ///       "roomTypeId": 1,
+        ///       "typeName": "Deluxe Room",
+        ///       "typeCode": "DLX",
+        ///       "description": "Phòng hướng biển với view tuyệt đẹp",
+        ///       "basePriceNight": 1500000,
+        ///       "maxOccupancy": 2,
+        ///       "roomSize": 35.5,
+        ///       "numberOfBeds": 1,
+        ///       "bedType": "King",
+        ///       "isActive": true,
+        ///       "images": [
+        ///         {
+        ///           "mediumId": 1,
+        ///           "filePath": "https://example.com/deluxe-1.jpg",
+        ///           "description": "Room image",
+        ///           "displayOrder": 0
+        ///         }
+        ///       ],
+        ///       "amenities": [
+        ///         {
+        ///           "amenityId": 1,
+        ///           "amenityName": "Tivi",
+        ///           "amenityType": "Entertainment"
+        ///         }
+        ///       ],
+        ///       "comments": [],
+        ///       "totalRoomCount": 5,
+        ///       "availableRoomCount": 3
+        ///     },
+        ///     {
+        ///       "roomTypeId": 2,
+        ///       "typeName": "Standard Room",
+        ///       "typeCode": "STD",
+        ///       "description": "Phòng tiêu chuẩn thoải mái",
+        ///       "basePriceNight": 800000,
+        ///       "maxOccupancy": 2,
+        ///       "roomSize": 25.0,
+        ///       "numberOfBeds": 1,
+        ///       "bedType": "Double",
+        ///       "isActive": true,
+        ///       "images": [],
+        ///       "amenities": [],
+        ///       "comments": [],
+        ///       "totalRoomCount": 8,
+        ///       "availableRoomCount": 5
+        ///     }
+        ///   ]
+        /// }
+        /// ```
+        ///
+        /// ## 🔑 Giải thích Response
+        ///
+        /// | Field | Mô tả |
+        /// |-------|-------|
+        /// | `totalRoomCount` | Tổng số phòng của loại này trong hệ thống |
+        /// | `availableRoomCount` | **Số phòng KHẢ DỤNG** trong khoảng thời gian CheckIn-CheckOut |
+        /// | `basePriceNight` | Giá/đêm (tính cho 1 phòng) |
+        ///
+        /// **Tính toán giá:**
+        /// - Giá cho 1 đêm: `basePriceNight`
+        /// - Giá cho toàn bộ stay: `basePriceNight × (số đêm)`
+        ///
+        /// VD: Check-in 20/12, Check-out 22/12 = 2 đêm
+        /// - Deluxe: 1.500.000 × 2 = 3.000.000 VND
+        /// - Standard: 800.000 × 2 = 1.600.000 VND
+        ///
+        /// ## ❌ Response Error (400)
+        ///
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "responseCode": "INVALID_INPUT",
+        ///   "message": "CheckInDate phải nhỏ hơn CheckOutDate",
+        ///   "statusCode": 400,
+        ///   "errors": ["Ngày check-in không hợp lệ"]
+        /// }
+        /// ```
+        ///
+        /// ## ❌ Response Error (404)
+        ///
+        /// ```json
+        /// {
+        ///   "isSuccess": false,
+        ///   "responseCode": "NOT_FOUND",
+        ///   "message": "Không tìm thấy loại phòng nào khả dụng",
+        ///   "statusCode": 404
+        /// }
+        /// ```
+        ///
+        /// ## 💡 Lưu ý quan trọng
+        ///
+        /// - **CheckInDate và CheckOutDate là bắt buộc** - cả hai phải được cung cấp
+        /// - **Ngày check-out > check-in** - CheckOutDate phải sau CheckInDate
+        /// - **Phòng khả dụng** = phòng không có booking nào trong khoảng thời gian đó
+        /// - **AvailableRoomCount = 0** = loại phòng không còn phòng trống, có thể không hiển thị hoặc hiển thị dạng "Hết phòng"
+        /// - Giá hiển thị là giá/đêm, FE cần tính tổng dựa trên số đêm lưu trú
+        /// </remarks>
+        [HttpGet("types/search")]
         [AllowAnonymous]
         public async Task<IActionResult> SearchRoomTypes([FromQuery] SearchRoomTypeRequest request)
         {
@@ -44,7 +182,7 @@ namespace AppBackend.ApiCore.Controllers
         /// <returns>Thông tin chi tiết loại phòng kèm availability</returns>
         /// <response code="200">Lấy thông tin thành công</response>
         /// <response code="404">Không tìm thấy loại phòng</response>
-        [HttpGet("search/{id}")]
+        [HttpGet("types/search/{id}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetRoomTypeDetailForCustomer(int id, [FromQuery] DateTime? checkInDate = null, [FromQuery] DateTime? checkOutDate = null)
         {
@@ -54,12 +192,12 @@ namespace AppBackend.ApiCore.Controllers
 
         #endregion
 
-        #region ROOM TYPE CRUD - FOR ADMIN
+        #region ROOM TYPE ADMIN CRUD
 
         /// <summary>
-        /// [ADMIN] Lấy danh sách loại phòng với phân trang
+        /// [ADMIN] Lấy danh sách loại phòng (không phân trang)
         /// </summary>
-        /// <param name="request">Thông tin phân trang và lọc</param>
+        /// <param name="request">Thông tin lọc</param>
         /// <returns>Danh sách loại phòng với hình ảnh và số lượng phòng</returns>
         /// <response code="200">Lấy danh sách thành công</response>
         [HttpGet("types")]
@@ -141,35 +279,6 @@ namespace AppBackend.ApiCore.Controllers
         #endregion
 
         #region ROOM CRUD - FOR ADMIN ONLY
-
-        /// <summary>
-        /// [ADMIN] Lấy danh sách phòng cụ thể với phân trang và lọc
-        /// </summary>
-        /// <param name="request">Thông tin phân trang và lọc</param>
-        /// <returns>Danh sách phòng với hình ảnh</returns>
-        /// <response code="200">Lấy danh sách thành công</response>
-        [HttpGet("rooms")]
-        [Authorize(Roles = "Admin,Manager,Receptionist")]
-        public async Task<IActionResult> GetRoomList([FromQuery] GetRoomListRequest request)
-        {
-            var result = await _roomService.GetRoomListAsync(request);
-            return Ok(result);
-        }
-
-        /// <summary>
-        /// [ADMIN] Lấy chi tiết một phòng cụ thể
-        /// </summary>
-        /// <param name="id">ID của phòng</param>
-        /// <returns>Thông tin chi tiết phòng kèm hình ảnh</returns>
-        /// <response code="200">Lấy thông tin thành công</response>
-        /// <response code="404">Không tìm thấy phòng</response>
-        [HttpGet("rooms/{id}")]
-        [Authorize(Roles = "Admin,Manager,Receptionist")]
-        public async Task<IActionResult> GetRoomDetail(int id)
-        {
-            var result = await _roomService.GetRoomDetailAsync(id);
-            return HandleResult(result);
-        }
 
         /// <summary>
         /// [ADMIN] Thêm phòng mới

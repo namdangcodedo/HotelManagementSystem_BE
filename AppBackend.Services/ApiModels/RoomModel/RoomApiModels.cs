@@ -8,7 +8,7 @@ namespace AppBackend.Services.ApiModels.RoomModel
     /// <summary>
     /// Request để customer tìm kiếm loại phòng với các filter
     /// </summary>
-    public class SearchRoomTypeRequest : PagedRequestDto
+    public class SearchRoomTypeRequest
     {
         /// <summary>
         /// Số lượng khách
@@ -226,6 +226,14 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int? RoomTypeId { get; set; }
         public int? StatusId { get; set; }
         public string? Description { get; set; }
+        /// <summary>
+        /// Media CRUD operations: add, keep, or remove images
+        /// </summary>
+        public List<MediaCrudDto>? ImageMedia { get; set; }
+        /// <summary>
+        /// Deprecated: Use ImageMedia instead
+        /// </summary>
+        [Obsolete("Use ImageMedia instead for better control over media CRUD operations")]
         public List<string>? ImageUrls { get; set; }
     }
 

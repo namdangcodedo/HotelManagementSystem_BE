@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AppBackend.BusinessObjects.Dtos;
 
 namespace AppBackend.Services.ApiModels.RoomManagement
 {
@@ -64,7 +65,10 @@ namespace AppBackend.Services.ApiModels.RoomManagement
         public decimal? RoomSize { get; set; }
         public int? NumberOfBeds { get; set; }
         public string? BedType { get; set; }
-        public List<string> Images { get; set; } = new();
+        /// <summary>
+        /// Images with metadata for CRUD operations
+        /// </summary>
+        public List<MediumDto> Images { get; set; } = new();
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
