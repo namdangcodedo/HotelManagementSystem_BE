@@ -1,7 +1,9 @@
+using AppBackend.BusinessObjects.Dtos;
 using AppBackend.BusinessObjects.Models;
 using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomManagement;
+using AutoMapper;
 using Microsoft.Extensions.Logging;
 
 namespace AppBackend.Services.Services.RoomManagement
@@ -10,11 +12,13 @@ namespace AppBackend.Services.Services.RoomManagement
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<RoomManagementService> _logger;
+        private readonly IMapper _mapper;
 
-        public RoomManagementService(IUnitOfWork unitOfWork, ILogger<RoomManagementService> logger)
+        public RoomManagementService(IUnitOfWork unitOfWork, ILogger<RoomManagementService> logger, IMapper mapper)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _mapper = mapper;
         }
 
         public async Task<ResultModel> SearchRoomsAsync(SearchRoomsRequest request)
@@ -73,10 +77,11 @@ namespace AppBackend.Services.Services.RoomManagement
                 {
                     var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
                     var status = await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId);
-                    var media = await _unitOfWork.Mediums.FindAsync(m => 
-                        m.ReferenceTable == "Room" && 
-                        m.ReferenceKey == room.RoomId.ToString() &&
-                        m.IsActive);
+                    var media = (await _unitOfWork.Mediums.FindAsync(m =>
+                        m.ReferenceTable == "Room" &&
+                        m.ReferenceKey == room.RoomId.ToString()))
+                        .OrderBy(m => m.DisplayOrder)
+                        .ToList();
 
                     roomDtos.Add(new RoomDetailDto
                     {
@@ -94,7 +99,7 @@ namespace AppBackend.Services.Services.RoomManagement
                         RoomSize = roomType?.RoomSize,
                         NumberOfBeds = roomType?.NumberOfBeds,
                         BedType = roomType?.BedType,
-                        Images = media.OrderBy(m => m.DisplayOrder).Select(m => m.FilePath).ToList(),
+                        Images = _mapper.Map<List<MediumDto>>(media),
                         CreatedAt = room.CreatedAt,
                         UpdatedAt = room.UpdatedAt
                     });
@@ -245,10 +250,11 @@ namespace AppBackend.Services.Services.RoomManagement
 
                 var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(room.RoomTypeId);
                 var status = await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId);
-                var media = await _unitOfWork.Mediums.FindAsync(m => 
-                    m.ReferenceTable == "Room" && 
-                    m.ReferenceKey == room.RoomId.ToString() &&
-                    m.IsActive);
+                var media = (await _unitOfWork.Mediums.FindAsync(m =>
+                    m.ReferenceTable == "Room" &&
+                    m.ReferenceKey == room.RoomId.ToString()))
+                    .OrderBy(m => m.DisplayOrder)
+                    .ToList();
 
                 var roomDetail = new RoomDetailDto
                 {
@@ -266,7 +272,7 @@ namespace AppBackend.Services.Services.RoomManagement
                     RoomSize = roomType?.RoomSize,
                     NumberOfBeds = roomType?.NumberOfBeds,
                     BedType = roomType?.BedType,
-                    Images = media.OrderBy(m => m.DisplayOrder).Select(m => m.FilePath).ToList(),
+                    Images = _mapper.Map<List<MediumDto>>(media),
                     CreatedAt = room.CreatedAt,
                     UpdatedAt = room.UpdatedAt
                 };

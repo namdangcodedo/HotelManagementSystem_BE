@@ -31,8 +31,6 @@ namespace AppBackend.Services.Services.RoomServices
         Task<ResultModel> DeleteRoomTypeAsync(int roomTypeId, int userId);
         
         // ============= ROOM CRUD (FOR ADMIN ONLY) =============
-        Task<ResultModel> GetRoomListAsync(GetRoomListRequest request);
-        Task<ResultModel> GetRoomDetailAsync(int roomId);
         Task<ResultModel> AddRoomAsync(AddRoomRequest request, int userId);
         Task<ResultModel> UpdateRoomAsync(UpdateRoomRequest request, int userId);
         Task<ResultModel> DeleteRoomAsync(int roomId, int userId);

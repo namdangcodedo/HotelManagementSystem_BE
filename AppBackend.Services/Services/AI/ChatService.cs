@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.Google;
+using System.Net;
 
 namespace AppBackend.Services.Services.AI;
 
@@ -185,18 +186,88 @@ public class ChatService : IChatService
                     Message = $"All API keys are currently rate-limited. You've made too many requests. Please try again in a few minutes. (Gemini Free Tier: 15 requests/minute)"
                 };
             }
+            catch (Microsoft.SemanticKernel.HttpOperationException skEx)
+            {
+                // Semantic Kernel wrapper for HTTP errors coming from connectors
+                _logger.LogError(skEx, "Semantic Kernel HTTP operation error when calling Gemini");
+                lastException = skEx;
+
+                // Try to detect 403/Forbidden from inner exception or message
+                var inner = skEx.InnerException as HttpRequestException;
+                if (inner != null && inner.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    // Mark current API key as exhausted and retry with next key
+                    retryCount++;
+                    if (currentApiKey != null)
+                    {
+                        _keyManager.MarkKeyAsExhausted(currentApiKey);
+                        _logger.LogWarning("🔒 API key marked exhausted due to 403 Forbidden: {Prefix}...", currentApiKey.Substring(0, Math.Min(10, currentApiKey.Length)));
+                    }
+
+                    if (retryCount <= maxRetries)
+                    {
+                        var delaySeconds = retryCount * 2;
+                        _logger.LogInformation("⏳ Waiting {Delay}s before retry after 403...", delaySeconds);
+                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                        continue; // retry
+                    }
+
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = 403,
+                        Message = "Gemini API returned 403 Forbidden for all attempted API keys. Please verify API key permissions and billing."
+                    };
+                }
+
+                // For other HTTP operation errors, fall back to a generic error response
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = 500,
+                    Message = $"Gemini API error: {skEx.Message}"
+                };
+            }
             catch (HttpRequestException httpEx)
             {
-                // Other HTTP errors
+                // Handle explicit HttpRequestException (may contain StatusCode)
                 _logger.LogError(httpEx, "HTTP Request Exception when calling Gemini API");
                 _logger.LogError("HTTP Status: {StatusCode}", httpEx.StatusCode);
-                
+                lastException = httpEx;
+
+                if (httpEx.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    // Mark key as exhausted and retry
+                    retryCount++;
+                    if (currentApiKey != null)
+                    {
+                        _keyManager.MarkKeyAsExhausted(currentApiKey);
+                        _logger.LogWarning("🔒 API key marked exhausted due to 403 Forbidden: {Prefix}...", currentApiKey.Substring(0, Math.Min(10, currentApiKey.Length)));
+                    }
+
+                    if (retryCount <= maxRetries)
+                    {
+                        var delaySeconds = retryCount * 2;
+                        _logger.LogInformation("⏳ Waiting {Delay}s before retry after 403...", delaySeconds);
+                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                        continue; // retry
+                    }
+
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = 403,
+                        Message = "Gemini API returned 403 Forbidden for all attempted API keys. Please verify API key permissions and billing."
+                    };
+                }
+
+                // Otherwise return generic http error
                 var errorDetails = $"HTTP Error: {httpEx.Message}";
                 if (httpEx.InnerException != null)
                 {
                     errorDetails += $" | Inner: {httpEx.InnerException.Message}";
                 }
-                
+
                 return new ResultModel
                 {
                     IsSuccess = false,

@@ -48,8 +48,6 @@ public class HotelBookingPlugin
                 NumberOfGuests = guestCount,
                 MinPrice = minPrice,
                 MaxPrice = maxPrice,
-                PageIndex = 1,
-                PageSize = 10  // ← GIỚI HẠN CHỈ LẤY 10 PHÒNG ĐẦU TIÊN
             };
 
             var result = await _roomService.SearchRoomTypesAsync(request);

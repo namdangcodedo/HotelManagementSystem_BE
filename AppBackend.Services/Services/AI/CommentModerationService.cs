@@ -44,7 +44,7 @@ public class CommentModerationService : ICommentModerationService
             _logger.LogInformation("Content: {Content}, Rating: {Rating}", content, rating);
 
             var settings = _keyManager.GetSettings();
-            if (settings.ApiKeys == null || settings.ApiKeys.Count == 0)
+            if (settings.ApiKeys.Count == 0)
             {
                 _logger.LogWarning("No Gemini API keys available, approving by default");
                 return new CommentModerationResult { IsApproved = true, Status = "Approved" };
@@ -65,36 +65,21 @@ public class CommentModerationService : ICommentModerationService
             
             // System prompt cho việc phân tích comment
             chatHistory.AddSystemMessage(@"Bạn là một AI chuyên phân tích và kiểm duyệt bình luận cho khách sạn.
-Nhiệm vụ của bạn là đánh giá xem bình luận có phù hợp để hiển thị công khai hay không.
+Mục tiêu: Chỉ cho phép BÌNH LUẬN TÍCH CỰC (lời khen) hoặc CHÊ NHẸ, lịch sự được hiển thị công khai. Bình luận có chỉ trích mạnh, xúc phạm, kêu gọi tẩy chay/không đặt sẽ bị từ chối.
 
-Tiêu chí đánh giá:
-1. TOXIC/OFFENSIVE: Ngôn từ thô tục, xúc phạm, kỳ thị, đe dọa
-2. NEGATIVE FEEDBACK: Phản hồi tiêu cực mang tính phá hoại, không mang tính xây dựng
-3. SPAM: Quảng cáo, nội dung không liên quan
-4. CONSTRUCTIVE CRITICISM: Góp ý mang tính xây dựng (nên APPROVE)
+YÊU CẦU TRẢ VỀ:
+- Chỉ trả về MỘT CHUỖI JSON duy nhất. KHÔNG trả về văn bản mô tả nào khác.
+- JSON phải chứa các trường sau: isApproved (bool), status (""Approved""/""Rejected""/""Pending""), reason (string), toxicityScore (float 0.0-1.0), containsOffensiveLanguage (bool), isNegativeFeedback (bool).
 
-Lưu ý:
-- Phản hồi tiêu cực mang tính XÂY DỰNG vẫn nên được APPROVE
-- Chỉ REJECT những bình luận thực sự toxic, spam hoặc phá hoại
-- Rating thấp (1-2 sao) kèm góp ý hợp lý vẫn là APPROVE
+QUY TẮC NGẮN GỌN:
+- APPROVE: lời khen rõ ràng hoặc chê nhẹ, lịch sự, có tính góp ý (vd: phong hoi nho, dich vu can cai thien).
+- REJECT: ngôn ngữ xúc phạm, chửi bậy, gọi tẩy chay/không đặt, kêu gọi hủy, spam.
+- PENDING: không chắc chắn hoặc cần admin xem xét.
 
-Trả về JSON với format:
-{
-  ""isApproved"": true/false,
-  ""status"": ""Approved"" hoặc ""Rejected"" hoặc ""Pending"",
-  ""reason"": ""lý do ngắn gọn"",
-  ""toxicityScore"": 0.0-1.0,
-  ""containsOffensiveLanguage"": true/false,
-  ""isNegativeFeedback"": true/false
-}");
+LƯU Ý: field isNegativeFeedback = true cho mọi phản hồi không tích cực (bao gồm chê nhẹ). containsOffensiveLanguage = true nếu có từ xúc phạm hay kêu gọi tẩy chay. toxicityScore >= 0.7 thường REJECT.");
 
             // User message với nội dung comment cần phân tích
-            var prompt = $@"Phân tích bình luận sau cho khách sạn:
-
-Nội dung: ""{content}""
-Đánh giá sao: {(rating.HasValue ? rating.Value + "/5" : "Không có")}
-
-Hãy đánh giá và trả về JSON theo format đã chỉ định.";
+            var prompt = $@"Phân tích bình luận sau cho khách sạn:\n\nNội dung: {content}\nĐánh giá sao: {(rating.HasValue ? rating.Value + "/5" : "Không có")}\n\nHãy đánh giá và trả về JSON theo format đã chỉ định.";
 
             chatHistory.AddUserMessage(prompt);
 
@@ -127,11 +112,11 @@ Hãy đánh giá và trả về JSON theo format đã chỉ định.";
         {
             _logger.LogError(ex, "Error analyzing comment with Gemini AI");
             
-            // Fallback: Nếu có lỗi, approve nhưng set Pending để admin review
+            // Fallback: Nếu có lỗi, trả về Pending để admin review (IsApproved=false)
             return new CommentModerationResult
             {
                 IsApproved = false,
-                Status = "Approved",
+                Status = "Pending",
                 Reason = "Không thể phân tích tự động, cần kiểm duyệt thủ công",
                 ToxicityScore = 0
             };
@@ -156,6 +141,8 @@ Hãy đánh giá và trả về JSON theo format đã chỉ định.";
 
                 if (result != null)
                 {
+                    // Đảm bảo các trường có giá trị mặc định hợp lý nếu model không trả về
+                    result.Status = string.IsNullOrWhiteSpace(result.Status) ? (result.IsApproved ? "Approved" : "Pending") : result.Status;
                     return result;
                 }
             }
@@ -175,23 +162,84 @@ Hãy đánh giá và trả về JSON theo format đã chỉ định.";
     {
         var lowerText = text.ToLower();
         
-        // Từ khóa toxic/offensive
-        var offensiveKeywords = new[] { "toxic", "offensive", "spam", "inappropriate", "reject" };
+        // Từ khóa toxic/offensive (bao gồm tiếng Việt phổ biến và tiếng Anh)
+        var offensiveKeywords = new[] { "chửi", "chửi bậy", "đm", "dm", "đéo", "ngu", "kỳ thị", "đe dọa", "offensive", "insult", "slur" };
         var containsOffensive = offensiveKeywords.Any(k => lowerText.Contains(k));
 
-        // Từ khóa approve
-        var approveKeywords = new[] { "approve", "acceptable", "constructive", "appropriate" };
-        var containsApprove = approveKeywords.Any(k => lowerText.Contains(k));
+        // Từ khóa mạnh chỉ trích / severe negative
+        var severeNegativeKeywords = new[] { "xấu vãi", "tệ vãi", "đừng đặt", "không nên đặt", "không đặt", "đừng đến", "sạch vãi", "sucks", "f***" };
+        var containsSevereNegative = severeNegativeKeywords.Any(k => lowerText.Contains(k));
 
-        var isApproved = containsApprove || !containsOffensive;
+        // Từ khóa negative feedback (bao gồm "chê", "đánh giá xấu", ...)
+        var negativeKeywords = new[] { "chê", "đánh giá xấu", "chê bai", "tệ", "không hài lòng", "không oke", "kém", "worst", "terrible", "sucks" };
+        var isNegative = negativeKeywords.Any(k => lowerText.Contains(k));
 
+        // Từ khóa spam
+        var spamKeywords = new[] { "mua ngay", "liên hệ", "khuyến mãi", "giảm giá", "free", "đăng ký" };
+        var isSpam = spamKeywords.Any(k => lowerText.Contains(k));
+
+        // Quyết định đơn giản ưu tiên: spam -> severe negative -> offensive -> negative -> default
+        if (isSpam)
+        {
+            return new CommentModerationResult
+            {
+                IsApproved = false,
+                Status = "Rejected",
+                Reason = "Nội dung chứa spam/quảng cáo",
+                ToxicityScore = 0.6,
+                ContainsOffensiveLanguage = containsOffensive,
+                IsNegativeFeedback = isNegative
+            };
+        }
+
+        if (containsSevereNegative)
+        {
+            return new CommentModerationResult
+            {
+                IsApproved = false,
+                Status = "Rejected",
+                Reason = "Chỉ trích mạnh/mời tẩy chay",
+                ToxicityScore = 0.85,
+                ContainsOffensiveLanguage = containsOffensive || true,
+                IsNegativeFeedback = true
+            };
+        }
+
+        if (containsOffensive)
+        {
+            return new CommentModerationResult
+            {
+                IsApproved = false,
+                Status = "Rejected",
+                Reason = "Chứa ngôn ngữ xúc phạm",
+                ToxicityScore = 0.9,
+                ContainsOffensiveLanguage = true,
+                IsNegativeFeedback = isNegative
+            };
+        }
+
+        if (isNegative)
+        {
+            // Chê nhẹ (không chứa lời xúc phạm, không kêu gọi tẩy chay) -> approve but mark negative feedback
+            return new CommentModerationResult
+            {
+                IsApproved = true,
+                Status = "Approved",
+                Reason = "Chê nhẹ - góp ý lịch sự",
+                ToxicityScore = 0.2,
+                ContainsOffensiveLanguage = false,
+                IsNegativeFeedback = true
+            };
+        }
+
+        // Default: approve (lời khen hoặc trung tính)
         return new CommentModerationResult
         {
-            IsApproved = isApproved,
-            Status = isApproved ? "Approved" : "Rejected",
-            Reason = isApproved ? "Bình luận phù hợp" : "Bình luận có thể chứa nội dung không phù hợp",
-            ToxicityScore = containsOffensive ? 0.7 : 0.2,
-            ContainsOffensiveLanguage = containsOffensive,
+            IsApproved = true,
+            Status = "Approved",
+            Reason = "Bình luận phù hợp",
+            ToxicityScore = 0.0,
+            ContainsOffensiveLanguage = false,
             IsNegativeFeedback = false
         };
     }

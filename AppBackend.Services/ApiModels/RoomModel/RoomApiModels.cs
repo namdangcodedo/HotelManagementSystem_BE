@@ -1,5 +1,6 @@
 using AppBackend.BusinessObjects.Dtos;
 using AppBackend.BusinessObjects.Models;
+using AppBackend.Services.ApiModels.Commons;
 
 namespace AppBackend.Services.ApiModels.RoomModel
 {
@@ -7,7 +8,7 @@ namespace AppBackend.Services.ApiModels.RoomModel
     /// <summary>
     /// Request để customer tìm kiếm loại phòng với các filter
     /// </summary>
-    public class SearchRoomTypeRequest : PagedRequestDto
+    public class SearchRoomTypeRequest
     {
         /// <summary>
         /// Số lượng khách
@@ -163,6 +164,14 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int? NumberOfBeds { get; set; }
         public string? BedType { get; set; }
         public bool? IsActive { get; set; }
+        /// <summary>
+        /// Media CRUD operations: add, keep, or remove images
+        /// </summary>
+        public List<MediaCrudDto>? ImageMedia { get; set; }
+        /// <summary>
+        /// Deprecated: Use ImageMedia instead
+        /// </summary>
+        [Obsolete("Use ImageMedia instead for better control over media CRUD operations")]
         public List<string>? ImageUrls { get; set; }
     }
 
@@ -207,6 +216,16 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int RoomTypeId { get; set; }
         public int StatusId { get; set; }
         public string? Description { get; set; }
+
+        /// <summary>
+        /// New: media CRUD items (preferred). Client should upload files to Cloudinary first and send ProviderId/Url with CrudKey="add".
+        /// </summary>
+        public List<MediaCrudDto>? ImageMedia { get; set; }
+
+        /// <summary>
+        /// Deprecated: legacy list of urls. Will be treated as 'add' actions if provided.
+        /// </summary>
+        [Obsolete("Use ImageMedia instead for better control over media CRUD operations")]
         public List<string>? ImageUrls { get; set; }
     }
 
@@ -217,6 +236,14 @@ namespace AppBackend.Services.ApiModels.RoomModel
         public int? RoomTypeId { get; set; }
         public int? StatusId { get; set; }
         public string? Description { get; set; }
+        /// <summary>
+        /// Media CRUD operations: add, keep, or remove images
+        /// </summary>
+        public List<MediaCrudDto>? ImageMedia { get; set; }
+        /// <summary>
+        /// Deprecated: Use ImageMedia instead
+        /// </summary>
+        [Obsolete("Use ImageMedia instead for better control over media CRUD operations")]
         public List<string>? ImageUrls { get; set; }
     }
 
