@@ -13,9 +13,9 @@ namespace AppBackend.ApiCore.Controllers
     [Authorize]
     public class EmployeeController : BaseApiController
     {
-        private readonly EmployeeService _employeeService;
+        private readonly IEmployeeService _employeeService;
 
-        public EmployeeController(EmployeeService employeeService)
+        public EmployeeController(IEmployeeService employeeService)
         {
             _employeeService = employeeService;
         }

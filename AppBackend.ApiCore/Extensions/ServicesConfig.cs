@@ -79,6 +79,7 @@ public static class ServicesConfig
         #endregion
 
         #region Helpers
+        services.AddScoped<PaginationHelper>();
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
         services.AddScoped<CommonCodeHelper>();

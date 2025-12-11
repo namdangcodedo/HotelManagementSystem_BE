@@ -20,30 +20,33 @@ namespace AppBackend.Services.Services.AttendanceServices
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
         private readonly EncryptHelper _encryptHelper;
+        private readonly PaginationHelper _paginationHelper;
 
-        public AttendanceService(IUnitOfWork unitOfWork, IMapper mapper, EncryptHelper encryptHelper)
+        public AttendanceService(IUnitOfWork unitOfWork, IMapper mapper, EncryptHelper encryptHelper, PaginationHelper paginationHelper)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _encryptHelper = encryptHelper;
+            _paginationHelper = paginationHelper;
         }
 
         public async Task<ResultModel> GetEmployeeAttendance(GetAttendanceRequest request)
         {
             var employeeId = request.EmployeeId;
-            if(employeeId == null)
+            if(employeeId != null)
             {
                 var employee = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == employeeId);
                 if(employee != null)
                 {
                     var attendances = await _unitOfWork.AttendenceRepository.GetAttendancesByEmployeeId((int)employeeId, request.Month, request.Year);
                     var attendanceDtos = _mapper.Map<List<AttendanceDTO>>(attendances);
+                    var pageAttendance = _paginationHelper.HandlePagination(attendanceDtos.Cast<dynamic>().ToList(), request.PageIndex, request.PageSize);
                     return new ResultModel
                     {
                         IsSuccess = true,
                         ResponseCode = CommonMessageConstants.SUCCESS,
                         Message = "Danh sách attendance",
-                        Data = attendanceDtos,
+                        Data = pageAttendance,
                         StatusCode = StatusCodes.Status200OK
                     };
                 }
@@ -61,19 +64,21 @@ namespace AppBackend.Services.Services.AttendanceServices
         public async Task<ResultModel> GetEmployeeAttendInfo(GetAttendanceRequest request)
         {
             var employeeId = request.EmployeeId;
-            if (employeeId == null)
+            if (employeeId != null)
             {
                 var employee = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == employeeId);
                 if (employee != null)
                 {
                     var attendInfos = await _unitOfWork.AttendenceRepository.GetAttendInfosByEmployeeId((int)employeeId, request.Year);
                     var attendInfoDTOs = _mapper.Map<List<EmpAttendInfoDTO>>(attendInfos);
+                    var pageAttendInfoDTO = _paginationHelper.HandlePagination(attendInfoDTOs.Cast<dynamic>().ToList(), request.PageIndex, request.PageSize);
+
                     return new ResultModel
                     {
                         IsSuccess = true,
                         ResponseCode = CommonMessageConstants.SUCCESS,
                         Message = "Attend Infos",
-                        Data = attendInfoDTOs,
+                        Data = pageAttendInfoDTO,
                         StatusCode = StatusCodes.Status200OK
                     };
                 }
@@ -158,8 +163,16 @@ namespace AppBackend.Services.Services.AttendanceServices
                     if (existingAttendance != null)
                     {
                         _mapper.Map(request, existingAttendance);
-                        _unitOfWork.AttendenceRepository.UpdateAsync(existingAttendance);
+                        await _unitOfWork.AttendenceRepository.UpdateAsync(existingAttendance);
                         _unitOfWork.SaveChangesAsync();
+                        return new ResultModel
+                        {
+                            IsSuccess = true,
+                            ResponseCode = CommonMessageConstants.SUCCESS,
+                            Message = "Cập nhập bản ghi chấm công thành công",
+                            Data = null,
+                            StatusCode = StatusCodes.Status404NotFound
+                        };
                     }
                     return new ResultModel
                     {

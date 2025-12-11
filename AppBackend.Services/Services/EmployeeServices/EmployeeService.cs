@@ -56,8 +56,8 @@ namespace AppBackend.Services.Services.EmployeeServices
 
         public async Task<ResultModel> GetEmployeeListAsync(GetEmployeeRequest request)
         {
-            var query = _unitOfWork.Employees.FindAsync(e => true);
-            var employees = (await query).AsQueryable();
+            var query = await _unitOfWork.Employees.FindAsync(e => true);
+            var employees = query.AsQueryable();
 
             // Lọc theo loại nhân viên
             if (request.EmployeeTypeId.HasValue)
@@ -89,9 +89,9 @@ namespace AppBackend.Services.Services.EmployeeServices
             // Sắp xếp
             if (!string.IsNullOrWhiteSpace(request.SortBy))
             {
-                employees = request.SortDesc
-                    ? employees.OrderByDescending(e => EF.Property<object>(e, request.SortBy))
-                    : employees.OrderBy(e => EF.Property<object>(e, request.SortBy));
+                //employees = request.SortDesc
+                //    ? employees.OrderByDescending(e => EF.Property<object>(e, request.SortBy))
+                //    : employees.OrderBy(e => EF.Property<object>(e, request.SortBy));
             }
             else
             {
@@ -103,7 +103,7 @@ namespace AppBackend.Services.Services.EmployeeServices
 
             // Phân trang
             var pagedEmployees = employees
-                .Skip(request.PageIndex * request.PageSize)
+                .Skip(request.PageIndex-1 * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 

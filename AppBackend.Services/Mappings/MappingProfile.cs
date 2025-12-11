@@ -59,7 +59,8 @@ namespace AppBackend.Services.Mappings
             CreateMap<Medium, MediumDto>();
             #endregion
             #region Ảttendance
-            CreateMap<Attendance, AttendanceDTO>().ReverseMap();
+            CreateMap<Attendance, AttendanceDTO>()
+                .ForMember(dto => dto.EmployeeName, opt => opt.MapFrom(att => att.Employee.FullName)).ReverseMap();
             CreateMap<Attendance, PostAttendanceRequest>().ReverseMap();
             CreateMap<EmpAttendInfo, EmpAttendInfoDTO>().ReverseMap();
             CreateMap<EmpAttendInfo, PostAttendInfosRequest>().ReverseMap();

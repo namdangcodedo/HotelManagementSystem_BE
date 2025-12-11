@@ -20,7 +20,7 @@ namespace AppBackend.Repositories.Repositories.AttendanceRepo
 
         public async Task<List<Attendance>> GetAttendancesByEmployeeId(int employeeId, int? month = null, int? year = null)
         {
-            var attendance = await _context.Attendances.ToListAsync();
+            var attendance = await _context.Attendances.Include(a => a.Employee).Where(a => a.EmployeeId == employeeId).ToListAsync();
             if(year != null)
             {
                 attendance = attendance.Where(a => a.CheckIn.Year == year).ToList();

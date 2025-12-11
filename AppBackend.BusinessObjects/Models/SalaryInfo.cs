@@ -22,7 +22,7 @@ namespace AppBackend.BusinessObjects.Models
         public int Year { get; set; }
         [Required]
         public decimal BaseSalary { get; set; }
-        public decimal? YearBonus { get; set; }
+        public decimal? Bonus { get; set; }
         public decimal? Allowance { get; set; }
         public DateTime? CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

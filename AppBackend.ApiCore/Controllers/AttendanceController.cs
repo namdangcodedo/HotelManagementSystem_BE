@@ -12,7 +12,7 @@ namespace AppBackend.ApiCore.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    //[Authorize]
     public class AttendanceController : BaseApiController
     {
         private readonly IEmployeeService _employeeService;
@@ -25,16 +25,16 @@ namespace AppBackend.ApiCore.Controllers
         }
 
        
-        [HttpGet("AttendInfo")]
-        [Authorize(Roles = "Admin,Manager")]
+        [HttpPost("AttendInfo")]
+        //[Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> GetEmployeeAttendInfo(GetAttendanceRequest request)
         {
             var result = await _attendanceService.GetEmployeeAttendInfo(request);
             return HandleResult(result);
         }
 
-        [HttpGet("Attendance")]
-        [Authorize(Roles = "Admin,Manager")]
+        [HttpPost("GetAttendance")]
+        //[Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> GetEmployeeAttendance(GetAttendanceRequest request)
         {
             var result = await _attendanceService.GetEmployeeAttendance(request);
@@ -42,8 +42,8 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         
-        [HttpPost("Attendance")]
-        [Authorize(Roles = "Admin,Manager")]
+        [HttpPost("UpsertAttendance")]
+        //[Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpsertAttendance([FromBody] PostAttendanceRequest request)
         {
             var result = await _attendanceService.UpsertAttendance(request);
@@ -51,7 +51,7 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         [HttpPost("UploadAttendances")]
-        [Authorize(Roles = "Admin,Manager")]
+        //[Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> InsertAttendances([FromBody] PostAttendancesRequest request)
         {
             var result = await _attendanceService.InsertAttendances(request);
