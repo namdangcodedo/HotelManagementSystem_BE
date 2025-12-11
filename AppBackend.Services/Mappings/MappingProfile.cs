@@ -1,8 +1,9 @@
-﻿using AppBackend.BusinessObjects.Models;
-using AppBackend.BusinessObjects.Dtos;
-using AutoMapper;
+﻿using AppBackend.BusinessObjects.Dtos;
+using AppBackend.BusinessObjects.Models;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.AttendanceModel;
+using AppBackend.Services.ApiModels.SalaryModel;
+using AutoMapper;
 
 namespace AppBackend.Services.Mappings
 {
@@ -64,6 +65,15 @@ namespace AppBackend.Services.Mappings
             CreateMap<Attendance, PostAttendanceRequest>().ReverseMap();
             CreateMap<EmpAttendInfo, EmpAttendInfoDTO>().ReverseMap();
             CreateMap<EmpAttendInfo, PostAttendInfosRequest>().ReverseMap();
+            #endregion
+
+            #region SalaryInfo
+            CreateMap<SalaryInfo, SalaryInfoDto>()
+                .ForMember(dto => dto.EmployeeName, opt => opt.MapFrom(src => src.Employee != null ? src.Employee.FullName : null))
+                .ReverseMap();
+            CreateMap<SalaryInfo, PostSalaryInfoRequest>().ReverseMap();
+            CreateMap<SalaryInfo, GetSalaryInfoRequest>().ReverseMap();
+
             #endregion
 
             #region Comment
