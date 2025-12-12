@@ -1,6 +1,7 @@
 using AppBackend.ApiCore.Extensions;
 using AppBackend.Extensions;
 using AppBackend.ApiCore.Settings;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppBackend.BusinessObjects.Data.HotelManagementContext>();
+    await context.Database.MigrateAsync();
     await AppBackend.ApiCore.Extension.SeedingData.SeedAsync(context);
 }
 

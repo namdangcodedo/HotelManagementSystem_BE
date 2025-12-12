@@ -6,6 +6,7 @@ using AppBackend.Repositories.UnitOfWork;
 using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.RoomModel;
 using AppBackend.Services.Services.MediaService;
+using AppBackend.Services.Services.BookingServices;
 using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -20,13 +21,20 @@ namespace AppBackend.Services.Services.RoomServices
         private readonly IMapper _mapper;
         private readonly ILogger<RoomService> _logger;
         private readonly IMediaService _mediaService;
+        private readonly BookingHelperService _bookingHelper;
 
-        public RoomService(IUnitOfWork unitOfWork, IMapper mapper, ILogger<RoomService> logger, IMediaService mediaService)
+        public RoomService(
+            IUnitOfWork unitOfWork, 
+            IMapper mapper, 
+            ILogger<RoomService> logger, 
+            IMediaService mediaService,
+            BookingHelperService bookingHelper)
         {
             _unitOfWork = unitOfWork;
             _mapper = mapper;
             _logger = logger;
             _mediaService = mediaService;
+            _bookingHelper = bookingHelper;
         }
 
         #region ROOM TYPE SEARCH - FOR CUSTOMER
@@ -370,13 +378,12 @@ namespace AppBackend.Services.Services.RoomServices
 
             foreach (var room in allRoomsOfType)
             {
-                // Kiểm tra xem phòng có bị book trong khoảng thời gian này không
-                var existingBookings = await _unitOfWork.BookingRooms.FindAsync(br =>
-                    br.RoomId == room.RoomId &&
-                    br.Booking.CheckInDate < checkOutDate &&
-                    br.Booking.CheckOutDate > checkInDate);
+                var isAvailable = await _bookingHelper.IsRoomAvailableAsync(
+                    room.RoomId,
+                    checkInDate,
+                    checkOutDate);
 
-                if (!existingBookings.Any())
+                if (isAvailable)
                 {
                     availableCount++;
                 }

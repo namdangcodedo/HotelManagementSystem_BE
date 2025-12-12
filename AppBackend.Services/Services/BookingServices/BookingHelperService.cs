@@ -14,12 +14,32 @@ namespace AppBackend.Services.Services.BookingServices
         private readonly IUnitOfWork _unitOfWork;
         private readonly CacheHelper _cacheHelper;
         private readonly ILogger<BookingHelperService> _logger;
+        private List<int>? _occupiedStatusIdsCache;
 
         public BookingHelperService(IUnitOfWork unitOfWork, CacheHelper cacheHelper, ILogger<BookingHelperService> logger)
         {
             _unitOfWork = unitOfWork;
             _cacheHelper = cacheHelper;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Lấy danh sách status code Id đang chiếm phòng (cache theo scope để tránh query lặp)
+        /// </summary>
+        private async Task<List<int>> GetOccupiedStatusIdsAsync()
+        {
+            if (_occupiedStatusIdsCache != null && _occupiedStatusIdsCache.Any())
+            {
+                return _occupiedStatusIdsCache;
+            }
+
+            var occupiedStatuses = await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "BookingStatus" &&
+                (c.CodeName == "PendingConfirmation" || c.CodeName == "Confirmed" || c.CodeName == "CheckedIn"));
+
+            _occupiedStatusIdsCache = occupiedStatuses.Select(s => s.CodeId).ToList();
+            _logger.LogInformation("[GetOccupiedStatusIds] Loaded occupied status ids: {Ids}", string.Join(",", _occupiedStatusIdsCache));
+            return _occupiedStatusIdsCache;
         }
 
         /// <summary>
@@ -50,11 +70,7 @@ namespace AppBackend.Services.Services.BookingServices
                     roomId, checkInDate, checkOutDate);
 
                 // Lấy các status code cần kiểm tra - phòng KHÔNG available với các status này
-                var occupiedStatuses = await _unitOfWork.CommonCodes.FindAsync(c =>
-                    c.CodeType == "BookingStatus" && 
-                    (c.CodeName == "PendingConfirmation" || c.CodeName == "Confirmed" || c.CodeName == "CheckedIn"));
-
-                var occupiedStatusIds = occupiedStatuses.Select(s => s.CodeId).ToList();
+                var occupiedStatusIds = await GetOccupiedStatusIdsAsync();
                 
                 _logger.LogInformation("[IsRoomAvailableAsync] Found {Count} occupied statuses: {StatusIds}", 
                     occupiedStatusIds.Count, string.Join(",", occupiedStatusIds));
@@ -65,71 +81,45 @@ namespace AppBackend.Services.Services.BookingServices
                     return true;
                 }
 
-                // Kiểm tra booking trong database với date range overlap
-                var overlappingBookingRooms = await _unitOfWork.BookingRooms.FindAsync(br =>
-                    br.RoomId == roomId &&
-                    (ignoreBookingId == null || br.BookingId != ignoreBookingId.Value));
+                // Kiểm tra booking trong database với date range overlap + status chiếm phòng
+                var overlappingBookingRooms = await _unitOfWork.BookingRooms.FindAsync(
+                    br =>
+                        br.RoomId == roomId &&
+                        (ignoreBookingId == null || br.BookingId != ignoreBookingId.Value) &&
+                        br.Booking.StatusId.HasValue &&
+                        occupiedStatusIds.Contains(br.Booking.StatusId.Value) &&
+                        br.Booking.CheckInDate < checkOutDate &&
+                        br.Booking.CheckOutDate > checkInDate,
+                    br => br.Booking);
 
-                _logger.LogInformation("[IsRoomAvailableAsync] Found {Count} booking rooms for room {RoomId}", 
-                    overlappingBookingRooms, roomId);
+                var overlappingList = overlappingBookingRooms.ToList();
 
-                if (!overlappingBookingRooms.Any())
+                _logger.LogInformation("[IsRoomAvailableAsync] Found {Count} overlapping occupied bookings for room {RoomId}", 
+                    overlappingList.Count, roomId);
+
+                if (!overlappingList.Any())
                 {
-                    _logger.LogInformation("[IsRoomAvailableAsync] Room {RoomId} is AVAILABLE (no bookings)", roomId);
+                    _logger.LogInformation("[IsRoomAvailableAsync] Room {RoomId} is AVAILABLE (no occupied bookings found)", roomId);
                     return true;
                 }
 
-                // Kiểm tra xem có booking nào với status occupied và date range overlap không
-                foreach (var bookingRoom in overlappingBookingRooms)
+                foreach (var bookingRoom in overlappingList)
                 {
-                    _logger.LogInformation("[IsRoomAvailableAsync] Checking booking {BookingId} for room {RoomId}", 
-                        bookingRoom.BookingId, roomId);
-
-                    if (bookingRoom.Booking == null)
+                    var booking = bookingRoom.Booking;
+                    if (booking == null)
                     {
-                        _logger.LogWarning("[IsRoomAvailableAsync] Booking {BookingId} is null, loading from DB", 
-                            bookingRoom.BookingId);
-                        // Load booking data nếu chưa được load
-                        bookingRoom.Booking = await _unitOfWork.Bookings.GetByIdAsync(bookingRoom.BookingId);
-                    }
-
-                    if (bookingRoom.Booking == null)
-                    {
-                        _logger.LogWarning("[IsRoomAvailableAsync] Booking {BookingId} not found in DB, skipping", 
-                            bookingRoom.BookingId);
+                        _logger.LogWarning("[IsRoomAvailableAsync] Booking {BookingId} data not loaded for Room {RoomId}", bookingRoom.BookingId, roomId);
                         continue;
                     }
-
-                    // Kiểm tra date range overlap
-                    var hasDateOverlap = bookingRoom.Booking.CheckInDate < checkOutDate && 
-                                         bookingRoom.Booking.CheckOutDate > checkInDate;
-
-                    _logger.LogInformation("[IsRoomAvailableAsync] Booking {BookingId}: CheckIn={CheckIn}, CheckOut={CheckOut}, HasDateOverlap={Overlap}, StatusId={StatusId}", 
-                        bookingRoom.BookingId, 
-                        bookingRoom.Booking.CheckInDate, 
-                        bookingRoom.Booking.CheckOutDate,
-                        hasDateOverlap,
-                        bookingRoom.Booking.StatusId);
-
-                    if (!hasDateOverlap)
-                    {
-                        _logger.LogInformation("[IsRoomAvailableAsync] Booking {BookingId} has no date overlap, skipping", 
-                            bookingRoom.BookingId);
-                        continue;
-                    }
-
-                    // Nếu booking có StatusId thuộc danh sách occupied statuses
-                    if (bookingRoom.Booking.StatusId.HasValue && 
-                        occupiedStatusIds.Contains(bookingRoom.Booking.StatusId.Value))
-                    {
-                        _logger.LogWarning("[IsRoomAvailableAsync] Room {RoomId} is NOT AVAILABLE - Booking {BookingId} has occupied status {StatusId}", 
-                            roomId, bookingRoom.BookingId, bookingRoom.Booking.StatusId);
-                        return false;
-                    }
+                    _logger.LogWarning("[IsRoomAvailableAsync] Room {RoomId} blocked by Booking {BookingId} (StatusId={StatusId}, {CheckIn} -> {CheckOut})",
+                        roomId,
+                        bookingRoom.BookingId,
+                        booking.StatusId,
+                        booking.CheckInDate,
+                        booking.CheckOutDate);
                 }
 
-                _logger.LogInformation("[IsRoomAvailableAsync] Room {RoomId} is AVAILABLE", roomId);
-                return true;
+                return false;
             }
             catch (Exception ex)
             {

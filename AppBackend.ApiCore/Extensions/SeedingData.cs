@@ -113,6 +113,7 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // RoomStatus
+                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Có sẵn", CodeName = "Available" , Description = "Phòng đang trống, có thể nhận khách", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang sử dụng", CodeName = "Occupied" , Description = "Phòng đang có khách ở", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , Description = "Phòng đang được dọn dẹp", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Phòng đang bảo trì, không cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },
@@ -569,9 +570,37 @@ namespace AppBackend.ApiCore.Extension
                 await context.SaveChangesAsync();
             }
 
+            // Helper: ensure a CommonCode exists (used for RoomStatus even if CommonCode table already has data)
+            async Task<int> EnsureCommonCodeAsync(string codeType, string codeName, string codeValue, string description)
+            {
+                var existing = await context.CommonCodes
+                    .FirstOrDefaultAsync(c => c.CodeType == codeType && c.CodeName == codeName);
+
+                if (existing != null) return existing.CodeId;
+
+                var entity = new CommonCode
+                {
+                    CodeType = codeType,
+                    CodeValue = codeValue,
+                    CodeName = codeName,
+                    Description = description,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                context.CommonCodes.Add(entity);
+                await context.SaveChangesAsync();
+                return entity.CodeId;
+            }
+
             // Seed Rooms if empty
             if (!context.Rooms.Any())
             {
+                // Đảm bảo RoomStatus tối thiểu luôn có, kể cả khi CommonCodes đã có dữ liệu khác
+                var availableStatusId = await EnsureCommonCodeAsync("RoomStatus", "Available", "Có sẵn", "Phòng đang trống, có thể nhận khách");
+                var occupiedStatusId = await EnsureCommonCodeAsync("RoomStatus", "Occupied", "Đang sử dụng", "Phòng đang có khách ở");
+                var maintenanceStatusId = await EnsureCommonCodeAsync("RoomStatus", "Maintenance", "Bảo trì", "Phòng đang bảo trì, không cho thuê");
+
                 // Lấy các RoomType và RoomStatus
                 var standardRoomType = await context.Set<RoomType>()
                     .FirstOrDefaultAsync(rt => rt.TypeCode == "STD");
@@ -582,28 +611,18 @@ namespace AppBackend.ApiCore.Extension
                 var suiteRoomType = await context.Set<RoomType>()
                     .FirstOrDefaultAsync(rt => rt.TypeCode == "SUT");
 
-                var availableStatus = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomStatus" && c.CodeName == "Available");
-                var bookedStatus = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomStatus" && c.CodeName == "Booked");
-                var occupiedStatus = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomStatus" && c.CodeName == "Occupied");
-                var maintenanceStatus = await context.CommonCodes
-                    .FirstOrDefaultAsync(c => c.CodeType == "RoomStatus" && c.CodeName == "Maintenance");
-
                 if (standardRoomType != null && deluxeRoomType != null && vipRoomType != null && 
-                    suiteRoomType != null && availableStatus != null && bookedStatus != null && 
-                    occupiedStatus != null && maintenanceStatus != null)
+                    suiteRoomType != null && availableStatusId > 0 && 
+                    occupiedStatusId > 0 && maintenanceStatusId > 0)
                 {
                     var rooms = new List<Room>();
 
                     // Standard Rooms (Tầng 1: 101-110)
                     for (int i = 1; i <= 10; i++)
                     {
-                        var statusId = i <= 6 ? availableStatus.CodeId : 
-                                      i <= 8 ? bookedStatus.CodeId : 
-                                      i == 9 ? occupiedStatus.CodeId : 
-                                      maintenanceStatus.CodeId;
+                        var statusId = i <= 7 ? availableStatusId : 
+                                      i <= 9 ? occupiedStatusId : 
+                                      maintenanceStatusId;
 
                         rooms.Add(new Room
                         {
@@ -618,9 +637,8 @@ namespace AppBackend.ApiCore.Extension
                     // Deluxe Rooms (Tầng 2: 201-210)
                     for (int i = 1; i <= 10; i++)
                     {
-                        var statusId = i <= 5 ? availableStatus.CodeId : 
-                                      i <= 8 ? bookedStatus.CodeId : 
-                                      occupiedStatus.CodeId;
+                        var statusId = i <= 5 ? availableStatusId : 
+                                      occupiedStatusId;
 
                         rooms.Add(new Room
                         {
@@ -635,9 +653,8 @@ namespace AppBackend.ApiCore.Extension
                     // VIP Rooms (Tầng 3: 301-308)
                     for (int i = 1; i <= 8; i++)
                     {
-                        var statusId = i <= 4 ? availableStatus.CodeId : 
-                                      i <= 6 ? bookedStatus.CodeId : 
-                                      occupiedStatus.CodeId;
+                        var statusId = i <= 4 ? availableStatusId : 
+                                      occupiedStatusId;
 
                         rooms.Add(new Room
                         {
@@ -652,9 +669,8 @@ namespace AppBackend.ApiCore.Extension
                     // Suite Rooms (Tầng 4: 401-405)
                     for (int i = 1; i <= 5; i++)
                     {
-                        var statusId = i <= 2 ? availableStatus.CodeId : 
-                                      i <= 4 ? bookedStatus.CodeId : 
-                                      occupiedStatus.CodeId;
+                        var statusId = i <= 2 ? availableStatusId : 
+                                      occupiedStatusId;
 
                         rooms.Add(new Room
                         {
