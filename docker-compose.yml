@@ -1,0 +1,50 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: hotel_sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong!Passw0rd"
+      MSSQL_PID: "Express"
+    ports:
+      - "1434:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    user: mssql
+    restart: unless-stopped
+    healthcheck:
+      test: >
+        /opt/mssql-tools/bin/sqlcmd
+        -S localhost
+        -U sa
+        -P "YourStrong!Passw0rd"
+        -Q "SELECT 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app:
+    image: ${IMAGE:-namcoder/hotel_management_be:tagname}
+    platform: linux/amd64
+    container_name: hotel_api
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: >
+        Server=sqlserver,1433;
+        Database=hotel_management;
+        User Id=sa;
+        Password=YourStrong!Passw0rd;
+        TrustServerCertificate=True;
+      Jwt__Key: YourSuperSecretKeyAtLeast32CharsLong!!
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  mssql-data:
+    name: hotel_mssql_data

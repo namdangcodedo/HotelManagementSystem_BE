@@ -417,6 +417,7 @@ namespace AppBackend.BusinessObjects.Migrations
                     DeviceEmployeeId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     CheckIn = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CheckOut = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    OvertimeHours = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(getdate())"),
                     CreatedBy = table.Column<int>(type: "int", nullable: true),

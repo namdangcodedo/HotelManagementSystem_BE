@@ -47,7 +47,15 @@ public class CommentModerationService : ICommentModerationService
             if (settings.ApiKeys.Count == 0)
             {
                 _logger.LogWarning("No Gemini API keys available, approving by default");
-                return new CommentModerationResult { IsApproved = true, Status = "Approved" };
+                return new CommentModerationResult
+                {
+                    IsApproved = true,
+                    Status = "Approved",
+                    Reason = "Dịch vụ kiểm duyệt tự động không khả dụng; mặc định chấp nhận",
+                    ToxicityScore = 0,
+                    ContainsOffensiveLanguage = false,
+                    IsNegativeFeedback = false
+                };
             }
 
             var apiKey = _keyManager.GetAvailableKey();
@@ -112,13 +120,15 @@ LƯU Ý: field isNegativeFeedback = true cho mọi phản hồi không tích c�
         {
             _logger.LogError(ex, "Error analyzing comment with Gemini AI");
             
-            // Fallback: Nếu có lỗi, trả về Pending để admin review (IsApproved=false)
+            // Fallback: Nếu có lỗi (ví dụ hết API key, 403, timeout...), trả về Approved để comment vẫn được đăng (UI có thể ẩn nếu cần)
             return new CommentModerationResult
             {
-                IsApproved = false,
-                Status = "Pending",
-                Reason = "Không thể phân tích tự động, cần kiểm duyệt thủ công",
-                ToxicityScore = 0
+                IsApproved = true,
+                Status = "Approved",
+                Reason = "Không thể phân tích tự động, mặc định chấp nhận; cần kiểm duyệt thủ công nếu cần",
+                ToxicityScore = 0,
+                ContainsOffensiveLanguage = false,
+                IsNegativeFeedback = false
             };
         }
     }

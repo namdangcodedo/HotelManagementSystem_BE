@@ -113,8 +113,6 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "TransactionStatus", CodeValue = "Đang hoàn tiền", CodeName = "Refunding" , Description = "Đang xử lý hoàn tiền", IsActive = true, CreatedAt = DateTime.UtcNow },
                     
                     // RoomStatus
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Trống", CodeName = "Available" , Description = "Phòng trống, sẵn sàng cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new CommonCode { CodeType = "RoomStatus", CodeValue = "Đã đặt", CodeName = "Booked" , Description = "Phòng đã được đặt trước", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang sử dụng", CodeName = "Occupied" , Description = "Phòng đang có khách ở", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Đang dọn dẹp", CodeName = "Cleaning" , Description = "Phòng đang được dọn dẹp", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new CommonCode { CodeType = "RoomStatus", CodeValue = "Bảo trì", CodeName = "Maintenance" , Description = "Phòng đang bảo trì, không cho thuê", IsActive = true, CreatedAt = DateTime.UtcNow },

@@ -1,7 +1,0 @@
-﻿services:
-  appbackend.apicore:
-    image: appbackend.apicore
-    build:
-      context: .
-      dockerfile: AppBackend.ApiCore/Dockerfile
-
