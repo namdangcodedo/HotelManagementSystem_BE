@@ -24,6 +24,7 @@ using AppBackend.Services.Services.CommentService;
 using AppBackend.Services.Services.AI;
 using AppBackend.Services.Services.MediaService;
 using AppBackend.Services.Services.CustomerServices;
+using AppBackend.Services.Services.SalaryInfoServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -66,6 +67,8 @@ public static class ServicesConfig
         services.AddScoped<ICommentModerationService, CommentModerationService>();
         services.AddScoped<IMediaService, MediaService>();
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<ISalaryInfoService, SalaryInfoService>();
+
 
         //Encrypt Helper 
         services.AddScoped<EncryptHelper>();
@@ -83,6 +86,7 @@ public static class ServicesConfig
         #endregion
 
         #region Helpers
+        services.AddScoped<PaginationHelper>();
         services.AddScoped<AccountHelper>();
         services.AddScoped<CacheHelper>();
         services.AddScoped<CommonCodeHelper>();

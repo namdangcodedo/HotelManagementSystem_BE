@@ -14,6 +14,8 @@ namespace AppBackend.BusinessObjects.Dtos
         public int EmployeeId { get; set; }
         public string? DeviceEmployeeId { get; set; }
 
+        public decimal? OvertimeHours { get; set; }
+
         public DateTime CheckIn { get; set; }
 
         public DateTime? CheckOut { get; set; }
@@ -26,5 +28,7 @@ namespace AppBackend.BusinessObjects.Dtos
         public int? UpdatedBy { get; set; }
         public string? Status { get; set; }
         public string? IsApproved { get; set; }
+
+        public string? EmployeeName { get; set; }
     }
 }

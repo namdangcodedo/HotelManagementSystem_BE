@@ -15,6 +15,7 @@ using AppBackend.Repositories.Repositories.RoleRepo;
 using AppBackend.Repositories.Repositories.RoomAmenityRepo;
 using AppBackend.Repositories.Repositories.RoomRepo;
 using AppBackend.Repositories.Repositories.RoomTypeRepo;
+using AppBackend.Repositories.Repositories.SalaryInfoRepo;
 using AppBackend.Repositories.Repositories.TransactionRepo;
 using System.Threading.Tasks;
 
@@ -39,6 +40,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IBankConfigRepository BankConfigs { get; }
         IAttendenceRepository AttendenceRepository { get; }
         ICommentRepository Comments { get; }
+        ISalaryInfoRepository SalaryInfos { get; }
         Task<int> SaveChangesAsync();
     }
 }

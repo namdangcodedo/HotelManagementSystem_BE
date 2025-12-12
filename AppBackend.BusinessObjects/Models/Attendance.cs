@@ -24,6 +24,8 @@ public partial class Attendance
 
     public DateTime? CheckOut { get; set; }
 
+    public decimal? OvertimeHours { get; set; }
+
     [StringLength(255)]
     public string? Notes { get; set; }
 

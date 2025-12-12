@@ -10,6 +10,7 @@ namespace AppBackend.Services.ApiModels.AttendanceModel
         [Required(ErrorMessage = "Employee Id là bắt buộc")]
         public int EmployeeId { get; set; }
         public string? DeviceEmployeeId { get; set; }
+        public decimal? OvertimeHours { get; set; }
 
         public DateTime CheckIn { get; set; }
 
