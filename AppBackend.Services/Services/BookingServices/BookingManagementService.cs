@@ -116,9 +116,7 @@ public class BookingManagementService : IBookingManagementService
                 var roomDtos = new List<AvailableRoomDto>();
                 foreach (var room in availableRooms)
                 {
-                    var roomStatus = room.StatusId.HasValue
-                        ? await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId.Value)
-                        : null;
+                    var roomStatus = await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId);
 
                     // Amenities
                     var roomAmenities = await _unitOfWork.RoomAmenities.FindAsync(ra => ra.RoomId == room.RoomId);
