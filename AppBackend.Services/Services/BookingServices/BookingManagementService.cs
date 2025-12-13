@@ -39,6 +39,172 @@ public class BookingManagementService : IBookingManagementService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Check phòng trống theo loại phòng và số lượng (dùng cho lễ tân)
+    /// </summary>
+    public async Task<ResultModel> CheckAvailableRoomsAsync(CheckRoomAvailabilityRequest request)
+    {
+        try
+        {
+            if (request.RoomTypes == null || !request.RoomTypes.Any())
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Vui lòng chọn ít nhất một loại phòng"
+                };
+            }
+
+            if (request.CheckOutDate <= request.CheckInDate)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-out phải sau ngày check-in"
+                };
+            }
+
+            var today = DateTime.UtcNow.Date;
+            if (request.CheckInDate.Date < today)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = "Ngày check-in không được ở trong quá khứ"
+                };
+            }
+
+            var response = new CheckAvailabilityResponse
+            {
+                CheckInDate = request.CheckInDate,
+                CheckOutDate = request.CheckOutDate,
+                TotalNights = _bookingHelper.CalculateNumberOfNights(request.CheckInDate, request.CheckOutDate),
+                RoomTypes = new List<RoomTypeAvailabilityDto>()
+            };
+
+            bool allAvailable = true;
+
+            foreach (var roomTypeRequest in request.RoomTypes)
+            {
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(roomTypeRequest.RoomTypeId);
+                if (roomType == null)
+                {
+                    allAvailable = false;
+                    response.RoomTypes.Add(new RoomTypeAvailabilityDto
+                    {
+                        RoomTypeId = roomTypeRequest.RoomTypeId,
+                        RequestedQuantity = roomTypeRequest.Quantity,
+                        AvailableCount = 0,
+                        IsAvailable = false,
+                        Message = "Loại phòng không tồn tại"
+                    });
+                    continue;
+                }
+
+                var availableRooms = await _bookingHelper.FindAllAvailableRoomsByTypeAsync(
+                    roomTypeRequest.RoomTypeId,
+                    request.CheckInDate,
+                    request.CheckOutDate);
+
+                bool isAvailable = availableRooms.Count >= roomTypeRequest.Quantity;
+                if (!isAvailable) allAvailable = false;
+
+                // Build room DTOs for UI popup selection
+                var roomDtos = new List<AvailableRoomDto>();
+                foreach (var room in availableRooms)
+                {
+                    var roomStatus = room.StatusId.HasValue
+                        ? await _unitOfWork.CommonCodes.GetByIdAsync(room.StatusId.Value)
+                        : null;
+
+                    // Amenities
+                    var roomAmenities = await _unitOfWork.RoomAmenities.FindAsync(ra => ra.RoomId == room.RoomId);
+                    var amenityNames = new List<string>();
+                    foreach (var ra in roomAmenities)
+                    {
+                        var amenity = await _unitOfWork.Amenities.GetByIdAsync(ra.AmenityId);
+                        if (amenity != null)
+                        {
+                            amenityNames.Add(amenity.AmenityName);
+                        }
+                    }
+
+                    // Images
+                    var media = await _unitOfWork.Mediums.FindAsync(m =>
+                        m.ReferenceTable == "Room" &&
+                        m.ReferenceKey == room.RoomId.ToString() &&
+                        m.IsActive);
+                    var imageUrls = media.Select(m => m.FilePath).ToList();
+
+                    roomDtos.Add(new AvailableRoomDto
+                    {
+                        RoomId = room.RoomId,
+                        RoomName = room.RoomName,
+                        RoomTypeId = roomType.RoomTypeId,
+                        RoomTypeName = roomType.TypeName,
+                        RoomTypeCode = roomType.TypeCode,
+                        PricePerNight = roomType.BasePriceNight,
+                        MaxOccupancy = roomType.MaxOccupancy,
+                        RoomSize = roomType.RoomSize,
+                        NumberOfBeds = roomType.NumberOfBeds,
+                        BedType = roomType.BedType,
+                        Description = roomType.Description,
+                        Status = roomStatus?.CodeValue ?? "Unknown",
+                        Amenities = amenityNames,
+                        Images = imageUrls
+                    });
+                }
+
+                response.RoomTypes.Add(new RoomTypeAvailabilityDto
+                {
+                    RoomTypeId = roomType.RoomTypeId,
+                    RoomTypeName = roomType.TypeName,
+                    RoomTypeCode = roomType.TypeCode,
+                    Description = roomType.Description ?? "",
+                    BasePriceNight = roomType.BasePriceNight,
+                    MaxOccupancy = roomType.MaxOccupancy,
+                    RoomSize = roomType.RoomSize ?? 0,
+                    NumberOfBeds = roomType.NumberOfBeds ?? 0,
+                    BedType = roomType.BedType ?? "",
+                    AvailableCount = availableRooms.Count,
+                    RequestedQuantity = roomTypeRequest.Quantity,
+                    IsAvailable = isAvailable,
+                    Message = isAvailable
+                        ? $"Có {availableRooms.Count} phòng trống"
+                        : $"Chỉ còn {availableRooms.Count}/{roomTypeRequest.Quantity} phòng trống",
+                    Images = new List<string>(),
+                    AvailableRooms = roomDtos
+                });
+            }
+
+            response.IsAllAvailable = allAvailable;
+            response.Message = allAvailable
+                ? "Tất cả phòng đều có sẵn"
+                : "Một số loại phòng không đủ số lượng";
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                StatusCode = allAvailable ? StatusCodes.Status200OK : StatusCodes.Status409Conflict,
+                Message = response.Message,
+                Data = response
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[CheckAvailableRoomsAsync] Error checking availability");
+            return new ResultModel
+            {
+                IsSuccess = false,
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Message = $"Lỗi: {ex.Message}"
+            };
+        }
+    }
+
     public async Task<ResultModel> CreateOfflineBookingAsync(CreateOfflineBookingRequest request, int employeeId)
     {
         try

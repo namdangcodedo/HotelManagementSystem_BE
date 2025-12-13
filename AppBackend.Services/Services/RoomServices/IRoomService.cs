@@ -15,6 +15,11 @@ namespace AppBackend.Services.Services.RoomServices
         /// Lấy chi tiết loại phòng cho customer (public)
         /// </summary>
         Task<ResultModel> GetRoomTypeDetailForCustomerAsync(int roomTypeId, DateTime? checkInDate = null, DateTime? checkOutDate = null);
+
+        /// <summary>
+        /// Kiểm tra số lượng phòng trống theo loại cho khách trước khi đặt
+        /// </summary>
+        Task<ResultModel> CheckRoomAvailabilityByTypeAsync(CheckAvailabilityByRoomTypeRequest request);
         
         // ============= ROOM TYPE STATISTICS & ANALYTICS =============
         /// <summary>

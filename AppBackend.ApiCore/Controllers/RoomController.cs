@@ -174,6 +174,25 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
+        /// [PUBLIC] Kiểm tra số lượng phòng trống của một loại phòng theo ngày
+        /// </summary>
+        /// <remarks>
+        /// Dùng cho FE kiểm tra nhanh trước khi chọn loại phòng booking.
+        /// 
+        /// Ví dụ:
+        /// `GET /api/room/available?checkInDate=2025-12-13T14:44:00&checkOutDate=2025-12-28T14:44:00&roomTypeId=1&quantity=2`
+        /// </remarks>
+        /// <param name="request">checkInDate, checkOutDate, roomTypeId, quantity</param>
+        /// <returns>Thông tin số lượng phòng còn trống và flag IsAvailable</returns>
+        [HttpGet("available")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CheckRoomAvailability([FromQuery] CheckAvailabilityByRoomTypeRequest request)
+        {
+            var result = await _roomService.CheckRoomAvailabilityByTypeAsync(request);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
         /// [PUBLIC] Lấy chi tiết loại phòng cho customer (có thể kiểm tra availability)
         /// </summary>
         /// <param name="id">ID của loại phòng</param>

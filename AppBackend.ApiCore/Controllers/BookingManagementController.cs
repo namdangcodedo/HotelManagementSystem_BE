@@ -93,6 +93,28 @@ namespace AppBackend.ApiCore.Controllers
         }
 
         /// <summary>
+        /// Check phòng trống theo loại phòng và số lượng (dành cho lễ tân trước khi tạo booking)
+        /// </summary>
+        /// <remarks>
+        /// Dữ liệu đầu vào giống booking online:
+        /// {
+        ///   "checkInDate": "2025-12-14T15:02",
+        ///   "checkOutDate": "2025-12-21T15:02",
+        ///   "roomTypes": [
+        ///     { "roomTypeId": 1, "quantity": 1 },
+        ///     { "roomTypeId": 2, "quantity": 1 }
+        ///   ]
+        /// }
+        /// </remarks>
+        [HttpPost("available-rooms")]
+        [Authorize(Roles = "Receptionist,Manager,Admin")]
+        public async Task<IActionResult> CheckAvailableRooms([FromBody] CheckRoomAvailabilityRequest request)
+        {
+            var result = await _bookingManagementService.CheckAvailableRoomsAsync(request);
+            return StatusCode(result.StatusCode, result);
+        }
+
+        /// <summary>
         /// Tạo booking offline - Lễ tân tự chọn phòng cụ thể
         /// </summary>
         /// <remarks>

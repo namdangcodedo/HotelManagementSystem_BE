@@ -369,6 +369,115 @@ namespace AppBackend.Services.Services.RoomServices
         }
 
         /// <summary>
+        /// Kiểm tra số lượng phòng trống theo loại phòng cho khách trước khi đặt
+        /// </summary>
+        public async Task<ResultModel> CheckRoomAvailabilityByTypeAsync(CheckAvailabilityByRoomTypeRequest request)
+        {
+            try
+            {
+                if (request.Quantity <= 0)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = CommonMessageConstants.BAD_REQUEST,
+                        Message = "Số lượng phòng phải lớn hơn 0",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                if (request.CheckInDate == default || request.CheckOutDate == default)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = CommonMessageConstants.BAD_REQUEST,
+                        Message = "CheckInDate và CheckOutDate là bắt buộc",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                if (request.CheckOutDate <= request.CheckInDate)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = CommonMessageConstants.BAD_REQUEST,
+                        Message = "CheckOutDate phải sau CheckInDate",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                var today = DateTime.UtcNow.Date;
+                if (request.CheckInDate.Date < today)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = CommonMessageConstants.BAD_REQUEST,
+                        Message = "Ngày check-in không được ở trong quá khứ",
+                        StatusCode = StatusCodes.Status400BadRequest
+                    };
+                }
+
+                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(request.RoomTypeId);
+                if (roomType == null)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        ResponseCode = CommonMessageConstants.NOT_FOUND,
+                        Message = string.Format(CommonMessageConstants.VALUE_NOT_FOUND, "Loại phòng"),
+                        StatusCode = StatusCodes.Status404NotFound
+                    };
+                }
+
+                var availableCount = await CountAvailableRoomsAsync(
+                    roomType.RoomTypeId,
+                    request.CheckInDate,
+                    request.CheckOutDate);
+
+                var isAvailable = availableCount >= request.Quantity;
+                var message = isAvailable
+                    ? $"Có đủ phòng trống ({availableCount}/{request.Quantity})"
+                    : $"Chỉ còn {availableCount}/{request.Quantity} phòng trống";
+
+                var response = new RoomAvailabilityCheckDto
+                {
+                    RoomTypeId = roomType.RoomTypeId,
+                    RoomTypeName = roomType.TypeName,
+                    RoomTypeCode = roomType.TypeCode,
+                    CheckInDate = request.CheckInDate,
+                    CheckOutDate = request.CheckOutDate,
+                    RequestedQuantity = request.Quantity,
+                    AvailableRoomCount = availableCount,
+                    IsAvailable = isAvailable,
+                    Message = message
+                };
+
+                return new ResultModel
+                {
+                    IsSuccess = true,
+                    ResponseCode = CommonMessageConstants.SUCCESS,
+                    Message = message,
+                    Data = response,
+                    StatusCode = isAvailable ? StatusCodes.Status200OK : StatusCodes.Status409Conflict
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[CheckRoomAvailabilityByTypeAsync] Error checking availability for RoomType {RoomTypeId}", request.RoomTypeId);
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    ResponseCode = CommonMessageConstants.ERROR,
+                    Message = "Đã xảy ra lỗi khi kiểm tra phòng trống",
+                    StatusCode = StatusCodes.Status500InternalServerError
+                };
+            }
+        }
+
+        /// <summary>
         /// Đếm số phòng available theo RoomType và CheckIn/Out
         /// </summary>
         private async Task<int> CountAvailableRoomsAsync(int roomTypeId, DateTime checkInDate, DateTime checkOutDate)

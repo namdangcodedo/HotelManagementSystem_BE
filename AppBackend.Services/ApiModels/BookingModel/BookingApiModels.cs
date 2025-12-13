@@ -167,6 +167,11 @@ namespace AppBackend.Services.ApiModels.BookingModel
         /// Danh sách hình ảnh phòng
         /// </summary>
         public List<string> Images { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Danh sách phòng trống chi tiết (để lễ tân chọn phòng)
+        /// </summary>
+        public List<AvailableRoomDto> AvailableRooms { get; set; } = new List<AvailableRoomDto>();
     }
 
     /// <summary>

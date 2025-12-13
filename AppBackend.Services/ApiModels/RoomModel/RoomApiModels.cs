@@ -52,6 +52,32 @@ namespace AppBackend.Services.ApiModels.RoomModel
     }
 
     /// <summary>
+    /// Request kiểm tra số lượng phòng trống theo loại
+    /// </summary>
+    public class CheckAvailabilityByRoomTypeRequest
+    {
+        /// <summary>
+        /// ID loại phòng cần kiểm tra
+        /// </summary>
+        public int RoomTypeId { get; set; }
+
+        /// <summary>
+        /// Số lượng phòng mong muốn
+        /// </summary>
+        public int Quantity { get; set; } = 1;
+
+        /// <summary>
+        /// Ngày check-in
+        /// </summary>
+        public DateTime CheckInDate { get; set; }
+
+        /// <summary>
+        /// Ngày check-out
+        /// </summary>
+        public DateTime CheckOutDate { get; set; }
+    }
+
+    /// <summary>
     /// DTO trả về thông tin RoomType cho customer
     /// </summary>
     public class RoomTypeSearchResultDto
@@ -79,6 +105,22 @@ namespace AppBackend.Services.ApiModels.RoomModel
         /// Tổng số phòng thuộc loại này
         /// </summary>
         public int TotalRoomCount { get; set; }
+    }
+
+    /// <summary>
+    /// DTO kết quả kiểm tra phòng trống theo loại phòng
+    /// </summary>
+    public class RoomAvailabilityCheckDto
+    {
+        public int RoomTypeId { get; set; }
+        public string RoomTypeName { get; set; } = string.Empty;
+        public string RoomTypeCode { get; set; } = string.Empty;
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public int RequestedQuantity { get; set; }
+        public int AvailableRoomCount { get; set; }
+        public bool IsAvailable { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 
     // ============= ROOM TYPE STATISTICS & ANALYTICS =============

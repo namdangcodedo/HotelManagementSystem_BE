@@ -185,6 +185,39 @@ namespace AppBackend.Services.Services.BookingServices
         }
 
         /// <summary>
+        /// Lấy toàn bộ phòng available theo loại (không dừng khi đủ số lượng)
+        /// Dùng cho UI để hiển thị danh sách phòng lựa chọn.
+        /// </summary>
+        public async Task<List<Room>> FindAllAvailableRoomsByTypeAsync(
+            int roomTypeId,
+            DateTime checkInDate,
+            DateTime checkOutDate)
+        {
+            _logger.LogInformation("[FindAllAvailableRoomsByTypeAsync] Listing all available rooms of type {RoomTypeId} from {CheckIn} to {CheckOut}",
+                roomTypeId, checkInDate, checkOutDate);
+
+            var allRoomsOfType = await _unitOfWork.Rooms.FindAsync(r => r.RoomTypeId == roomTypeId);
+            var availableRooms = new List<Room>();
+
+            foreach (var room in allRoomsOfType)
+            {
+                var isAvailable = await IsRoomAvailableAsync(room.RoomId, checkInDate, checkOutDate);
+                if (isAvailable)
+                {
+                    availableRooms.Add(room);
+                    _logger.LogInformation("[FindAllAvailableRoomsByTypeAsync] Room {RoomId} ({RoomName}) is available", room.RoomId, room.RoomName);
+                }
+                else
+                {
+                    _logger.LogInformation("[FindAllAvailableRoomsByTypeAsync] Room {RoomId} ({RoomName}) is NOT available", room.RoomId, room.RoomName);
+                }
+            }
+
+            _logger.LogInformation("[FindAllAvailableRoomsByTypeAsync] Total available rooms found: {Count}", availableRooms.Count);
+            return availableRooms;
+        }
+
+        /// <summary>
         /// Tính số đêm giữa 2 ngày
         /// </summary>
         public int CalculateNumberOfNights(DateTime checkInDate, DateTime checkOutDate)

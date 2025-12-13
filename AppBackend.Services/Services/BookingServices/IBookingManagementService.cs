@@ -21,6 +21,7 @@ namespace AppBackend.Services.Services.BookingServices
         
         // Search Available Rooms
         Task<ResultModel> SearchAvailableRoomsAsync(SearchAvailableRoomsRequest request);
+        Task<ResultModel> CheckAvailableRoomsAsync(CheckRoomAvailabilityRequest request);
         
         // Confirm Online Booking Payment (Manager/Admin only)
         Task<ResultModel> ConfirmOnlineBookingAsync(int bookingId, int? confirmedBy = null);
