@@ -8,6 +8,7 @@ using AppBackend.Services.Helpers;
 using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using RoomType = AppBackend.BusinessObjects.Models.RoomType;
 
 namespace AppBackend.Services.Services.BookingServices;
 
