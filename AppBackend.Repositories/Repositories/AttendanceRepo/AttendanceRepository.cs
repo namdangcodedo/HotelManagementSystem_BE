@@ -23,16 +23,24 @@ namespace AppBackend.Repositories.Repositories.AttendanceRepo
             var attendance = await _context.Attendances.Include(a => a.Employee).Where(a => a.EmployeeId == employeeId).ToListAsync();
             if(year != null)
             {
-                attendance = attendance.Where(a => a.CheckIn.Year == year).ToList();
+                attendance = attendance.Where(a => a.Workdate.Year == year).ToList();
             }
 
             if(month != null)
             {
-                attendance = attendance.Where(a => a.CheckIn.Month == month).ToList();
+                attendance = attendance.Where(a => a.Workdate.Month == month).ToList();
             }
 
             return attendance;
         }
+
+        public async Task<List<Attendance>> GetAttendancesWithEmployee()
+        {
+            var attendance = await _context.Attendances.Include(a => a.Employee).ToListAsync();
+
+            return attendance;
+        }
+
 
         public async Task<List<EmpAttendInfo>> GetAttendInfosByEmployeeId(int employeeId, int? year = null)
         {
@@ -50,7 +58,7 @@ namespace AppBackend.Repositories.Repositories.AttendanceRepo
         {
             month = month ?? DateTime.Now.Month;
             return await _context.Attendances
-                .Where(a => a.EmployeeId == employeeId && a.CheckIn.Month == month)
+                .Where(a => a.EmployeeId == employeeId && a.Workdate.Month == month)
                 .ToListAsync();
         }
 
@@ -58,7 +66,7 @@ namespace AppBackend.Repositories.Repositories.AttendanceRepo
         {
             year = year ?? DateTime.Now.Year;
             return await _context.Attendances
-                .Where(a => a.EmployeeId == employeeId && a.CheckIn.Year == year)
+                .Where(a => a.EmployeeId == employeeId && a.Workdate.Year == year)
                 .ToListAsync();
         }
 

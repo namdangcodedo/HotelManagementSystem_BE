@@ -16,9 +16,10 @@ namespace AppBackend.BusinessObjects.Dtos
 
         public decimal? OvertimeHours { get; set; }
 
-        public DateTime CheckIn { get; set; }
+        public TimeOnly CheckIn { get; set; }
 
-        public DateTime? CheckOut { get; set; }
+        public TimeOnly? CheckOut { get; set; }
+        public DateTime WorkDate { get; set; }
         public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
 

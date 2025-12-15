@@ -20,10 +20,11 @@ public partial class Attendance
     public string? DeviceEmployeeId { get; set; }
 
     [Required]
-    public DateTime CheckIn { get; set; }
+    public TimeOnly CheckIn { get; set; }
 
-    public DateTime? CheckOut { get; set; }
+    public TimeOnly? CheckOut { get; set; }
 
+    public DateTime Workdate { get; set; }
     public decimal? OvertimeHours { get; set; }
 
     [StringLength(255)]

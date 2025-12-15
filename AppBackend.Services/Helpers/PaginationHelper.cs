@@ -23,7 +23,7 @@ namespace AppBackend.Services.Helpers
                 TotalCount = pagedEntities.Count,
                 PageIndex = pageIndex,
                 PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling((double)pagedEntities.Count / pageSize)
+                TotalPages = (int)Math.Ceiling((double)entities.Count / pageSize)
             };
         }
     }

@@ -32,32 +32,37 @@ namespace AppBackend.Services.Services.AttendanceServices
 
         public async Task<ResultModel> GetEmployeeAttendance(GetAttendanceRequest request)
         {
-            var employeeId = request.EmployeeId;
-            if(employeeId != null)
+            var attendances = await _unitOfWork.AttendenceRepository.GetAttendancesWithEmployee();
+
+            if (!string.IsNullOrEmpty(request.EmployeeName))
             {
-                var employee = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == employeeId);
-                if(employee != null)
-                {
-                    var attendances = await _unitOfWork.AttendenceRepository.GetAttendancesByEmployeeId((int)employeeId, request.Month, request.Year);
-                    var attendanceDtos = _mapper.Map<List<AttendanceDTO>>(attendances);
-                    var pageAttendance = _paginationHelper.HandlePagination(attendanceDtos.Cast<dynamic>().ToList(), request.PageIndex, request.PageSize);
-                    return new ResultModel
-                    {
-                        IsSuccess = true,
-                        ResponseCode = CommonMessageConstants.SUCCESS,
-                        Message = "Danh sách attendance",
-                        Data = pageAttendance,
-                        StatusCode = StatusCodes.Status200OK
-                    };
-                }
+                attendances = attendances.Where(a => a.Employee.FullName.Contains(request.EmployeeName)).ToList();
             }
+
+            if (request.EmployeeId != null)
+            {
+                attendances = attendances.Where(a => a.EmployeeId == request.EmployeeId).ToList();
+            }
+
+            if (request.Month != null)
+            {
+                attendances = attendances.Where(a => a.Workdate.Month == request.Month).ToList();
+            }
+
+            if (request.Year != null)
+            {
+                attendances = attendances.Where(a => a.Workdate.Year == request.Year).ToList();
+            }
+
+            var attendanceDtos = _mapper.Map<List<AttendanceDTO>>(attendances);
+            var pageAttendance = _paginationHelper.HandlePagination(attendanceDtos.Cast<dynamic>().ToList(), request.PageIndex, request.PageSize);
             return new ResultModel
             {
-                IsSuccess = false,
-                ResponseCode = CommonMessageConstants.NOT_FOUND,
-                Message = string.Format(CommonMessageConstants.VALUE_NOT_FOUND, "Nhân viên"),
-                Data = null,
-                StatusCode = StatusCodes.Status404NotFound
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = "Danh sách attendance",
+                Data = pageAttendance,
+                StatusCode = StatusCodes.Status200OK
             };
         }
 
@@ -99,18 +104,19 @@ namespace AppBackend.Services.Services.AttendanceServices
 
             var lines = txtdata.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-            for (int i = 0; i < lines.Length; i=i+2)
+            for (int i = 0; i < lines.Length; i = i + 2)
             {
                 var lineCheckIn = lines[i];
-                var lineCheckOut = lines[i+1];
+                var lineCheckOut = lines[i + 1];
                 var checkInSplit = lineCheckIn.Split('|', StringSplitOptions.None);
                 var checkOutSplit = lineCheckOut.Split('|', StringSplitOptions.None);
 
                 var attendanceRecord = new Attendance
                 {
                     EmployeeId = int.Parse(checkInSplit[0].Trim()),
-                    CheckIn = DateTime.Parse(checkInSplit[2]),
-                    CheckOut = DateTime.Parse(checkOutSplit[2].Trim()),
+                    CheckIn = TimeOnly.FromTimeSpan(DateTime.Parse(checkInSplit[2]).TimeOfDay),
+                    CheckOut = TimeOnly.FromTimeSpan(DateTime.Parse(checkOutSplit[2]).TimeOfDay),
+                    Workdate = DateTime.Parse(checkInSplit[2].Trim()),
                     Status = AttendanceStatus.Attended.ToString(),
                     IsApproved = ApprovalStatus.Approved.ToString(),
                     CreatedAt = DateTime.Now
@@ -134,7 +140,7 @@ namespace AppBackend.Services.Services.AttendanceServices
             foreach (var attendance in request.Attendances)
             {
                 var result = await UpsertAttendance(attendance);
-                if(result.IsSuccess == false)
+                if (result.IsSuccess == false)
                 {
                     return result;
                 }
@@ -157,14 +163,14 @@ namespace AppBackend.Services.Services.AttendanceServices
             var employee = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == employeeId);
             if (employee != null)
             {
-                if (attendanceId != null)
+                if (attendanceId != null && attendanceId != 0)
                 {
                     var existingAttendance = await _unitOfWork.AttendenceRepository.GetSingleAsync(a => a.AttendanceId == attendanceId);
                     if (existingAttendance != null)
                     {
                         _mapper.Map(request, existingAttendance);
                         await _unitOfWork.AttendenceRepository.UpdateAsync(existingAttendance);
-                        _unitOfWork.SaveChangesAsync();
+                        await _unitOfWork.SaveChangesAsync();
                         return new ResultModel
                         {
                             IsSuccess = true,
@@ -195,7 +201,7 @@ namespace AppBackend.Services.Services.AttendanceServices
 
                     return resultModel;
                 }
-                
+
             }
 
             return new ResultModel
@@ -214,7 +220,7 @@ namespace AppBackend.Services.Services.AttendanceServices
             if (entity.Status.Equals(AttendanceStatus.Attended))
             {
                 entity.IsApproved = ApprovalStatus.Approved.ToString();
-                if(entity.CheckIn == null || entity.CheckOut == null)
+                if (entity.CheckIn == null || entity.CheckOut == null)
                 {
                     return new ResultModel
                     {
@@ -226,7 +232,7 @@ namespace AppBackend.Services.Services.AttendanceServices
                     };
                 }
 
-                if(entity.CheckOut <= entity.CheckIn)
+                if (entity.CheckOut <= entity.CheckIn)
                 {
                     return new ResultModel
                     {
@@ -245,9 +251,13 @@ namespace AppBackend.Services.Services.AttendanceServices
                 //xử lý attendInfo
             }
 
+            await _unitOfWork.AttendenceRepository.AddAsync(entity);
+            await _unitOfWork.SaveChangesAsync();
+            
+
             return new ResultModel
             {
-                IsSuccess = false,
+                IsSuccess = true,
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = "Upsert attendance thành công",
                 Data = null,
@@ -260,7 +270,7 @@ namespace AppBackend.Services.Services.AttendanceServices
             var employeeId = request.EmployeeId;
             var attendInfoId = request.AttendInfoId;
             var employee = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == employeeId);
-            if(employee != null)
+            if (employee != null)
             {
                 var attendInfo = _mapper.Map<EmpAttendInfo>(request);
                 _unitOfWork.AttendenceRepository.UpsertAttendInfo(attendInfo);
@@ -272,7 +282,7 @@ namespace AppBackend.Services.Services.AttendanceServices
                     ResponseCode = CommonMessageConstants.SUCCESS,
                     Message = "Upsert AttendInfo thành công",
                     Data = null,
-                    StatusCode = StatusCodes.Status404NotFound
+                    StatusCode = StatusCodes.Status201Created
                 };
             }
 
@@ -285,5 +295,40 @@ namespace AppBackend.Services.Services.AttendanceServices
                 StatusCode = StatusCodes.Status404NotFound
             };
         }
+
+        public async Task<ResultModel> GetStaticInfo(GetAttendanceRequest request)
+        {
+            var attendance = await _unitOfWork.AttendenceRepository.GetAllAsync();
+            var attendanceAttend = attendance.Where(a => a.Status.Equals(AttendanceStatus.Attended.ToString())).ToList();
+            var attendanceAbsentWithoutLeave = attendance.Where(a => a.Status.Equals(AttendanceStatus.AbsentWithoutLeave.ToString())).ToList();
+            var attendanceAbsentWithLeave = attendance.Where(a => a.Status.Equals(AttendanceStatus.AbsentWithLeave.ToString())).ToList();
+
+            var staticModel = new AttendanceStatic
+            {
+                attendance = attendance.Count(),
+                attend = attendanceAttend.Count(),
+                absentWithLeave = attendanceAbsentWithLeave.Count(),
+                absentWithoutLeave = attendanceAbsentWithoutLeave.Count()
+            };
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = "",
+                Data = staticModel,
+                StatusCode = StatusCodes.Status201Created
+            };
+        }
+
+    }
+
+    public class AttendanceStatic
+    {
+        public int attendance { get; set; }
+        public int attend { get; set; }
+        public int absentWithLeave { get; set; }
+        public int absentWithoutLeave { get; set; }
+
     }
 }

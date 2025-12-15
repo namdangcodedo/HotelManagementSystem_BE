@@ -1,4 +1,5 @@
 using AppBackend.BusinessObjects.Data;
+using AppBackend.BusinessObjects.Enums;
 using AppBackend.BusinessObjects.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -125,18 +126,20 @@ namespace AppBackend.ApiCore.Extension
             for (int i = 0; i < target && employees.Any(); i++)
             {
                 var emp = employees[i % employees.Count];
-                var checkIn = DateTime.UtcNow.Date.AddDays(-(i + 1)).AddHours(8);
-                var checkOut = checkIn.AddHours(8);
+                var workDate = DateTime.UtcNow.Date.AddDays(-(i + 1)).AddHours(8);
+                var checkIn = TimeOnly.FromTimeSpan(workDate.TimeOfDay);
+                var checkOut = TimeOnly.FromTimeSpan(workDate.AddHours(8).TimeOfDay);
                 await context.Attendances.AddAsync(new Attendance
                 {
                     EmployeeId = emp.EmployeeId,
                     CheckIn = checkIn,
                     CheckOut = checkOut,
+                    Workdate = workDate,
                     OvertimeHours = i % 2 == 0 ? 1 : 0,
                     Notes = "Demo attendance",
                     CreatedAt = DateTime.UtcNow,
-                    Status = "Completed",
-                    IsApproved = "Yes"
+                    Status = AttendanceStatus.Attended.ToString(),
+                    IsApproved = ApprovalStatus.Approved.ToString()
                 });
             }
             await context.SaveChangesAsync();

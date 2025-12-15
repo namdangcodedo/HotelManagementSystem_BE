@@ -1,3 +1,4 @@
+using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.AttendanceModel;
 using AppBackend.Services.ApiModels.EmployeeModel;
 using AppBackend.Services.Services.AttendanceServices;
@@ -33,16 +34,16 @@ namespace AppBackend.ApiCore.Controllers
             return HandleResult(result);
         }
 
-        [HttpPost("GetAttendance")]
+        [HttpGet("")]
         //[Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> GetEmployeeAttendance(GetAttendanceRequest request)
+        public async Task<IActionResult> GetEmployeeAttendance([FromQuery] GetAttendanceRequest request)
         {
             var result = await _attendanceService.GetEmployeeAttendance(request);
             return HandleResult(result);
         }
 
         
-        [HttpPost("UpsertAttendance")]
+        [HttpPost("")]
         //[Authorize(Roles = "Admin,Manager")]
         public async Task<IActionResult> UpsertAttendance([FromBody] PostAttendanceRequest request)
         {
@@ -63,6 +64,13 @@ namespace AppBackend.ApiCore.Controllers
         public async Task<IActionResult> HandleEncrypt([FromBody] EncryptTxtAttendanceRequest request)
         {
             var result = await _attendanceService.HandelEncryptData(request);
+            return HandleResult(result);
+        }
+
+        [HttpGet("static-info")]
+        public async Task<IActionResult> GetStaticInfo([FromQuery] GetAttendanceRequest request)
+        {
+            var result = await _attendanceService.GetStaticInfo(request);
             return HandleResult(result);
         }
 

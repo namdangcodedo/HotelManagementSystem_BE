@@ -12,6 +12,8 @@ namespace AppBackend.Services.Services.AttendanceServices
         Task<ResultModel> UpsertAttendance(PostAttendanceRequest request);
         Task<ResultModel> InsertAttendances(PostAttendancesRequest request);
         Task<ResultModel> UpsertAttendInfo(PostAttendInfoRequest request);
+        Task<ResultModel> GetStaticInfo(GetAttendanceRequest request);
+
 
     }
 }
