@@ -1453,40 +1453,17 @@ public class BookingManagementService : IBookingManagementService
             booking.UpdatedAt = DateTime.UtcNow;
             await _unitOfWork.Bookings.UpdateAsync(booking);
 
-            // ===== TẠO TRANSACTION CHO DEPOSIT =====
-            // Lấy payment status và transaction status
-            var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
-            var completedTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
-
-            // Lấy payment method (giả sử QR hoặc BankTransfer)
-            var bankTransferMethod = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentMethod" && c.CodeName == "BankTransfer")).FirstOrDefault();
-
-            if (paidStatus != null && completedTransactionStatus != null && bankTransferMethod != null)
-            {
-                // Tạo transaction cho deposit
-                var depositTransaction = new Transaction
-                {
-                    BookingId = booking.BookingId,
-                    TotalAmount = totalAmount,
-                    PaidAmount = depositAmount, // Deposit amount đã trả
-                    DepositAmount = depositAmount,
-                    DepositStatusId = paidStatus.CodeId,
-                    DepositDate = DateTime.UtcNow,
-                    PaymentMethodId = bankTransferMethod.CodeId,
-                    PaymentStatusId = paidStatus.CodeId,
-                    TransactionStatusId = completedTransactionStatus.CodeId,
-                    TransactionRef = $"DEPOSIT-{booking.BookingId}-{DateTime.UtcNow.Ticks}",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = confirmedBy, // Manager/Admin xác nhận deposit
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = confirmedBy
-                };
-
-                await _unitOfWork.Transactions.AddAsync(depositTransaction);
-            }
+            // ===== KHÔNG TẠO TRANSACTION CHO DEPOSIT =====
+            // Lý do: Transaction chỉ được tạo 1 LẦN DUY NHẤT khi CHECKOUT hoàn tất
+            // Nếu tạo transaction cho deposit (30%) + transaction cho checkout (100%)
+            // → Dashboard sẽ tính DUPLICATE doanh thu (130% thay vì 100%)
+            //
+            // Luồng đúng:
+            // 1. Khách đặt online → Status = Pending
+            // 2. Khách chuyển khoản deposit 30% → Status = PendingConfirmation  
+            // 3. Manager xác nhận nhận được tiền → Status = Confirmed (KHÔNG tạo transaction)
+            // 4. Khách check-in → Status = CheckedIn
+            // 5. Khách checkout, trả 70% còn lại → Status = Completed + TẠO TRANSACTION duy nhất (ghi 100%)
 
             await _unitOfWork.SaveChangesAsync();
 

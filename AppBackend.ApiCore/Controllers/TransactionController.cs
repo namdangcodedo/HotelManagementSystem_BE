@@ -269,9 +269,11 @@ namespace AppBackend.ApiCore.Controllers
         #region PayOS Payment Link
 
         /// <summary>
-        /// Create a PayOS payment link for a booking
+        /// Create a payment QR link for checkout (using VietQR)
+        /// Returns QR code for remaining amount after deposit
         /// </summary>
         [HttpPost("payment/payos/link")]
+        [AllowAnonymous]
         public async Task<IActionResult> CreatePayOSPaymentLink([FromBody] CreatePayOSPaymentRequest request)
         {
             if (!ModelState.IsValid)

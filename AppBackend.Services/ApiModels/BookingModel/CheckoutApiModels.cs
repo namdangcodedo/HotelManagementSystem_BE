@@ -44,7 +44,10 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class CheckoutResponse
     {
         public int BookingId { get; set; }
-        public string BookingType { get; set; } = string.Empty; // Online/Offline
+        public string BookingType { get; set; } = string.Empty; // Hiển thị: "Online", "Đặt tại quầy"
+        public string BookingTypeCode { get; set; } = string.Empty; // Logic: "Online", "WalkIn"
+        public string BookingStatus { get; set; } = string.Empty; // Hiển thị: "Đã xác nhận", "Hoàn thành"
+        public string BookingStatusCode { get; set; } = string.Empty; // Logic: "Confirmed", "Completed"
 
         /// <summary>
         /// Thông tin khách hàng
@@ -133,7 +136,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public int BookingRoomId { get; set; }
         public int RoomId { get; set; }
         public string RoomName { get; set; } = string.Empty;
-        public string RoomTypeName { get; set; } = string.Empty;
+        public string RoomTypeName { get; set; } = string.Empty; // Hiển thị: "Phòng Tiêu Chuẩn"
+        public string RoomTypeCode { get; set; } = string.Empty; // Logic: "Standard"
         public decimal PricePerNight { get; set; }
         public int PlannedNights { get; set; }
         public int ActualNights { get; set; }
@@ -148,7 +152,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class ServiceChargeDetail
     {
         public int ServiceId { get; set; }
-        public string ServiceName { get; set; } = string.Empty;
+        public string ServiceName { get; set; } = string.Empty; // Hiển thị: "Giặt ủi"
+        public string ServiceCode { get; set; } = string.Empty; // Logic: "Laundry"
         public decimal PricePerUnit { get; set; }
         public int Quantity { get; set; }
         public decimal SubTotal { get; set; } // PricePerUnit × Quantity
@@ -177,7 +182,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
     public class PreviewCheckoutResponse
     {
         public int BookingId { get; set; }
-        public string BookingType { get; set; } = string.Empty;
+        public string BookingType { get; set; } = string.Empty; // Hiển thị: "Online", "Đặt tại quầy"
+        public string BookingTypeCode { get; set; } = string.Empty; // Logic: "Online", "WalkIn"
         public CustomerCheckoutInfo Customer { get; set; } = new CustomerCheckoutInfo();
 
         public DateTime CheckInDate { get; set; }
@@ -205,5 +211,8 @@ namespace AppBackend.Services.ApiModels.BookingModel
         /// Warning nếu checkout sớm/muộn so với dự kiến
         /// </summary>
         public string? Message { get; set; }
+
+        public string BookingStatus { get; set; }
+        public string BookingStatusCode { get; set; }
     }
 }

@@ -70,7 +70,17 @@ namespace AppBackend.Services.Services.CheckoutServices
 
                 // 3. Xác định checkout date
                 var checkoutDate = request.EstimatedCheckOutDate ?? booking.CheckOutDate;
-                bool isOnlineBooking = booking.BookingType?.CodeValue == "Online";
+                
+                // CRITICAL FIX: Phải dùng CodeName (English) thay vì CodeValue (Tiếng Việt)
+                bool isOnlineBooking = booking.BookingType?.CodeName == "Online";
+                
+                // Debug logging
+                _logger.LogInformation("PreviewCheckout - BookingId: {BookingId}, BookingType CodeName: {CodeName}, CodeValue: {CodeValue}, IsOnline: {IsOnline}, DepositAmount: {Deposit}",
+                    booking.BookingId,
+                    booking.BookingType?.CodeName ?? "null",
+                    booking.BookingType?.CodeValue ?? "null",
+                    isOnlineBooking,
+                    booking.DepositAmount);
 
                 // 4. Tính tiền phòng
                 var roomCharges = await CalculateRoomChargesAsync(booking, checkoutDate, isOnlineBooking);
@@ -82,7 +92,17 @@ namespace AppBackend.Services.Services.CheckoutServices
 
                 // 6. Tính tổng
                 decimal subTotal = totalRoomCharges + totalServiceCharges;
-                decimal depositPaid = isOnlineBooking ? booking.DepositAmount : 0;
+                
+                // CRITICAL: Nếu là online booking, deposit phải = 30% của totalAmount
+                // Nếu booking.DepositAmount chưa được set, tính lại
+                decimal depositPaid = 0;
+                if (isOnlineBooking)
+                {
+                    depositPaid = booking.DepositAmount > 0 ? booking.DepositAmount : (subTotal * 0.3m);
+                    _logger.LogInformation("Online Booking - Calculated Deposit: {Deposit} (from DB: {DBDeposit})", 
+                        depositPaid, booking.DepositAmount);
+                }
+                
                 decimal totalAmount = subTotal;
                 decimal amountDue = totalAmount - depositPaid;
 
@@ -101,6 +121,9 @@ namespace AppBackend.Services.Services.CheckoutServices
                 {
                     BookingId = booking.BookingId,
                     BookingType = booking.BookingType?.CodeValue ?? "Unknown",
+                    BookingTypeCode = booking.BookingType?.CodeName ?? "Unknown",
+                    BookingStatus = booking.Status.CodeValue ?? "Unknown",
+                    BookingStatusCode = booking.Status.CodeName ?? "Unknown",
                     Customer = new CustomerCheckoutInfo
                     {
                         CustomerId = booking.Customer.CustomerId,
@@ -195,7 +218,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                     };
                 }
 
-                bool isOnlineBooking = booking.BookingType?.CodeValue == "Online";
+                bool isOnlineBooking = booking.BookingType?.CodeName == "Online";
 
                 // 3. Tính tiền phòng
                 var roomCharges = await CalculateRoomChargesAsync(booking, request.ActualCheckOutDate, isOnlineBooking);
@@ -212,7 +235,13 @@ namespace AppBackend.Services.Services.CheckoutServices
 
                 // Nếu là booking ONLINE: Đã trả 30% deposit trước → trừ ra
                 // Nếu là booking OFFLINE: Không có deposit → thanh toán full
-                decimal depositPaid = isOnlineBooking ? booking.DepositAmount : 0;
+                // CRITICAL: Nếu booking.DepositAmount chưa được set, tính lại
+                decimal depositPaid = 0;
+                if (isOnlineBooking)
+                {
+                    depositPaid = booking.DepositAmount > 0 ? booking.DepositAmount : (subTotal * 0.3m);
+                }
+                
                 decimal totalAmount = subTotal;
                 decimal amountDue = totalAmount - depositPaid; // Số tiền còn phải trả tại quầy
 
@@ -236,7 +265,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                     c.CodeType == "BookingStatus" && c.CodeName == "Completed")).FirstOrDefault();
                 var availableRoomStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                     c.CodeType == "RoomStatus" && c.CodeName == "Available")).FirstOrDefault();
-
+                
                 if (paidStatus == null || completedTransactionStatus == null ||
                     completedBookingStatus == null || availableRoomStatus == null)
                 {
@@ -248,23 +277,30 @@ namespace AppBackend.Services.Services.CheckoutServices
                     };
                 }
 
-                // 7. Tạo transaction cho CHECKOUT (ghi nhận thanh toán remaining amount)
-                // NOTE: Deposit đã được ghi nhận trong Transaction khi Manager confirm booking
-                // Transaction này CHỈ ghi nhận số tiền TRẢ LÚC CHECKOUT (không bao gồm deposit)
+                // 7. Tạo transaction cho CHECKOUT (ghi nhận TOÀN BỘ thanh toán của booking này)
+                // QUAN TRỌNG: 
+                // - TotalAmount: Tổng hóa đơn (phòng + dịch vụ)
+                // - PaidAmount: TOÀN BỘ số tiền đã thanh toán (bao gồm deposit nếu online + số tiền trả tại quầy)
+                // - DepositAmount: Số tiền deposit đã trả trước (nếu online booking)
+                // 
+                // Lý do: Dashboard tính doanh thu bằng SUM(PaidAmount) của TẤT CẢ transactions
+                // Nếu chỉ ghi amountDue (70%), dashboard sẽ thiếu 30% deposit!
                 var transaction = new Transaction
                 {
                     BookingId = booking.BookingId,
                     TotalAmount = totalAmount, // Tổng hóa đơn (room + services)
-                    PaidAmount = amountDue, // Số tiền TRẢ TẠI QUẦY (đã trừ deposit nếu online)
+                    PaidAmount = totalAmount, // TOÀN BỘ số tiền khách đã thanh toán (100%)
                     PaymentMethodId = request.PaymentMethodId,
                     PaymentStatusId = paidStatus.CodeId,
                     TransactionStatusId = completedTransactionStatus.CodeId,
-                    DepositAmount = depositPaid, // Reference deposit đã trả trước (nếu online)
+                    DepositAmount = depositPaid, // Số tiền deposit đã trả trước (30% nếu online, 0 nếu offline)
                     DepositStatusId = depositPaid > 0 ? paidStatus.CodeId : null,
+                    DepositDate = depositPaid > 0 ? booking.CreatedAt : null, // Ngày trả deposit (lúc tạo booking)
                     TransactionRef = request.TransactionReference ?? $"CHECKOUT-{booking.BookingId}-{DateTime.UtcNow.Ticks}",
                     CreatedAt = DateTime.UtcNow,
                     CreatedBy = processedBy, // Lễ tân xử lý checkout
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    UpdatedBy = processedBy
                 };
 
                 await _unitOfWork.Transactions.AddAsync(transaction);
@@ -296,6 +332,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                 {
                     BookingId = booking.BookingId,
                     BookingType = booking.BookingType?.CodeValue ?? "Unknown",
+                    BookingTypeCode = booking.BookingType?.CodeName ?? "Unknown",
                     Customer = new CustomerCheckoutInfo
                     {
                         CustomerId = booking.Customer.CustomerId,
@@ -553,7 +590,8 @@ namespace AppBackend.Services.Services.CheckoutServices
                     BookingRoomId = bookingRoom.BookingRoomId,
                     RoomId = bookingRoom.RoomId,
                     RoomName = bookingRoom.Room.RoomName,
-                    RoomTypeName = bookingRoom.Room.RoomType.TypeName,
+                    RoomTypeName = bookingRoom.Room.RoomType.TypeName, // CodeValue - Hiển thị
+                    RoomTypeCode = bookingRoom.Room.RoomType.TypeCode ?? "", // CodeName - Logic
                     PricePerNight = bookingRoom.PricePerNight,
                     PlannedNights = bookingRoom.NumberOfNights,
                     ActualNights = actualNights,
@@ -584,7 +622,8 @@ namespace AppBackend.Services.Services.CheckoutServices
                     serviceCharges.Add(new ServiceChargeDetail
                     {
                         ServiceId = roomService.ServiceId,
-                        ServiceName = roomService.Service.ServiceName,
+                        ServiceName = roomService.Service.ServiceName, // Hiển thị
+                        ServiceCode = roomService.Service.ServiceName, // Logic (Service không có code riêng)
                         PricePerUnit = roomService.PriceAtTime,
                         Quantity = roomService.Quantity,
                         SubTotal = roomService.PriceAtTime * roomService.Quantity,
@@ -603,7 +642,8 @@ namespace AppBackend.Services.Services.CheckoutServices
                 serviceCharges.Add(new ServiceChargeDetail
                 {
                     ServiceId = bookingService.ServiceId,
-                    ServiceName = bookingService.Service.ServiceName,
+                    ServiceName = bookingService.Service.ServiceName, // Hiển thị
+                    ServiceCode = bookingService.Service.ServiceName, // Logic (Service không có code riêng)
                     PricePerUnit = bookingService.PriceAtTime,
                     Quantity = bookingService.Quantity,
                     SubTotal = bookingService.TotalPrice,
