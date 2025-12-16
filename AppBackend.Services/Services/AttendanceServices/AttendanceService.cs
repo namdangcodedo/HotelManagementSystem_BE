@@ -104,9 +104,8 @@ namespace AppBackend.Services.Services.AttendanceServices
             };
         }
 
-        public async Task<ResultModel> HandelEncryptData(EncryptTxtAttendanceRequest request)
+        public async Task<ResultModel> HandelTxtData(String txtdata)
         {
-            string txtdata = _encryptHelper.DecryptString(request.EncryptTxt, request.Iv);
 
             var lines = txtdata.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 

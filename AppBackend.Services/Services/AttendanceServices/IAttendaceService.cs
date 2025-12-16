@@ -6,7 +6,7 @@ namespace AppBackend.Services.Services.AttendanceServices
 {
     public interface IAttendaceService
     {
-        Task<ResultModel> HandelEncryptData(EncryptTxtAttendanceRequest request);
+        Task<ResultModel> HandelTxtData(string txtData);
         Task<ResultModel> GetEmployeeAttendInfo(GetAttendanceRequest request);
         Task<ResultModel> GetEmployeeAttendance(GetAttendanceRequest request);
         Task<ResultModel> UpsertAttendance(PostAttendanceRequest request);

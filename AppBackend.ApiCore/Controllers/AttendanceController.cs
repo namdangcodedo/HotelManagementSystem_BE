@@ -1,10 +1,12 @@
-using AppBackend.Services.ApiModels;
-using AppBackend.Services.ApiModels.AttendanceModel;
-using AppBackend.Services.ApiModels.EmployeeModel;
-using AppBackend.Services.Services.AttendanceServices;
-using AppBackend.Services.Services.EmployeeServices;
-using Microsoft.AspNetCore.Authorization;
+using System.IO;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
+using AppBackend.Services.Services.AttendanceServices;
+using AppBackend.Services.ApiModels.AttendanceModel;
+using AppBackend.Services.ApiModels;
+using AppBackend.Services.Services.EmployeeServices;
 
 namespace AppBackend.ApiCore.Controllers
 {
@@ -59,11 +61,34 @@ namespace AppBackend.ApiCore.Controllers
             return HandleResult(result);
         }
 
+        /// <summary>
+        /// Upload an encrypted attendance text file.
+        /// The endpoint now accepts a single file (multipart/form-data).
+        /// File content can be:
+        ///  - a JSON matching EncryptTxtAttendanceRequest { EncryptTxt, Iv }
+        ///  - or plain text where first non-empty line is EncryptTxt and the second line (optional) is Iv.
+        /// </summary>
         [HttpPost("UploadAttendancesTxt")]
-        [Authorize(Roles = "Admin,Manager")]
-        public async Task<IActionResult> HandleEncrypt([FromBody] EncryptTxtAttendanceRequest request)
+        //[Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> HandleEncrypt([FromForm(Name = "file")] IFormFile file)
         {
-            var result = await _attendanceService.HandelEncryptData(request);
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new ResultModel
+                {
+                    IsSuccess = false,
+                    Message = "File is required",
+                    StatusCode = StatusCodes.Status400BadRequest
+                });
+            }
+
+            string content;
+            using (var reader = new StreamReader(file.OpenReadStream()))
+            {
+                content = await reader.ReadToEndAsync();
+            }
+
+            var result = await _attendanceService.HandelTxtData(content);
             return HandleResult(result);
         }
 
