@@ -327,6 +327,75 @@ namespace AppBackend.Services.ApiModels.DashboardModel
 
     #endregion
 
+    #region New Dashboard API DTOs
+
+    /// <summary>
+    /// Dashboard statistics response - matches frontend API spec
+    /// </summary>
+    public class DashboardStatsDto
+    {
+        // === BOOKING STATISTICS ===
+        public int TotalBookings { get; set; }
+        public int BookingsThisMonth { get; set; }
+        public int BookingsLastMonth { get; set; }
+        public decimal BookingsGrowth { get; set; }
+
+        // === REVENUE STATISTICS ===
+        public decimal TotalRevenue { get; set; }
+        public decimal RevenueThisMonth { get; set; }
+        public decimal RevenueLastMonth { get; set; }
+        public decimal RevenueGrowth { get; set; }
+        public decimal AverageRoomRate { get; set; }
+
+        // === CUSTOMER STATISTICS ===
+        public int TotalCustomers { get; set; }
+        public int NewCustomersThisMonth { get; set; }
+        public decimal CustomersGrowth { get; set; }
+
+        // === ROOM STATISTICS ===
+        public int TotalRooms { get; set; }
+        public int AvailableRooms { get; set; }
+        public int OccupiedRooms { get; set; }
+        public int MaintenanceRooms { get; set; }
+        public decimal OccupancyRate { get; set; }
+
+        // === TRANSACTION STATISTICS ===
+        public int TotalTransactions { get; set; }
+        public int CompletedPayments { get; set; }
+        public int PendingPayments { get; set; }
+    }
+
+    /// <summary>
+    /// Room status item for room-status endpoint
+    /// </summary>
+    public class RoomStatusDto
+    {
+        public string Status { get; set; } = string.Empty; // available, occupied, maintenance
+        public int Count { get; set; }
+        public decimal Percentage { get; set; }
+    }
+
+    /// <summary>
+    /// Revenue by month item
+    /// </summary>
+    public class RevenueByMonthDto
+    {
+        public string Month { get; set; } = string.Empty; // "01", "02", ..., "12"
+        public int Year { get; set; }
+        public decimal Revenue { get; set; }
+        public int Bookings { get; set; }
+    }
+
+    /// <summary>
+    /// Request for revenue by month
+    /// </summary>
+    public class RevenueByMonthRequest
+    {
+        public int Months { get; set; } = 12;
+    }
+
+    #endregion
+
     #region Summary Response DTOs
 
     /// <summary>
