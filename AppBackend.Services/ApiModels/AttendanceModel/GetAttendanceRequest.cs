@@ -9,6 +9,8 @@ namespace AppBackend.Services.ApiModels.AttendanceModel
         public int? Year { get; set; }
         public int? Month { get; set; }
 
+        public DateTime? workDate { get; set; }
+
     }
 }
 

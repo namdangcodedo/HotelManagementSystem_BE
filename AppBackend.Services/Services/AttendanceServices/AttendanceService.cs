@@ -54,6 +54,12 @@ namespace AppBackend.Services.Services.AttendanceServices
                 attendances = attendances.Where(a => a.Workdate.Year == request.Year).ToList();
             }
 
+            if (request.workDate != null)
+            {
+                attendances = attendances.Where(a => a.Workdate == request.workDate).ToList();
+
+            }
+
             var attendanceDtos = _mapper.Map<List<AttendanceDTO>>(attendances);
             var pageAttendance = _paginationHelper.HandlePagination(attendanceDtos.Cast<dynamic>().ToList(), request.PageIndex, request.PageSize);
             return new ResultModel
