@@ -106,29 +106,153 @@ namespace AppBackend.Services.Services.AttendanceServices
 
         public async Task<ResultModel> HandelTxtData(String txtdata)
         {
-
-            var lines = txtdata.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-            for (int i = 0; i < lines.Length; i = i + 2)
+            if (string.IsNullOrWhiteSpace(txtdata))
             {
-                var lineCheckIn = lines[i];
-                var lineCheckOut = lines[i + 1];
-                var checkInSplit = lineCheckIn.Split('|', StringSplitOptions.None);
-                var checkOutSplit = lineCheckOut.Split('|', StringSplitOptions.None);
-
-                var attendanceRecord = new Attendance
+                return new ResultModel
                 {
-                    EmployeeId = int.Parse(checkInSplit[0].Trim()),
-                    CheckIn = TimeOnly.FromTimeSpan(DateTime.Parse(checkInSplit[2]).TimeOfDay),
-                    CheckOut = TimeOnly.FromTimeSpan(DateTime.Parse(checkOutSplit[2]).TimeOfDay),
-                    Workdate = DateTime.Parse(checkInSplit[2].Trim()),
-                    Status = AttendanceStatus.Attended.ToString(),
-                    IsApproved = ApprovalStatus.Approved.ToString(),
-                    CreatedAt = DateTime.Now
+                    IsSuccess = false,
+                    ResponseCode = CommonMessageConstants.INVALID,
+                    Message = "Input data is empty",
+                    Data = null,
+                    StatusCode = StatusCodes.Status400BadRequest
                 };
-                await _unitOfWork.AttendenceRepository.AddAsync(attendanceRecord);
-                _unitOfWork.SaveChangesAsync();
             }
+
+            // Normalize line endings and split into non-empty lines
+            var lines = txtdata
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => l.Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToList();
+
+            // Temporary storage grouped by employeeId and workdate
+            var grouped = new Dictionary<(int employeeId, DateTime date), List<DateTime>>();
+
+            foreach (var line in lines)
+            {
+                var parts = line.Split('|', StringSplitOptions.None).Select(p => p.Trim()).ToArray();
+                if (parts.Length == 0) continue;
+
+                // First column is employee code (string)
+                var codeToken = parts[0];
+
+                // Try to find a datetime token in the line (robust to which column it's in)
+                DateTime timestamp;
+                string? dateToken = parts.FirstOrDefault(p => DateTime.TryParse(p, out _));
+                if (dateToken == null)
+                {
+                    // no timestamp found -> skip
+                    continue;
+                }
+                DateTime.TryParse(dateToken, out timestamp);
+
+                // Try to determine EmployeeId:
+                // 1) prefer numeric token (commonly present) that maps to an existing employee
+                // 2) fallback: try parse first column (remove leading zeros) as id
+                int? employeeId = null;
+
+                // search tokens for integer that corresponds to an EmployeeId in DB
+                foreach (var p in parts)
+                {
+                    if (int.TryParse(p, out var parsedId))
+                    {
+                        var empCheck = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == parsedId);
+                        if (empCheck != null)
+                        {
+                            employeeId = parsedId;
+                            break;
+                        }
+                    }
+                }
+
+                // fallback: try parse first column after trimming leading zeros
+                if (employeeId == null)
+                {
+                    var trimmed = codeToken.TrimStart('0');
+                    if (int.TryParse(trimmed, out var parsedFromCode))
+                    {
+                        var empCheck = await _unitOfWork.Employees.GetSingleAsync(e => e.EmployeeId == parsedFromCode);
+                        if (empCheck != null)
+                        {
+                            employeeId = parsedFromCode;
+                        }
+                    }
+                }
+
+                // If still not found, skip this line (unknown employee)
+                if (employeeId == null) continue;
+
+                var dateOnly = timestamp.Date;
+                var key = ((int)employeeId, dateOnly);
+
+                if (!grouped.ContainsKey(key))
+                    grouped[key] = new List<DateTime>();
+
+                grouped[key].Add(timestamp);
+            }
+
+            // Process grouped records: keep earliest time as CheckIn and latest time as CheckOut per employee/day
+            foreach (var kvp in grouped)
+            {
+                var employeeId = kvp.Key.employeeId;
+                var date = kvp.Key.date;
+                var timestamps = kvp.Value;
+
+                var earliest = timestamps.Min();
+                var latest = timestamps.Max();
+
+                // Try to find existing attendance for that employee and date
+                var existing = await _unitOfWork.AttendenceRepository
+                    .GetSingleAsync(a =>
+                        a.EmployeeId == employeeId &&
+                        a.Workdate.Year == date.Year &&
+                        a.Workdate.Month == date.Month &&
+                        a.Workdate.Day == date.Day);
+
+                if (existing != null)
+                {
+                    // update earliest check-in / latest check-out
+                    var existingCheckIn = existing.CheckIn;
+                    var existingCheckOut = existing.CheckOut;
+
+                    var newCheckIn = TimeOnly.FromTimeSpan(earliest.TimeOfDay);
+                    var newCheckOut = TimeOnly.FromTimeSpan(latest.TimeOfDay);
+
+                    // If existing has a check-in that is earlier, keep it; otherwise use newCheckIn
+                    if (newCheckIn < existingCheckIn)
+                        existing.CheckIn = newCheckIn;
+
+                    // Update CheckOut to be the latest known time
+                    if (existingCheckOut == null || newCheckOut > existingCheckOut)
+                        existing.CheckOut = newCheckOut;
+
+                    existing.UpdatedAt = DateTime.Now;
+                    existing.Status = AttendanceStatus.Attended.ToString();
+                    existing.IsApproved = ApprovalStatus.Approved.ToString();
+
+                    await _unitOfWork.AttendenceRepository.UpdateAsync(existing);
+                }
+                else
+                {
+                    // create new attendance entry
+                    var attendanceRecord = new Attendance
+                    {
+                        EmployeeId = employeeId,
+                        DeviceEmployeeId = null,
+                        CheckIn = TimeOnly.FromTimeSpan(earliest.TimeOfDay),
+                        CheckOut = (latest > earliest) ? TimeOnly.FromTimeSpan(latest.TimeOfDay) : null,
+                        Workdate = date,
+                        Status = AttendanceStatus.Attended.ToString(),
+                        IsApproved = ApprovalStatus.Approved.ToString(),
+                        CreatedAt = DateTime.Now
+                    };
+
+                    await _unitOfWork.AttendenceRepository.AddAsync(attendanceRecord);
+                }
+            }
+
+            // Persist changes
+            await _unitOfWork.SaveChangesAsync();
 
             return new ResultModel
             {

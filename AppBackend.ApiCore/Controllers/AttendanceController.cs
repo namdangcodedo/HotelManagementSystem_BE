@@ -6,7 +6,6 @@ using Newtonsoft.Json;
 using AppBackend.Services.Services.AttendanceServices;
 using AppBackend.Services.ApiModels.AttendanceModel;
 using AppBackend.Services.ApiModels;
-using AppBackend.Services.Services.EmployeeServices;
 
 namespace AppBackend.ApiCore.Controllers
 {
