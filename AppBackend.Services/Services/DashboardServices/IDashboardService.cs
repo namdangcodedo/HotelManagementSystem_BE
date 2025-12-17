@@ -5,108 +5,32 @@ namespace AppBackend.Services.Services.DashboardServices
 {
     public interface IDashboardService
     {
-        #region Overview Statistics
-
         /// <summary>
-        /// Get dashboard overview statistics
+        /// Get complete dashboard statistics (all stats in one call)
+        /// Priority: HIGH - Required for dashboard
+        /// Endpoint: GET /Dashboard/stats
         /// </summary>
-        Task<ResultModel> GetDashboardOverviewAsync(DashboardStatsRequest request);
+        Task<ResultModel> GetDashboardStatsAsync();
 
         /// <summary>
-        /// Get revenue statistics with time grouping
+        /// Get room status breakdown (available, occupied, maintenance)
+        /// Priority: MEDIUM - Optional, can be calculated from stats
+        /// Endpoint: GET /Dashboard/room-status
         /// </summary>
-        Task<ResultModel> GetRevenueStatisticsAsync(DashboardStatsRequest request);
+        Task<ResultModel> GetRoomStatusAsync();
 
         /// <summary>
-        /// Get booking statistics with time grouping
+        /// Get revenue statistics by month
+        /// Priority: LOW - For future chart feature
+        /// Endpoint: GET /Dashboard/revenue-by-month
         /// </summary>
-        Task<ResultModel> GetBookingStatisticsAsync(DashboardStatsRequest request);
-
-        #endregion
-
-        #region Top Lists
+        Task<ResultModel> GetRevenueByMonthAsync(RevenueByMonthRequest request);
 
         /// <summary>
-        /// Get top rooms by booking count and revenue
-        /// </summary>
-        Task<ResultModel> GetTopRoomsAsync(TopListRequest request);
-
-        /// <summary>
-        /// Get top customers by spending
-        /// </summary>
-        Task<ResultModel> GetTopCustomersAsync(TopListRequest request);
-
-        /// <summary>
-        /// Get top room types
+        /// Get top room types by bookings and revenue
+        /// Priority: LOW - For future analytics feature
+        /// Endpoint: GET /Dashboard/top-room-types
         /// </summary>
         Task<ResultModel> GetTopRoomTypesAsync(TopListRequest request);
-
-        #endregion
-
-        #region Recent Activities
-
-        /// <summary>
-        /// Get recent bookings
-        /// </summary>
-        Task<ResultModel> GetRecentBookingsAsync(int limit = 20);
-
-        /// <summary>
-        /// Get recent payments
-        /// </summary>
-        Task<ResultModel> GetRecentPaymentsAsync(int limit = 20);
-
-        /// <summary>
-        /// Get system alerts
-        /// </summary>
-        Task<ResultModel> GetSystemAlertsAsync();
-
-        #endregion
-
-        #region Detailed Reports
-
-        /// <summary>
-        /// Get revenue report
-        /// </summary>
-        Task<ResultModel> GetRevenueReportAsync(ReportRequest request);
-
-        /// <summary>
-        /// Get occupancy report
-        /// </summary>
-        Task<ResultModel> GetOccupancyReportAsync(ReportRequest request);
-
-        /// <summary>
-        /// Get customer report
-        /// </summary>
-        Task<ResultModel> GetCustomerReportAsync(ReportRequest request);
-
-        #endregion
-
-        #region Real-time Data
-
-        /// <summary>
-        /// Get live occupancy data
-        /// </summary>
-        Task<ResultModel> GetLiveOccupancyAsync();
-
-        /// <summary>
-        /// Get today's bookings data
-        /// </summary>
-        Task<ResultModel> GetTodayBookingsAsync();
-
-        /// <summary>
-        /// Get pending tasks
-        /// </summary>
-        Task<ResultModel> GetPendingTasksAsync();
-
-        #endregion
-
-        #region Dashboard Summary
-
-        /// <summary>
-        /// Get complete dashboard summary (all data in one call)
-        /// </summary>
-        Task<ResultModel> GetDashboardSummaryAsync(DashboardStatsRequest request);
-
-        #endregion
     }
 }

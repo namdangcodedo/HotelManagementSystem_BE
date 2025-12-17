@@ -1648,7 +1648,7 @@ namespace AppBackend.Services.Services.TransactionServices
         {
             try
             {
-                // Validate booking
+                // 1. Validate booking exists
                 var booking = await _unitOfWork.Bookings.GetByIdAsync(request.BookingId);
                 if (booking == null)
                 {
@@ -1661,8 +1661,36 @@ namespace AppBackend.Services.Services.TransactionServices
                     };
                 }
 
-                // Determine amount: prefer DepositAmount if present, else TotalAmount
-                var amountDecimal = booking.DepositAmount > 0 ? booking.DepositAmount : booking.TotalAmount;
+                // 2. Load BookingType để kiểm tra Online/Offline
+                var bookingType = booking.BookingTypeId.HasValue
+                    ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value)
+                    : null;
+
+                bool isOnlineBooking = bookingType?.CodeName == "Online";
+
+                // 3. Tính số tiền cần thanh toán
+                // LOGIC ĐÚNG:
+                // - Online Booking: Đã cọc 30% → Cần trả 70% còn lại = TotalAmount - DepositAmount
+                // - Offline Booking: Chưa cọc → Cần trả 100% = TotalAmount
+                decimal amountDecimal;
+                
+                if (isOnlineBooking && booking.DepositAmount > 0)
+                {
+                    // Online: Tính số tiền còn lại (đã trừ deposit)
+                    amountDecimal = booking.TotalAmount - booking.DepositAmount;
+                    _logger.LogInformation(
+                        "PayOS Payment Link - Online Booking {BookingId}: TotalAmount={Total}, DepositPaid={Deposit}, AmountDue={Due}",
+                        booking.BookingId, booking.TotalAmount, booking.DepositAmount, amountDecimal);
+                }
+                else
+                {
+                    // Offline hoặc chưa có deposit: Trả full
+                    amountDecimal = booking.TotalAmount;
+                    _logger.LogInformation(
+                        "PayOS Payment Link - Offline/No-Deposit Booking {BookingId}: TotalAmount={Total}",
+                        booking.BookingId, booking.TotalAmount);
+                }
+
                 if (amountDecimal <= 0)
                 {
                     return new ResultModel
@@ -1670,11 +1698,11 @@ namespace AppBackend.Services.Services.TransactionServices
                         IsSuccess = false,
                         ResponseCode = "INVALID_AMOUNT",
                         StatusCode = 400,
-                        Message = "Invalid payment amount for booking"
+                        Message = "Invalid payment amount for booking. Amount must be greater than 0."
                     };
                 }
 
-                // Build PayOS payment data
+                // 4. Build PayOS payment data
                 long orderCode = long.Parse(DateTimeOffset.Now.ToString("yyMMddHHmmss"));
                 var returnUrl = _configuration["PayOS:ReturnUrl"] ?? _configuration.GetSection("PayOS")["ReturnUrl"] ?? string.Empty;
                 var cancelUrl = (_configuration["PayOS:CancelUrl"] ?? _configuration.GetSection("PayOS")["CancelUrl"] ?? string.Empty) + $"?bookingId={booking.BookingId}";
@@ -1698,6 +1726,7 @@ namespace AppBackend.Services.Services.TransactionServices
                     expiredAt: (int)expiredAt
                 );
 
+                // 5. Call PayOS API
                 CreatePaymentResult createPayment = null;
                 try
                 {
@@ -1715,13 +1744,18 @@ namespace AppBackend.Services.Services.TransactionServices
                     };
                 }
 
+                // 6. Return response
                 var dto = new PayOSPaymentLinkDto
                 {
                     PaymentUrl = createPayment?.checkoutUrl ?? string.Empty,
                     OrderId = orderCode.ToString(),
                     Amount = amountDecimal,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(15)
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(30) // Fixed: Should be 30 minutes not 15
                 };
+
+                _logger.LogInformation(
+                    "PayOS Payment Link created successfully for Booking {BookingId}, Amount: {Amount}, OrderCode: {OrderCode}",
+                    booking.BookingId, amountDecimal, orderCode);
 
                 return new ResultModel
                 {
@@ -1729,7 +1763,7 @@ namespace AppBackend.Services.Services.TransactionServices
                     ResponseCode = "SUCCESS",
                     StatusCode = 200,
                     Data = dto,
-                    Message = "PayOS payment link created"
+                    Message = "PayOS payment link created successfully"
                 };
             }
             catch (Exception ex)

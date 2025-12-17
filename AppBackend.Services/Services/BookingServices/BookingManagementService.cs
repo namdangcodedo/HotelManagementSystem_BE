@@ -8,6 +8,7 @@ using AppBackend.Services.Helpers;
 using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using RoomType = AppBackend.BusinessObjects.Models.RoomType;
 
 namespace AppBackend.Services.Services.BookingServices;
 
@@ -431,8 +432,8 @@ public class BookingManagementService : IBookingManagementService
                 });
             }
 
-            // 6. Tính deposit (30%)
-            decimal depositAmount = totalAmount * 0.3m;
+            // 6. Đặt tại quầy không cần tiền cọc - thanh toán khi khách trả phòng
+            decimal depositAmount = 0;
 
             // 7. Lấy status codes - Booking offline mặc định là CheckedIn
             var checkedInStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
@@ -488,20 +489,54 @@ public class BookingManagementService : IBookingManagementService
                 await _unitOfWork.BookingRooms.AddAsync(bookingRoom);
             }
 
-            // 10. Tạo transaction nếu đã thanh toán ngay
+            // 9b. Cập nhật trạng thái phòng sang Occupied vì khách đã nhận phòng tại quầy
+            var occupiedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "RoomStatus" && c.CodeName == "Occupied")).FirstOrDefault();
+
+            if (occupiedStatus == null)
+            {
+                _logger.LogWarning("[CreateOfflineBooking] Không tìm thấy RoomStatus 'Occupied'");
+            }
+            else
+            {
+                foreach (var room in selectedRooms)
+                {
+                    room.StatusId = occupiedStatus.CodeId;
+                    room.UpdatedAt = DateTime.UtcNow;
+                    await _unitOfWork.Rooms.UpdateAsync(room);
+                }
+            }
+
+            // 10. Tạo transaction ở trạng thái chờ thanh toán (thu sau khi khách trả phòng)
             var paymentMethodCode = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "PaymentMethod" && c.CodeName == request.PaymentMethod)).FirstOrDefault();
-            var completedPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Completed")).FirstOrDefault();
+            var unpaidPaymentStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "PaymentStatus" && c.CodeName == "Unpaid")).FirstOrDefault();
+            var pendingTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
+                c.CodeType == "TransactionStatus" && c.CodeName == "Pending")).FirstOrDefault();
+
+            if (paymentMethodCode == null || unpaidPaymentStatus == null || pendingTransactionStatus == null)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status500InternalServerError,
+                    Message = "Lỗi cấu hình hệ thống: Thiếu thông tin phương thức hoặc trạng thái thanh toán"
+                };
+            }
+
+            var transactionRef = $"WALKIN-{booking.BookingId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
 
             var transaction = new Transaction
             {
                 BookingId = booking.BookingId,
                 TotalAmount = totalAmount,
-                PaidAmount = totalAmount,
-                PaymentMethodId = paymentMethodCode?.CodeId ?? 0,
-                PaymentStatusId = completedPaymentStatus?.CodeId ?? 0,
-                TransactionRef = $"WALKIN-{booking.BookingId}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                PaidAmount = 0,
+                PaymentMethodId = paymentMethodCode.CodeId,
+                PaymentStatusId = unpaidPaymentStatus.CodeId,
+                TransactionStatusId = pendingTransactionStatus.CodeId,
+                TransactionRef = transactionRef,
+                DepositAmount = depositAmount,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = employeeId
             };
@@ -525,7 +560,6 @@ public class BookingManagementService : IBookingManagementService
                 var bankConfig = (await _unitOfWork.BankConfigs.FindAsync(bc => bc.IsActive)).FirstOrDefault();
                 if (bankConfig != null)
                 {
-                    var transactionRef = $"WALKIN-{booking.BookingId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
                     var description = $"Thanh toan booking {booking.BookingId}";
                     var qrUrl = _qrPaymentHelper.GenerateVietQRUrl(bankConfig, totalAmount, description, transactionRef);
                     var qrDataText = _qrPaymentHelper.GenerateQRData(bankConfig, totalAmount, description);
@@ -572,7 +606,7 @@ public class BookingManagementService : IBookingManagementService
             {
                 IsSuccess = true,
                 StatusCode = StatusCodes.Status201Created,
-                Message = "Tạo booking tại quầy thành công!",
+                Message = "Tạo booking tại quầy thành công! Khách thanh toán khi trả phòng.",
                 Data = new
                 {
                     Booking = response,
@@ -835,32 +869,48 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
-            var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
+            // Load customer with account for email + booking rooms
+            var customer = await _unitOfWork.Customers.GetSingleAsync(
+                c => c.CustomerId == booking.CustomerId,
+                c => c.Account);
+            var bookingRooms = (await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId)).ToList();
             var rooms = new List<Room>();
             var roomTypeDetails = new List<RoomTypeQuantityDto>();
 
-            foreach (var br in bookingRooms)
-            {
-                var room = await _unitOfWork.Rooms.GetByIdAsync(br.RoomId);
-                if (room != null) rooms.Add(room);
-            }
+            // Load rooms in batch
+            var roomIds = bookingRooms.Select(br => br.RoomId).Distinct().ToList();
+            rooms = roomIds.Any()
+                ? (await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId))).ToList()
+                : new List<Room>();
+            var roomById = rooms.ToDictionary(r => r.RoomId, r => r);
 
-            var roomsByType = rooms.GroupBy(r => r.RoomTypeId);
-            foreach (var group in roomsByType)
+            // Load room types in batch
+            var roomTypeIds = rooms.Select(r => r.RoomTypeId).Distinct().ToList();
+            var roomTypes = roomTypeIds.Any()
+                ? (await _unitOfWork.RoomTypes.FindAsync(rt => roomTypeIds.Contains(rt.RoomTypeId)))
+                    .ToDictionary(rt => rt.RoomTypeId, rt => rt)
+                : new Dictionary<int, RoomType>();
+
+            // Build room type summary with correct subtotal
+            var roomTypeGroups = bookingRooms
+                .Where(br => roomById.ContainsKey(br.RoomId))
+                .GroupBy(br => roomById[br.RoomId].RoomTypeId);
+
+            foreach (var group in roomTypeGroups)
             {
-                var roomType = await _unitOfWork.RoomTypes.GetByIdAsync(group.Key);
-                if (roomType != null)
+                roomTypes.TryGetValue(group.Key, out var roomType);
+                var pricePerNight = roomType?.BasePriceNight ?? group.First().PricePerNight;
+                var subTotal = group.Sum(br => br.SubTotal);
+
+                roomTypeDetails.Add(new RoomTypeQuantityDto
                 {
-                    roomTypeDetails.Add(new RoomTypeQuantityDto
-                    {
-                        RoomTypeId = roomType.RoomTypeId,
-                        RoomTypeName = roomType.TypeName,
-                        RoomTypeCode = roomType.TypeCode,
-                        Quantity = group.Count(),
-                        PricePerNight = roomType.BasePriceNight
-                    });
-                }
+                    RoomTypeId = roomType?.RoomTypeId ?? group.Key,
+                    RoomTypeName = roomType?.TypeName ?? "",
+                    RoomTypeCode = roomType?.TypeCode ?? "",
+                    Quantity = group.Count(),
+                    PricePerNight = pricePerNight,
+                    SubTotal = subTotal
+                });
             }
 
             var statusCode = booking.StatusId.HasValue
@@ -869,6 +919,10 @@ public class BookingManagementService : IBookingManagementService
             var bookingTypeCode = booking.BookingTypeId.HasValue
                 ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.BookingTypeId.Value)
                 : null;
+
+            // Calculate paid amount from all transactions
+            var transactions = await _unitOfWork.Transactions.FindAsync(t => t.BookingId == bookingId);
+            var paidAmount = transactions.Sum(t => t.PaidAmount);
 
             var detail = new BookingDetailDto
             {
@@ -884,6 +938,7 @@ public class BookingManagementService : IBookingManagementService
                 CheckOutDate = booking.CheckOutDate,
                 TotalAmount = booking.TotalAmount,
                 DepositAmount = booking.DepositAmount,
+                PaidAmount = paidAmount,
                 PaymentStatus = statusCode?.CodeValue ?? "Unknown",
                 BookingType = bookingTypeCode?.CodeValue ?? "Unknown",
                 SpecialRequests = booking.SpecialRequests,
@@ -1398,40 +1453,17 @@ public class BookingManagementService : IBookingManagementService
             booking.UpdatedAt = DateTime.UtcNow;
             await _unitOfWork.Bookings.UpdateAsync(booking);
 
-            // ===== TẠO TRANSACTION CHO DEPOSIT =====
-            // Lấy payment status và transaction status
-            var paidStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentStatus" && c.CodeName == "Paid")).FirstOrDefault();
-            var completedTransactionStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "TransactionStatus" && c.CodeName == "Completed")).FirstOrDefault();
-
-            // Lấy payment method (giả sử QR hoặc BankTransfer)
-            var bankTransferMethod = (await _unitOfWork.CommonCodes.FindAsync(c =>
-                c.CodeType == "PaymentMethod" && c.CodeName == "BankTransfer")).FirstOrDefault();
-
-            if (paidStatus != null && completedTransactionStatus != null && bankTransferMethod != null)
-            {
-                // Tạo transaction cho deposit
-                var depositTransaction = new Transaction
-                {
-                    BookingId = booking.BookingId,
-                    TotalAmount = totalAmount,
-                    PaidAmount = depositAmount, // Deposit amount đã trả
-                    DepositAmount = depositAmount,
-                    DepositStatusId = paidStatus.CodeId,
-                    DepositDate = DateTime.UtcNow,
-                    PaymentMethodId = bankTransferMethod.CodeId,
-                    PaymentStatusId = paidStatus.CodeId,
-                    TransactionStatusId = completedTransactionStatus.CodeId,
-                    TransactionRef = $"DEPOSIT-{booking.BookingId}-{DateTime.UtcNow.Ticks}",
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = confirmedBy, // Manager/Admin xác nhận deposit
-                    UpdatedAt = DateTime.UtcNow,
-                    UpdatedBy = confirmedBy
-                };
-
-                await _unitOfWork.Transactions.AddAsync(depositTransaction);
-            }
+            // ===== KHÔNG TẠO TRANSACTION CHO DEPOSIT =====
+            // Lý do: Transaction chỉ được tạo 1 LẦN DUY NHẤT khi CHECKOUT hoàn tất
+            // Nếu tạo transaction cho deposit (30%) + transaction cho checkout (100%)
+            // → Dashboard sẽ tính DUPLICATE doanh thu (130% thay vì 100%)
+            //
+            // Luồng đúng:
+            // 1. Khách đặt online → Status = Pending
+            // 2. Khách chuyển khoản deposit 30% → Status = PendingConfirmation  
+            // 3. Manager xác nhận nhận được tiền → Status = Confirmed (KHÔNG tạo transaction)
+            // 4. Khách check-in → Status = CheckedIn
+            // 5. Khách checkout, trả 70% còn lại → Status = Completed + TẠO TRANSACTION duy nhất (ghi 100%)
 
             await _unitOfWork.SaveChangesAsync();
 
@@ -1486,11 +1518,12 @@ public class BookingManagementService : IBookingManagementService
             searchKey = searchKey.Trim();
 
             // Tìm kiếm customer theo nhiều tiêu chí
-            var customers = await _unitOfWork.Customers.FindAsync(c =>
-                (c.PhoneNumber != null && c.PhoneNumber.Contains(searchKey)) ||
-                (c.Account != null && c.Account.Email != null && c.Account.Email.Contains(searchKey)) ||
-                (c.FullName != null && c.FullName.Contains(searchKey))
-            );
+            var customers = await _unitOfWork.Customers.FindAsync(
+                c =>
+                    (c.PhoneNumber != null && c.PhoneNumber.Contains(searchKey)) ||
+                    (c.Account != null && c.Account.Email != null && c.Account.Email.Contains(searchKey)) ||
+                    (c.FullName != null && c.FullName.Contains(searchKey)),
+                c => c.Account);
 
             if (!customers.Any())
             {

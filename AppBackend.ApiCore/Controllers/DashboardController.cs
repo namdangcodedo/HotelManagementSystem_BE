@@ -17,203 +17,81 @@ namespace AppBackend.ApiCore.Controllers
             _dashboardService = dashboardService;
         }
 
-        #region Overview Statistics
-
         /// <summary>
-        /// Get dashboard overview statistics
+        /// Get complete dashboard statistics (all stats in one call)
+        /// Priority: HIGH - Required for dashboard
+        /// Returns: Booking stats, revenue stats, customer stats, room stats, transaction stats
         /// </summary>
-        [HttpGet("overview")]
-        public async Task<IActionResult> GetDashboardOverview([FromQuery] DashboardStatsRequest request)
+        /// <remarks>
+        /// This is the main API endpoint for the dashboard.
+        /// Frontend will call this endpoint every 60 seconds to refresh data.
+        ///
+        /// Response includes:
+        /// - Booking statistics (total, this month, last month, growth)
+        /// - Revenue statistics (total, this month, last month, growth, average room rate)
+        /// - Customer statistics (total, new this month, growth)
+        /// - Room statistics (total, available, occupied, maintenance, occupancy rate)
+        /// - Transaction statistics (total, completed payments, pending payments)
+        /// </remarks>
+        [HttpGet("stats")]
+        [ProducesResponseType(typeof(DashboardStatsDto), 200)]
+        public async Task<IActionResult> GetDashboardStats()
         {
-            var result = await _dashboardService.GetDashboardOverviewAsync(request);
+            var result = await _dashboardService.GetDashboardStatsAsync();
             return HandleResult(result);
         }
 
         /// <summary>
-        /// Get revenue statistics with time grouping
+        /// Get room status breakdown (available, occupied, maintenance)
+        /// Priority: MEDIUM - Optional, can be calculated from stats API
         /// </summary>
-        [HttpGet("revenue")]
-        public async Task<IActionResult> GetRevenueStatistics([FromQuery] DashboardStatsRequest request)
+        /// <remarks>
+        /// This endpoint provides detailed room status breakdown.
+        /// Note: This data can also be derived from the /stats endpoint.
+        /// Frontend will call this every 30 seconds if needed.
+        /// </remarks>
+        [HttpGet("room-status")]
+        [ProducesResponseType(typeof(List<RoomStatusDto>), 200)]
+        public async Task<IActionResult> GetRoomStatus()
         {
-            var result = await _dashboardService.GetRevenueStatisticsAsync(request);
+            var result = await _dashboardService.GetRoomStatusAsync();
             return HandleResult(result);
         }
 
         /// <summary>
-        /// Get booking statistics with time grouping
+        /// Get revenue statistics by month
+        /// Priority: LOW - For future chart feature
         /// </summary>
-        [HttpGet("bookings")]
-        public async Task<IActionResult> GetBookingStatistics([FromQuery] DashboardStatsRequest request)
+        /// <param name="months">Number of months to retrieve (default: 12, max: 24)</param>
+        /// <remarks>
+        /// This endpoint is prepared for future chart/analytics features.
+        /// Not currently used by the frontend dashboard.
+        /// </remarks>
+        [HttpGet("revenue-by-month")]
+        [ProducesResponseType(typeof(List<RevenueByMonthDto>), 200)]
+        public async Task<IActionResult> GetRevenueByMonth([FromQuery] int months = 12)
         {
-            var result = await _dashboardService.GetBookingStatisticsAsync(request);
-            return HandleResult(result);
-        }
-
-        #endregion
-
-        #region Top Lists
-
-        /// <summary>
-        /// Get top rooms by booking count and revenue
-        /// </summary>
-        [HttpGet("top-rooms")]
-        public async Task<IActionResult> GetTopRooms([FromQuery] TopListRequest request)
-        {
-            var result = await _dashboardService.GetTopRoomsAsync(request);
+            var request = new RevenueByMonthRequest { Months = months };
+            var result = await _dashboardService.GetRevenueByMonthAsync(request);
             return HandleResult(result);
         }
 
         /// <summary>
-        /// Get top customers by spending
+        /// Get top room types by bookings and revenue
+        /// Priority: LOW - For future analytics feature
         /// </summary>
-        [HttpGet("top-customers")]
-        public async Task<IActionResult> GetTopCustomers([FromQuery] TopListRequest request)
-        {
-            var result = await _dashboardService.GetTopCustomersAsync(request);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get top room types
-        /// </summary>
+        /// <param name="limit">Number of top room types to return (default: 5)</param>
+        /// <remarks>
+        /// This endpoint is prepared for future analytics features.
+        /// Not currently used by the frontend dashboard.
+        /// </remarks>
         [HttpGet("top-room-types")]
-        public async Task<IActionResult> GetTopRoomTypes([FromQuery] TopListRequest request)
+        [ProducesResponseType(typeof(List<TopRoomTypeDto>), 200)]
+        public async Task<IActionResult> GetTopRoomTypes([FromQuery] int limit = 5)
         {
+            var request = new TopListRequest { Limit = limit };
             var result = await _dashboardService.GetTopRoomTypesAsync(request);
             return HandleResult(result);
         }
-
-        #endregion
-
-        #region Recent Activities
-
-        /// <summary>
-        /// Get recent bookings
-        /// </summary>
-        [HttpGet("recent-bookings")]
-        public async Task<IActionResult> GetRecentBookings([FromQuery] int limit = 20)
-        {
-            var result = await _dashboardService.GetRecentBookingsAsync(limit);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get recent payments
-        /// </summary>
-        [HttpGet("recent-payments")]
-        public async Task<IActionResult> GetRecentPayments([FromQuery] int limit = 20)
-        {
-            var result = await _dashboardService.GetRecentPaymentsAsync(limit);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get system alerts
-        /// </summary>
-        [HttpGet("alerts")]
-        public async Task<IActionResult> GetSystemAlerts()
-        {
-            var result = await _dashboardService.GetSystemAlertsAsync();
-            return HandleResult(result);
-        }
-
-        #endregion
-
-        #region Detailed Reports
-
-        /// <summary>
-        /// Get revenue report
-        /// </summary>
-        [HttpGet("reports/revenue")]
-        public async Task<IActionResult> GetRevenueReport([FromQuery] ReportRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var result = await _dashboardService.GetRevenueReportAsync(request);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get occupancy report
-        /// </summary>
-        [HttpGet("reports/occupancy")]
-        public async Task<IActionResult> GetOccupancyReport([FromQuery] ReportRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var result = await _dashboardService.GetOccupancyReportAsync(request);
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get customer report
-        /// </summary>
-        [HttpGet("reports/customers")]
-        public async Task<IActionResult> GetCustomerReport([FromQuery] ReportRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var result = await _dashboardService.GetCustomerReportAsync(request);
-            return HandleResult(result);
-        }
-
-        #endregion
-
-        #region Real-time Data
-
-        /// <summary>
-        /// Get live occupancy data
-        /// </summary>
-        [HttpGet("live/occupancy")]
-        public async Task<IActionResult> GetLiveOccupancy()
-        {
-            var result = await _dashboardService.GetLiveOccupancyAsync();
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get today's bookings data
-        /// </summary>
-        [HttpGet("live/today-bookings")]
-        public async Task<IActionResult> GetTodayBookings()
-        {
-            var result = await _dashboardService.GetTodayBookingsAsync();
-            return HandleResult(result);
-        }
-
-        /// <summary>
-        /// Get pending tasks
-        /// </summary>
-        [HttpGet("live/pending-tasks")]
-        public async Task<IActionResult> GetPendingTasks()
-        {
-            var result = await _dashboardService.GetPendingTasksAsync();
-            return HandleResult(result);
-        }
-
-        #endregion
-
-        #region Dashboard Summary
-
-        /// <summary>
-        /// Get complete dashboard summary (all data in one call)
-        /// </summary>
-        [HttpGet("summary")]
-        public async Task<IActionResult> GetDashboardSummary([FromQuery] DashboardStatsRequest request)
-        {
-            var result = await _dashboardService.GetDashboardSummaryAsync(request);
-            return HandleResult(result);
-        }
-
-        #endregion
     }
 }
