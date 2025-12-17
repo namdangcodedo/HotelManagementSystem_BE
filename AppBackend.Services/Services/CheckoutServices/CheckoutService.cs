@@ -93,11 +93,23 @@ namespace AppBackend.Services.Services.CheckoutServices
                 // 6. Tính tổng
                 decimal subTotal = totalRoomCharges + totalServiceCharges;
                 
-                // CRITICAL: Nếu là online booking, deposit phải = 30% của totalAmount
-                // Nếu booking.DepositAmount chưa được set, tính lại
+                // FIX: Calculate actual deposit paid from existing transactions
                 decimal depositPaid = 0;
-                if (isOnlineBooking)
+                
+                // Check if there are any existing transactions (deposit payment)
+                var existingTransactions = await _context.Transactions
+                    .Where(t => t.BookingId == booking.BookingId)
+                    .ToListAsync();
+                
+                if (existingTransactions.Any())
                 {
+                    // Sum up all paid amounts from existing transactions
+                    depositPaid = existingTransactions.Sum(t => t.PaidAmount);
+                    _logger.LogInformation("Found existing transactions - Total Paid: {Deposit}", depositPaid);
+                }
+                else if (isOnlineBooking)
+                {
+                    // If no transaction but online booking, use booking's DepositAmount or calculate 30%
                     depositPaid = booking.DepositAmount > 0 ? booking.DepositAmount : (subTotal * 0.3m);
                     _logger.LogInformation("Online Booking - Calculated Deposit: {Deposit} (from DB: {DBDeposit})", 
                         depositPaid, booking.DepositAmount);
