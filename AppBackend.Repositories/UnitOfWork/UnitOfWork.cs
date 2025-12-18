@@ -8,6 +8,7 @@ using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using AppBackend.Repositories.Repositories.AmenityRepo;
 using AppBackend.Repositories.Repositories.EmployeeRepo;
+using AppBackend.Repositories.Repositories.EmployeeScheduleRepo;
 using AppBackend.Repositories.Repositories.RoomAmenityRepo;
 using AppBackend.Repositories.Repositories.BookingRepo;
 using AppBackend.Repositories.Repositories.BookingRoomRepo;
@@ -41,6 +42,7 @@ namespace AppBackend.Repositories.UnitOfWork
         private IAttendenceRepository? _attendenceRepository;
         private ICommentRepository? _commentRepository;
         private ISalaryInfoRepository? _salaryInfoRepository;
+        private IEmployeeScheduleRepository? _employeeScheduleRepository;
 
         public UnitOfWork(HotelManagementContext context)
         {
@@ -66,6 +68,9 @@ namespace AppBackend.Repositories.UnitOfWork
         public ICommentRepository Comments => _commentRepository ??= new CommentRepository(_context);
 
         public ISalaryInfoRepository SalaryInfos => _salaryInfoRepository ??= new SalaryInfoRepository(_context);
+
+        public IEmployeeScheduleRepository EmployeeSchedules => _employeeScheduleRepository ??= new EmployeeScheduleRepository(_context);
+
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();

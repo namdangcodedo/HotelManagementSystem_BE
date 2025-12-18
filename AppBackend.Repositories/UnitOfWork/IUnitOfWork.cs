@@ -9,6 +9,7 @@ using AppBackend.Repositories.Repositories.CommentRepo;
 using AppBackend.Repositories.Repositories.CommonCodeRepo;
 using AppBackend.Repositories.Repositories.CustomerRepo;
 using AppBackend.Repositories.Repositories.EmployeeRepo;
+using AppBackend.Repositories.Repositories.EmployeeScheduleRepo;
 using AppBackend.Repositories.Repositories.HolidayPricingRepo;
 using AppBackend.Repositories.Repositories.MediumRepo;
 using AppBackend.Repositories.Repositories.RoleRepo;
@@ -41,6 +42,7 @@ namespace AppBackend.Repositories.UnitOfWork
         IAttendenceRepository AttendenceRepository { get; }
         ICommentRepository Comments { get; }
         ISalaryInfoRepository SalaryInfos { get; }
+        IEmployeeScheduleRepository EmployeeSchedules { get; }
         Task<int> SaveChangesAsync();
     }
 }

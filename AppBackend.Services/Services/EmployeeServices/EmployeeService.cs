@@ -10,6 +10,7 @@ using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
+using System.Linq;
 
 namespace AppBackend.Services.Services.EmployeeServices
 {
@@ -338,6 +339,61 @@ namespace AppBackend.Services.Services.EmployeeServices
                 ResponseCode = CommonMessageConstants.SUCCESS,
                 Message = message,
                 Data = new { employee.EmployeeId, IsLocked = employee.Account.IsLocked },
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        public async Task<ResultModel> SearchEmployeesAsync(SearchEmployeeRequest request)
+        {
+            var employees = await _unitOfWork.Employees.SearchEmployeesAsync(
+                request.Keyword,
+                request.EmployeeTypeId,
+                request.IsActive,
+                request.IsLocked
+            );
+
+            // Map sang DTO với thông tin đầy đủ
+            var searchResults = employees.Select(e => new EmployeeSearchResultDto
+            {
+                EmployeeId = e.EmployeeId,
+                AccountId = e.AccountId,
+                FullName = e.FullName,
+                PhoneNumber = e.PhoneNumber,
+                EmployeeTypeId = e.EmployeeTypeId,
+                EmployeeTypeName = e.EmployeeType.CodeValue,
+                HireDate = e.HireDate,
+                TerminationDate = e.TerminationDate,
+                BaseSalary = e.BaseSalary,
+                Username = e.Account.Username,
+                Email = e.Account.Email,
+                IsLocked = e.Account.IsLocked,
+                LastLoginAt = e.Account.LastLoginAt,
+                CreatedAt = e.CreatedAt,
+                UpdatedAt = e.UpdatedAt
+            }).ToList();
+
+            // Phân trang
+            var totalRecords = searchResults.Count;
+            var pagedResults = searchResults
+                .Skip((request.PageIndex - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .ToList();
+
+            var pagedResponse = new PagedResponseDto<EmployeeSearchResultDto>
+            {
+                Items = pagedResults,
+                TotalCount = totalRecords,
+                PageIndex = request.PageIndex,
+                PageSize = request.PageSize,
+                TotalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize)
+            };
+
+            return new ResultModel
+            {
+                IsSuccess = true,
+                ResponseCode = CommonMessageConstants.SUCCESS,
+                Message = $"Tìm thấy {totalRecords} nhân viên",
+                Data = pagedResponse,
                 StatusCode = StatusCodes.Status200OK
             };
         }

@@ -10,5 +10,10 @@ namespace AppBackend.Services.Services.EmployeeServices
         Task<ResultModel> AddEmployeeAsync(AddEmployeeRequest request);
         Task<ResultModel> UpdateEmployeeAsync(UpdateEmployeeRequest request);
         Task<ResultModel> BanEmployeeAsync(BanEmployeeRequest request);
+
+        /// <summary>
+        /// Tìm kiếm nhân viên theo keyword trên tất cả các trường thông tin
+        /// </summary>
+        Task<ResultModel> SearchEmployeesAsync(SearchEmployeeRequest request);
     }
 }

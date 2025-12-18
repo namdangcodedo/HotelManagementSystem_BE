@@ -104,5 +104,29 @@ namespace AppBackend.ApiCore.Controllers
             var result = await _employeeService.BanEmployeeAsync(request);
             return HandleResult(result);
         }
+
+        /// <summary>
+        /// Tìm kiếm nhân viên theo từ khóa
+        /// </summary>
+        /// <param name="request">Thông tin tìm kiếm (Keyword, EmployeeTypeId, IsActive, IsLocked)</param>
+        /// <returns>Danh sách nhân viên tìm được với thông tin đầy đủ</returns>
+        /// <response code="200">Tìm kiếm thành công</response>
+        /// <remarks>
+        /// Keyword sẽ tìm kiếm trên các trường: FullName, PhoneNumber, Email, Username, EmployeeType
+        ///
+        /// Ví dụ:
+        ///
+        ///     GET /api/employee/search?keyword=nguyen&amp;pageIndex=1&amp;pageSize=10
+        ///     GET /api/employee/search?keyword=manager&amp;isActive=true
+        ///     GET /api/employee/search?employeeTypeId=1&amp;isLocked=false
+        ///
+        /// </remarks>
+        [HttpGet("search")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> SearchEmployees([FromQuery] SearchEmployeeRequest request)
+        {
+            var result = await _employeeService.SearchEmployeesAsync(request);
+            return HandleResult(result);
+        }
     }
 }

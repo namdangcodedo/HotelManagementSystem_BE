@@ -25,6 +25,7 @@ using AppBackend.Services.Services.AI;
 using AppBackend.Services.Services.MediaService;
 using AppBackend.Services.Services.CustomerServices;
 using AppBackend.Services.Services.SalaryInfoServices;
+using AppBackend.Services.Services.ScheduleServices;
 
 namespace AppBackend.ApiCore.Extensions;
 
@@ -68,6 +69,7 @@ public static class ServicesConfig
         services.AddScoped<IMediaService, MediaService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<ISalaryInfoService, SalaryInfoService>();
+        services.AddScoped<IScheduleService, ScheduleService>();
 
 
         //Encrypt Helper 
