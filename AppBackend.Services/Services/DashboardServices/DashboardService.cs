@@ -42,10 +42,14 @@ namespace AppBackend.Services.Services.DashboardServices
                 var lastMonthStart = thisMonthStart.AddMonths(-1);
                 var lastMonthEnd = thisMonthStart.AddDays(-1);
 
-                // Get CommonCode IDs
-                var paidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Paid");
-                var unpaidStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("PaymentStatus", "Unpaid");
-                var maintenanceStatusId = await _commonCodeHelper.GetCommonCodeIdAsync("RoomStatus", "Maintenance");
+                // Get CommonCode IDs - FIX: Use CodeName (English) instead of CodeValue (Vietnamese)
+                var completedTransactionStatusId = await _commonCodeHelper.GetCommonCodeIdByNameAsync("TransactionStatus", "Completed");
+                var pendingTransactionStatusId = await _commonCodeHelper.GetCommonCodeIdByNameAsync("TransactionStatus", "Pending");
+                var maintenanceStatusId = await _commonCodeHelper.GetCommonCodeIdByNameAsync("RoomStatus", "Maintenance");
+
+                // DEBUG: Log the CommonCode IDs
+                _logger.LogInformation("Dashboard Stats - Completed TransactionStatusId: {CompletedId}, Pending: {PendingId}", 
+                    completedTransactionStatusId, pendingTransactionStatusId);
 
                 // === BOOKING STATISTICS ===
                 var totalBookings = await _context.Bookings.CountAsync();
@@ -57,25 +61,47 @@ namespace AppBackend.Services.Services.DashboardServices
                     .CountAsync();
 
                 // === REVENUE STATISTICS ===
-                var totalRevenue = paidStatusId.HasValue
+                // DEBUG: Log all transactions to see what's in the database
+                var allTransactions = await _context.Transactions
+                    .Include(t => t.TransactionStatus)
+                    .Include(t => t.PaymentStatus)
+                    .ToListAsync();
+                
+                _logger.LogInformation("Dashboard Stats - Total Transactions in DB: {Count}", allTransactions.Count);
+                foreach (var trans in allTransactions.Take(5))
+                {
+                    _logger.LogInformation("Transaction {Id}: TransactionStatusId={TransStatusId}, TransactionStatus={TransStatus}, PaymentStatusId={PayStatusId}, PaymentStatus={PayStatus}, PaidAmount={PaidAmount}",
+                        trans.TransactionId, 
+                        trans.TransactionStatusId,
+                        trans.TransactionStatus?.CodeName ?? "NULL",
+                        trans.PaymentStatusId,
+                        trans.PaymentStatus?.CodeName ?? "NULL",
+                        trans.PaidAmount);
+                }
+
+                // FIX: Calculate revenue from completed transactions (TransactionStatus = "Completed")
+                var totalRevenue = completedTransactionStatusId.HasValue
                     ? (await _context.Transactions
-                        .Where(t => t.PaymentStatusId == paidStatusId.Value)
+                        .Where(t => t.TransactionStatusId == completedTransactionStatusId.Value)
                         .SumAsync(t => (decimal?)t.PaidAmount)) ?? 0m
                     : 0m;
 
-                var revenueThisMonth = paidStatusId.HasValue
+                var revenueThisMonth = completedTransactionStatusId.HasValue
                     ? (await _context.Transactions
-                        .Where(t => t.PaymentStatusId == paidStatusId.Value && t.CreatedAt >= thisMonthStart)
+                        .Where(t => t.TransactionStatusId == completedTransactionStatusId.Value && t.CreatedAt >= thisMonthStart)
                         .SumAsync(t => (decimal?)t.PaidAmount)) ?? 0m
                     : 0m;
 
-                var revenueLastMonth = paidStatusId.HasValue
+                var revenueLastMonth = completedTransactionStatusId.HasValue
                     ? (await _context.Transactions
-                        .Where(t => t.PaymentStatusId == paidStatusId.Value &&
+                        .Where(t => t.TransactionStatusId == completedTransactionStatusId.Value &&
                                     t.CreatedAt >= lastMonthStart &&
                                     t.CreatedAt <= lastMonthEnd)
                         .SumAsync(t => (decimal?)t.PaidAmount)) ?? 0m
                     : 0m;
+
+                _logger.LogInformation("Dashboard Stats - Total Revenue: {TotalRevenue}, This Month: {ThisMonth}, Last Month: {LastMonth}",
+                    totalRevenue, revenueThisMonth, revenueLastMonth);
 
                 // Calculate average room rate from completed bookings
                 var completedBookings = await _context.Bookings
@@ -117,15 +143,19 @@ namespace AppBackend.Services.Services.DashboardServices
                 var availableRooms = totalRooms - occupiedRooms - maintenanceRooms;
 
                 // === TRANSACTION STATISTICS ===
+                // FIX: Use TransactionStatus to count completed and pending payments
                 var totalTransactions = await _context.Transactions.CountAsync();
 
-                var completedPayments = paidStatusId.HasValue
-                    ? await _context.Transactions.CountAsync(t => t.PaymentStatusId == paidStatusId.Value)
+                var completedPayments = completedTransactionStatusId.HasValue
+                    ? await _context.Transactions.CountAsync(t => t.TransactionStatusId == completedTransactionStatusId.Value)
                     : 0;
 
-                var pendingPayments = unpaidStatusId.HasValue
-                    ? await _context.Transactions.CountAsync(t => t.PaymentStatusId == unpaidStatusId.Value)
+                var pendingPayments = pendingTransactionStatusId.HasValue
+                    ? await _context.Transactions.CountAsync(t => t.TransactionStatusId == pendingTransactionStatusId.Value)
                     : 0;
+
+                _logger.LogInformation("Dashboard Stats - Completed Payments: {Completed}, Pending Payments: {Pending}",
+                    completedPayments, pendingPayments);
 
                 // Calculate growth rates
                 var bookingsGrowth = bookingsLastMonth > 0
