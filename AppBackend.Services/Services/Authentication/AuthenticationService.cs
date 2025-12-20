@@ -381,6 +381,10 @@ namespace AppBackend.Services.Authentication
 
         public async Task<ResultModel> SendOtpAsync(string email)
         {
+            // Validate email
+            if (string.IsNullOrWhiteSpace(email))
+                return new ResultModel { IsSuccess = false, Message = "Email không được để trống." };
+            
             var account = await _unitOfWork.Accounts.GetByEmailAsync(email);
             if (account == null)
                 return new ResultModel { IsSuccess = false, Message = "Tài khoản không tồn tại." };
@@ -403,6 +407,13 @@ namespace AppBackend.Services.Authentication
 
         public async Task<ResultModel> ChangePasswordWithOtpAsync(string email, string otp, string newPassword)
         {
+            // Validate password
+            if (string.IsNullOrWhiteSpace(newPassword))
+                return new ResultModel { IsSuccess = false, Message = "Mật khẩu không được để trống." };
+            
+            if (newPassword.Length < 8 || newPassword.Length > 50)
+                return new ResultModel { IsSuccess = false, Message = "Mật khẩu phải có độ dài từ 8 đến 50 ký tự." };
+            
             var cachedOtp = _cacheHelper.Get<string>(CachePrefix.OtpCode, email);
             if (cachedOtp == null)
                 return new ResultModel { IsSuccess = false, Message = "OTP đã hết hạn hoặc không tồn tại." };
