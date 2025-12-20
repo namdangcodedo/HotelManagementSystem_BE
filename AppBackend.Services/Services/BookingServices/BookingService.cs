@@ -144,15 +144,20 @@ public class BookingService : IBookingService
         try
         {
             // 1. Validate
-            var today = DateTime.UtcNow.Date;
+            var now = DateTime.UtcNow;
+            var today = now.Date;
+            var noon = today.AddHours(12); // 12h trưa hôm nay
 
-            if (request.CheckInDate.Date < today)
+            // Nếu đã quá 12h trưa, không cho đặt phòng cho ngày hôm nay
+            if (request.CheckInDate.Date < today || (request.CheckInDate.Date == today && now >= noon))
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Message = "Ngày check-in không được ở trong quá khứ"
+                    Message = now >= noon 
+                        ? "Đã quá 12h trưa. Không thể đặt phòng cho ngày hôm nay. Vui lòng chọn từ ngày mai."
+                        : "Ngày check-in không được ở trong quá khứ"
                 };
             }
 
@@ -433,15 +438,20 @@ public class BookingService : IBookingService
                 };
             }
 
-            var today = DateTime.UtcNow.Date;
+            var now = DateTime.UtcNow;
+            var today = now.Date;
+            var noon = today.AddHours(12); // 12h trưa hôm nay
 
-            if (request.CheckInDate.Date < today)
+            // Nếu đã quá 12h trưa, không cho đặt phòng cho ngày hôm nay
+            if (request.CheckInDate.Date < today || (request.CheckInDate.Date == today && now >= noon))
             {
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = StatusCodes.Status400BadRequest,
-                    Message = "Ngày check-in không được ở trong quá khứ"
+                    Message = now >= noon 
+                        ? "Đã quá 12h trưa. Không thể đặt phòng cho ngày hôm nay. Vui lòng chọn từ ngày mai."
+                        : "Ngày check-in không được ở trong quá khứ"
                 };
             }
 
