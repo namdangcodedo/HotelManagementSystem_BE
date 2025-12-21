@@ -13,7 +13,7 @@ POST {{baseUrl}}/api/Authentication/login
 Content-Type: application/json
 
 {
-  "email": "admin@hotel.com",
+  "email": "admin",
   "password": "Admin@123"
 }
 

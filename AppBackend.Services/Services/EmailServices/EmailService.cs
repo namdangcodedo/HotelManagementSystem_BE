@@ -603,7 +603,7 @@ namespace AppBackend.Services.Services.Email
                 var roomNames = string.Join(", ", rooms.Select(r => r.RoomName));
 
                 // 5. Lấy danh sách email Manager/Admin
-                var managerRoles = new[] { "Manager", "Admin" };
+                var managerRoles = new[] { "Manager", "Admin","Receptionist" };
                 var allRoles = await _unitOfWork.Roles.GetAllAsync();
                 var managerRoleIds = allRoles.Where(r => managerRoles.Contains(r.RoleValue)).Select(r => r.RoleId).ToList();
 

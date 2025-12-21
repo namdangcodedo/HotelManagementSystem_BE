@@ -17,10 +17,6 @@ namespace AppBackend.ApiCore.Extension
                     new Role { RoleValue = "Manager", RoleName = "Quản lý", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new Role { RoleValue = "Receptionist", RoleName = "Lễ tân", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new Role { RoleValue = "Housekeeper", RoleName = "Nhân viên dọn phòng", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new Role { RoleValue = "Technician", RoleName = "Kỹ thuật viên", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new Role { RoleValue = "Security", RoleName = "Bảo vệ", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new Role { RoleValue = "Chef", RoleName = "Đầu bếp", IsActive = true, CreatedAt = DateTime.UtcNow },
-                    new Role { RoleValue = "Waiter", RoleName = "Nhân viên phục vụ", IsActive = true, CreatedAt = DateTime.UtcNow },
                     new Role { RoleValue = "User", RoleName = "Khách hàng", IsActive = true, CreatedAt = DateTime.UtcNow }
                 });
                 await context.SaveChangesAsync();
@@ -49,10 +45,7 @@ namespace AppBackend.ApiCore.Extension
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Quản lý", CodeName = "Manager" , Description = "Quản lý khách sạn", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 2 },
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Lễ tân", CodeName = "Receptionist" , Description = "Nhân viên lễ tân", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 3 },
                     new CommonCode { CodeType = "EmployeeType", CodeValue = "Nhân viên dọn phòng", CodeName = "Housekeeper" , Description = "Nhân viên dọn dẹp phòng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 4 },
-                    new CommonCode { CodeType = "EmployeeType", CodeValue = "Kỹ thuật viên", CodeName = "Technician" , Description = "Kỹ thuật viên bảo trì", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 5 },
-                    new CommonCode { CodeType = "EmployeeType", CodeValue = "Bảo vệ", CodeName = "Security" , Description = "Nhân viên bảo vệ", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 6 },
-                    new CommonCode { CodeType = "EmployeeType", CodeValue = "Đầu bếp", CodeName = "Chef" , Description = "Đầu bếp nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 7 },
-                    new CommonCode { CodeType = "EmployeeType", CodeValue = "Nhân viên phục vụ", CodeName = "Waiter" , Description = "Nhân viên phục vụ nhà hàng", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 8 },
+                   
                     
                     // Lifecycle: Pending → DepositPaid → Confirmed → CheckedIn → Completed (hoặc Cancelled)
                     new CommonCode { CodeType = "BookingStatus", CodeValue = "Chờ thanh toán", CodeName = "Pending" , Description = "Booking vừa tạo, chờ khách chuyển khoản (15 phút tự động hủy)", IsActive = true, CreatedAt = DateTime.UtcNow, DisplayOrder = 1 },
@@ -449,7 +442,7 @@ namespace AppBackend.ApiCore.Extension
                 var adminAccount = new Account
                 {
                     Username = "admin",
-                    Email = "admin@hotel.com",
+                    Email = "namdnhe176906@fpt.edu.vn",
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123", 12),
                     IsLocked = false,
                     CreatedAt = DateTime.UtcNow
@@ -479,7 +472,7 @@ namespace AppBackend.ApiCore.Extension
                 var managerAccount = new Account
                 {
                     Username = "manager",
-                    Email = "manager@hotel.com",
+                    Email = "binhthhe161243@fpt.edu.vn",
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager@123", 12),
                     IsLocked = false,
                     CreatedAt = DateTime.UtcNow
@@ -508,7 +501,7 @@ namespace AppBackend.ApiCore.Extension
                 var receptionistAccount = new Account
                 {
                     Username = "receptionist",
-                    Email = "receptionist@hotel.com",
+                    Email = "taindhe161749@fpt.edu.vn",
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("Staff@123", 12),
                     IsLocked = false,
                     CreatedAt = DateTime.UtcNow
