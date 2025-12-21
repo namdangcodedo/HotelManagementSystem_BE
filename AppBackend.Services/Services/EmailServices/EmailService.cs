@@ -570,96 +570,108 @@ namespace AppBackend.Services.Services.Email
         /// <summary>
         /// Gửi email thông báo khách đã thanh toán - Manager cần xác nhận
         /// </summary>
-        public async Task SendPaymentConfirmationRequestEmailToManagerAsync(int bookingId)
+        public Task SendPaymentConfirmationRequestEmailToManagerAsync(int bookingId)
         {
-            try
+            // Fire-and-forget: chạy background, không block caller
+            _ = Task.Run(async () =>
             {
-                // 1. Lấy thông tin booking
-                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
-                if (booking == null)
+                try
                 {
-                    throw new Exception($"Booking with ID {bookingId} not found");
-                }
+                    // 1. Lấy thông tin booking
+                    var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+                    if (booking == null)
+                    {
+                        Console.WriteLine($"[EmailService] Booking with ID {bookingId} not found");
+                        return;
+                    }
 
-                // 2. Lấy thông tin customer
-                var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
-                if (customer == null)
+                    // 2. Lấy thông tin customer
+                    var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
+                    if (customer == null)
+                    {
+                        Console.WriteLine($"[EmailService] Customer with ID {booking.CustomerId} not found");
+                        return;
+                    }
+
+                    // 3. Lấy email customer (nếu có)
+                    string customerEmail = "N/A";
+                    if (customer.AccountId.HasValue)
+                    {
+                        var customerAccount = await _unitOfWork.Accounts.GetByIdAsync(customer.AccountId.Value);
+                        customerEmail = customerAccount?.Email ?? "N/A";
+                    }
+
+                    // 4. Lấy thông tin phòng
+                    var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
+                    var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
+                    var rooms = await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId));
+                    var roomNames = string.Join(", ", rooms.Select(r => r.RoomName));
+
+                    // 5. Lấy danh sách email Manager/Admin
+                    var managerRoles = new[] { "Manager", "Admin","Receptionist" };
+                    var allRoles = await _unitOfWork.Roles.GetAllAsync();
+                    var managerRoleIds = allRoles.Where(r => managerRoles.Contains(r.RoleValue)).Select(r => r.RoleId).ToList();
+
+                    var managerAccountIds = await _unitOfWork.Roles.GetAccountIdsByRoleIdsAsync(managerRoleIds);
+                    
+                    var allEmployees = await _unitOfWork.Employees.GetAllAsync();
+                    var employeeAccountIds = allEmployees.Select(e => e.AccountId).ToHashSet();
+                    
+                    var managerAccounts = await _unitOfWork.Accounts.FindAsync(a => 
+                        managerAccountIds.Contains(a.AccountId) && 
+                        employeeAccountIds.Contains(a.AccountId) && 
+                        !a.IsLocked);
+
+                    if (!managerAccounts.Any())
+                    {
+                        Console.WriteLine("[EmailService] No manager accounts found to send notification");
+                        return;
+                    }
+
+                    // 6. Đọc template
+                    var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                        "TemplateEmail", "PaymentConfirmationRequestTemplate.html");
+
+                    string template;
+                    using (var reader = new StreamReader(templatePath))
+                    {
+                        template = await reader.ReadToEndAsync();
+                    }
+
+                    // 7. Tính toán và format dữ liệu
+                    var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
+                    var confirmationTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss");
+
+                    // 8. Replace placeholders
+                    var body = template
+                        .Replace("{{BookingId}}", bookingId.ToString())
+                        .Replace("{{CustomerName}}", customer.FullName ?? "N/A")
+                        .Replace("{{CustomerPhone}}", customer.PhoneNumber ?? "N/A")
+                        .Replace("{{CustomerEmail}}", customerEmail)
+                        .Replace("{{RoomNames}}", roomNames)
+                        .Replace("{{CheckInDate}}", booking.CheckInDate.ToString("dd/MM/yyyy HH:mm"))
+                        .Replace("{{CheckOutDate}}", booking.CheckOutDate.ToString("dd/MM/yyyy HH:mm"))
+                        .Replace("{{NumberOfNights}}", numberOfNights.ToString())
+                        .Replace("{{TotalAmount}}", booking.TotalAmount.ToString("N0"))
+                        .Replace("{{DepositAmount}}", booking.DepositAmount.ToString("N0"))
+                        .Replace("{{ConfirmationTime}}", confirmationTime);
+
+                    // 9. Gửi email đến tất cả managers
+                    foreach (var manager in managerAccounts)
+                    {
+                        await SendEmail(manager.Email, $"✓ Thông báo thanh toán cọc - Booking #{bookingId}", body);
+                    }
+                    
+                    Console.WriteLine($"[EmailService] Payment confirmation request sent to manager for booking {bookingId}");
+                }
+                catch (Exception ex)
                 {
-                    throw new Exception($"Customer with ID {booking.CustomerId} not found");
+                    Console.WriteLine($"[EmailService] Error sending payment confirmation request email: {ex.Message}");
                 }
+            });
 
-                // 3. Lấy email customer (nếu có)
-                string customerEmail = "N/A";
-                if (customer.AccountId.HasValue)
-                {
-                    var customerAccount = await _unitOfWork.Accounts.GetByIdAsync(customer.AccountId.Value);
-                    customerEmail = customerAccount?.Email ?? "N/A";
-                }
-
-                // 4. Lấy thông tin phòng
-                var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-                var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-                var rooms = await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId));
-                var roomNames = string.Join(", ", rooms.Select(r => r.RoomName));
-
-                // 5. Lấy danh sách email Manager/Admin
-                var managerRoles = new[] { "Manager", "Admin","Receptionist" };
-                var allRoles = await _unitOfWork.Roles.GetAllAsync();
-                var managerRoleIds = allRoles.Where(r => managerRoles.Contains(r.RoleValue)).Select(r => r.RoleId).ToList();
-
-                var managerAccountIds = await _unitOfWork.Roles.GetAccountIdsByRoleIdsAsync(managerRoleIds);
-                
-                var allEmployees = await _unitOfWork.Employees.GetAllAsync();
-                var employeeAccountIds = allEmployees.Select(e => e.AccountId).ToHashSet();
-                
-                var managerAccounts = await _unitOfWork.Accounts.FindAsync(a => 
-                    managerAccountIds.Contains(a.AccountId) && 
-                    employeeAccountIds.Contains(a.AccountId) && 
-                    !a.IsLocked);
-
-                if (!managerAccounts.Any())
-                {
-                    throw new Exception("No manager accounts found to send notification");
-                }
-
-                // 6. Đọc template
-                var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    "TemplateEmail", "PaymentConfirmationRequestTemplate.html");
-
-                string template;
-                using (var reader = new StreamReader(templatePath))
-                {
-                    template = await reader.ReadToEndAsync();
-                }
-
-                // 7. Tính toán và format dữ liệu
-                var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
-                var confirmationTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss");
-
-                // 8. Replace placeholders
-                var body = template
-                    .Replace("{{BookingId}}", bookingId.ToString())
-                    .Replace("{{CustomerName}}", customer.FullName ?? "N/A")
-                    .Replace("{{CustomerPhone}}", customer.PhoneNumber ?? "N/A")
-                    .Replace("{{CustomerEmail}}", customerEmail)
-                    .Replace("{{RoomNames}}", roomNames)
-                    .Replace("{{CheckInDate}}", booking.CheckInDate.ToString("dd/MM/yyyy HH:mm"))
-                    .Replace("{{CheckOutDate}}", booking.CheckOutDate.ToString("dd/MM/yyyy HH:mm"))
-                    .Replace("{{NumberOfNights}}", numberOfNights.ToString())
-                    .Replace("{{TotalAmount}}", booking.TotalAmount.ToString("N0"))
-                    .Replace("{{DepositAmount}}", booking.DepositAmount.ToString("N0"))
-                    .Replace("{{ConfirmationTime}}", confirmationTime);
-
-                // 9. Gửi email đến tất cả managers
-                foreach (var manager in managerAccounts)
-                {
-                    await SendEmail(manager.Email, $"✓ Thông báo thanh toán cọc - Booking #{bookingId}", body);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error sending payment confirmation request email to manager: {ex.Message}", ex);
-            }
+            // Return completed task immediately - không chờ email gửi xong
+            return Task.CompletedTask;
         }
     }
 }

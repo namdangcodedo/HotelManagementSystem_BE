@@ -108,7 +108,7 @@ namespace AppBackend.Services.Services.CommentService
             }
             else if (moderationResult.Status == "Rejected")
             {
-                message = $"Bình luận bị từ chối: {moderationResult.Reason}";
+                message = "Bình luận bị từ chối do vi phạm quy tắc cộng đồng";
             }
             else // Pending
             {
@@ -123,12 +123,10 @@ namespace AppBackend.Services.Services.CommentService
                 IsSuccess = moderationResult.Status != "Rejected", // Rejected = false
                 ResponseCode = moderationResult.Status == "Rejected" ? "REJECTED" : CommonMessageConstants.SUCCESS,
                 Message = message,
-                Data = new
+                Data = moderationResult.Status == "Rejected" ? null : new
                 {
                     commentId = comment.CommentId,
-                    status = moderationResult.Status,
-                    reason = moderationResult.Reason,
-                    toxicityScore = moderationResult.ToxicityScore
+                    status = moderationResult.Status
                 },
                 StatusCode = moderationResult.Status == "Rejected" ? StatusCodes.Status403Forbidden : StatusCodes.Status201Created
             };
