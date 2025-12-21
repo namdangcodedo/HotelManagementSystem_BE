@@ -32,7 +32,7 @@ namespace AppBackend.Services.Services.AttendanceServices
 
         public async Task<ResultModel> GetEmployeeAttendance(GetAttendanceRequest request)
         {
-            var attendances = await _unitOfWork.AttendenceRepository.GetAttendancesWithEmployee();
+           var attendances = await _unitOfWork.AttendenceRepository.GetAttendancesWithEmployee();
 
             if (!string.IsNullOrEmpty(request.EmployeeName))
             {
@@ -42,6 +42,10 @@ namespace AppBackend.Services.Services.AttendanceServices
             if (request.EmployeeId != null)
             {
                 attendances = attendances.Where(a => a.EmployeeId == request.EmployeeId).ToList();
+            }
+            if (request.Day != null)
+            {
+                attendances = attendances.Where(a => a.Workdate.Day == request.Day).ToList();
             }
 
             if (request.Month != null)
@@ -58,6 +62,11 @@ namespace AppBackend.Services.Services.AttendanceServices
             {
                 attendances = attendances.Where(a => a.Workdate == request.workDate).ToList();
 
+            }
+
+            if (request.Status != null)
+            {
+                attendances = attendances.Where(a => a.Status.Equals(request.Status)).ToList();
             }
 
             var attendanceDtos = _mapper.Map<List<AttendanceDTO>>(attendances);

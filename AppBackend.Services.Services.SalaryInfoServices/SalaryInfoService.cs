@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.IO;
 using AppBackend.BusinessObjects.Constants;
 using AppBackend.BusinessObjects.Dtos;
 using AppBackend.BusinessObjects.Models;
@@ -6,8 +10,8 @@ using AppBackend.Services.ApiModels;
 using AppBackend.Services.ApiModels.SalaryModel;
 using AppBackend.Services.Helpers;
 using AutoMapper;
-using ClosedXML.Excel;
 using Microsoft.AspNetCore.Http;
+using ClosedXML.Excel;
 
 namespace AppBackend.Services.Services.SalaryInfoServices
 {
@@ -263,8 +267,8 @@ namespace AppBackend.Services.Services.SalaryInfoServices
                 }
 
                 // Use SalaryInfo for the requested year if present, otherwise fallback to employee base salary
-                var targetYear = request.Year ?? DateTime.Now.Year;
-                var targetMonth = request.Month ?? DateTime.Now.Month;
+                var targetYear = request.Year;
+                var targetMonth = request.Month;
 
                 var salaryInfos = await _unitOfWork.SalaryInfos.GetByEmployeeIdAsync(employee.EmployeeId);
                 var salaryInfo = salaryInfos?.FirstOrDefault(s => s.Year == targetYear);

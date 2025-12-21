@@ -11,5 +11,7 @@ namespace AppBackend.Services.Services.SalaryInfoServices
         Task<ResultModel> CreateAsync(PostSalaryInfoRequest request);
         Task<ResultModel> UpdateAsync(int id, PostSalaryInfoRequest request);
         Task<ResultModel> DeleteAsync(int id);
+        Task<ResultModel> CalculateMonthlySalary(CalculateSalaryRequest request);
+
     }
 }
