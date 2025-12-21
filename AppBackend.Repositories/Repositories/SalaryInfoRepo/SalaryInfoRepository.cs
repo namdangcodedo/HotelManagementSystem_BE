@@ -39,8 +39,7 @@ namespace AppBackend.Repositories.Repositories.SalaryInfoRepo
 
         public async Task<List<SalaryInfo>> GetByEmployeeIdAsync(int employeeId)
         {
-            return await _context.Set<SalaryInfo>()
-                .AsNoTracking()
+            return await _context.SalaryInfos.Include(s => s.Employee)
                 .Where(s => s.EmployeeId == employeeId)
                 .ToListAsync();
         }
