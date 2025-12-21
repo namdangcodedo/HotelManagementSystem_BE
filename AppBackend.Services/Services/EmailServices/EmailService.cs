@@ -2,6 +2,7 @@
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 using System;
 using System.Collections.Generic;
@@ -19,13 +20,20 @@ namespace AppBackend.Services.Services.Email
         private readonly IUnitOfWork _unitOfWork;
         private readonly BookingTokenHelper _bookingTokenHelper;
         private readonly AccountTokenHelper _accountTokenHelper;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public EmailService(IConfiguration configuration, IUnitOfWork unitOfWork, BookingTokenHelper bookingTokenHelper, AccountTokenHelper accountTokenHelper)
+        public EmailService(
+            IConfiguration configuration, 
+            IUnitOfWork unitOfWork, 
+            BookingTokenHelper bookingTokenHelper, 
+            AccountTokenHelper accountTokenHelper,
+            IServiceScopeFactory serviceScopeFactory)
         {
             _configuration = configuration;
             _unitOfWork = unitOfWork;
             _bookingTokenHelper = bookingTokenHelper;
             _accountTokenHelper = accountTokenHelper;
+            _serviceScopeFactory = serviceScopeFactory;
         }
         public async Task SendEmail(string email, string subject, string body)
         {
@@ -326,317 +334,102 @@ namespace AppBackend.Services.Services.Email
                 throw new Exception($"Error sending payment notification: {ex.Message}", ex);
             }
         }
-
-        public async Task SendDepositConfirmationEmailAsync(int bookingId)
-        {
-            try
-            {
-                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
-                if (booking == null)
-                {
-                    throw new Exception($"Booking {bookingId} không tồn tại");
-                }
-
-                var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
-                if (customer == null)
-                {
-                    throw new Exception("Customer không tồn tại");
-                }
-
-                string? customerEmail = null;
-                if (customer.AccountId.HasValue)
-                {
-                    var account = await _unitOfWork.Accounts.GetByIdAsync(customer.AccountId.Value);
-                    customerEmail = account?.Email;
-                }
-
-                if (string.IsNullOrEmpty(customerEmail))
-                {
-                    throw new Exception("Customer không có email để gửi");
-                }
-
-                var bookingToken = _bookingTokenHelper.EncodeBookingId(bookingId);
-                var frontendBaseUrl = _configuration["FrontendSettings:BaseUrl"] ?? "http://localhost:3000";
-                var bookingDetailUrl = $"{frontendBaseUrl}/booking/{bookingToken}";
-
-                var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-                var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-                var rooms = await Task.WhenAll(roomIds.Select(id => _unitOfWork.Rooms.GetByIdAsync(id)));
-                var roomNames = rooms.Where(r => r != null).Select(r => r!.RoomName).ToList();
-
-                var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, 
-                    "TemplateEmail", "BookingConfirmationTemplate.html");
-                
-                string template;
-                using (var reader = new StreamReader(templatePath))
-                {
-                    template = await reader.ReadToEndAsync();
-                }
-
-                var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
-
-                var successBadgeHtml = @"
-                    <div class=""success-badge"" style=""background: #10b981; color: white; display: inline-block; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; margin-bottom: 20px;"">
-                        ✓ Thanh toán cọc thành công
-                    </div>";
-
-                var body = template
-                    .Replace("{{CustomerName}}", customer.FullName ?? "Quý khách")
-                    .Replace("{{CheckInDate}}", booking.CheckInDate.ToString("dd/MM/yyyy HH:mm"))
-                    .Replace("{{CheckOutDate}}", booking.CheckOutDate.ToString("dd/MM/yyyy HH:mm"))
-                    .Replace("{{NumberOfNights}}", numberOfNights.ToString())
-                    .Replace("{{BookingDetailUrl}}", bookingDetailUrl)
-                    .Replace("{{AccountInfo}}", "")
-                    .Replace("<div class=\"success-badge\">✓ Đặt phòng thành công</div>", successBadgeHtml);
-
-                await SendEmail(customerEmail, $"Xác nhận thanh toán cọc - Booking #{bookingId} - StayHub Hotel", body);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error sending deposit confirmation email: {ex.Message}", ex);
-            }
-        }
-
-        /// <summary>
-        /// Gửi email thông báo hủy booking đến quản lý/manager
-        /// </summary>
-        public async Task SendBookingCancellationEmailToManagerAsync(int bookingId, string reason = "")
-        {
-            try
-            {
-                // 1. Lấy thông tin booking
-                var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
-                if (booking == null)
-                {
-                    throw new Exception($"Booking with ID {bookingId} not found");
-                }
-
-                // 2. Lấy thông tin customer
-                var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
-                if (customer == null)
-                {
-                    throw new Exception($"Customer with ID {booking.CustomerId} not found");
-                }
-
-                // 3. Lấy thông tin phòng
-                var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
-                var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-                var rooms = await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId));
-                var roomNames = string.Join(", ", rooms.Select(r => r.RoomName));
-
-                // 4. Lấy status code
-                var statusCode = booking.StatusId.HasValue
-                    ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
-                    : null;
-
-                // 5. Lấy danh sách email Manager/Admin
-                var managerRoles = new[] { "Manager", "Admin" };
-                var allRoles = await _unitOfWork.Roles.GetAllAsync();
-                var managerRoleIds = allRoles.Where(r => managerRoles.Contains(r.RoleValue)).Select(r => r.RoleId).ToList();
-
-                // Lấy manager accounts
-                var managerAccountIds = await _unitOfWork.Roles.GetAccountIdsByRoleIdsAsync(managerRoleIds);
-                
-                var allEmployees = await _unitOfWork.Employees.GetAllAsync();
-                var employeeAccountIds = allEmployees.Select(e => e.AccountId).ToHashSet();
-                
-                var managerAccounts = await _unitOfWork.Accounts.FindAsync(a => 
-                    managerAccountIds.Contains(a.AccountId) && 
-                    employeeAccountIds.Contains(a.AccountId) && 
-                    !a.IsLocked);
-
-                if (!managerAccounts.Any())
-                {
-                    throw new Exception("No manager accounts found to send notification");
-                }
-
-                // 6. Tạo nội dung email
-                var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
-                var cancellationTime = DateTime.UtcNow.ToString("dd/MM/yyyy HH:mm:ss");
-
-                var emailBody = $@"
-                <html>
-                <head>
-                    <style>
-                        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                        .header {{ background: #dc2626; color: white; padding: 20px; border-radius: 5px 5px 0 0; }}
-                        .content {{ background: #f9fafb; padding: 20px; }}
-                        .footer {{ background: #f3f4f6; padding: 10px; border-radius: 0 0 5px 5px; font-size: 12px; color: #666; }}
-                        .info-row {{ margin: 10px 0; }}
-                        .label {{ font-weight: 600; color: #374151; }}
-                        .value {{ color: #6b7280; }}
-                        .alert {{ background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 15px 0; border-radius: 3px; }}
-                    </style>
-                </head>
-                <body>
-                    <div class=""container"">
-                        <div class=""header"">
-                            <h2>⚠️ THÔNG BÁO HỦY ĐẶT PHÒNG</h2>
-                        </div>
-                        <div class=""content"">
-                            <p>Xin chào,</p>
-                            <p>Có một booking vừa bị hủy. Vui lòng xem chi tiết dưới đây:</p>
-                            
-                            <div class=""alert"">
-                                <strong>Booking #{bookingId} đã bị HỦY</strong>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Khách hàng:</span>
-                                <span class=""value"">{customer.FullName ?? "N/A"}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Số điện thoại:</span>
-                                <span class=""value"">{customer.PhoneNumber ?? "N/A"}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Email khách:</span>
-                                <span class=""value""><a href=""mailto:{customer.FullName}"">{customer.FullName}</a></span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Phòng đã đặt:</span>
-                                <span class=""value"">{roomNames}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Check-in:</span>
-                                <span class=""value"">{booking.CheckInDate:dd/MM/yyyy HH:mm}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Check-out:</span>
-                                <span class=""value"">{booking.CheckOutDate:dd/MM/yyyy HH:mm}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Số đêm:</span>
-                                <span class=""value"">{numberOfNights}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Tổng tiền:</span>
-                                <span class=""value"">{booking.TotalAmount:N0} VND</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Tiền cọc:</span>
-                                <span class=""value"">{booking.DepositAmount:N0} VND</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Trạng thái:</span>
-                                <span class=""value"">{statusCode?.CodeValue ?? "N/A"}</span>
-                            </div>
-
-                            <div class=""info-row"">
-                                <span class=""label"">Thời gian hủy:</span>
-                                <span class=""value"">{cancellationTime}</span>
-                            </div>
-
-                            {(string.IsNullOrEmpty(reason) ? "" : $@"
-                            <div class=""info-row"">
-                                <span class=""label"">Lý do hủy:</span>
-                                <span class=""value"">{reason}</span>
-                            </div>")}
-
-                            <p style=""margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;"">
-                                Vui lòng kiểm tra hệ thống để cập nhật trạng thái booking và liên hệ khách hàng nếu cần thiết.
-                            </p>
-                        </div>
-                        <div class=""footer"">
-                            <p>StayHub Hotel Management System</p>
-                            <p>Đây là email tự động, vui lòng không trả lời email này.</p>
-                        </div>
-                    </div>
-                </body>
-                </html>";
-
-                // 7. Gửi email đến tất cả managers
-                foreach (var manager in managerAccounts)
-                {
-                    await SendEmail(manager.Email, $"⚠️ Thông báo hủy booking #{bookingId}", emailBody);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Error sending booking cancellation email to manager: {ex.Message}", ex);
-            }
-        }
-
+        
         /// <summary>
         /// Gửi email thông báo khách đã thanh toán - Manager cần xác nhận
         /// </summary>
         public Task SendPaymentConfirmationRequestEmailToManagerAsync(int bookingId)
         {
             // Fire-and-forget: chạy background, không block caller
+            // QUAN TRỌNG: Phải tạo scope mới vì DbContext của request gốc sẽ bị dispose
             _ = Task.Run(async () =>
             {
                 try
                 {
+                    Console.WriteLine($"[EmailService] === START SendPaymentConfirmationRequestEmailToManagerAsync for booking {bookingId} ===");
+                    
+                    // Tạo scope mới để có DbContext mới, tránh lỗi "Cannot access a disposed context"
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                    
                     // 1. Lấy thông tin booking
-                    var booking = await _unitOfWork.Bookings.GetByIdAsync(bookingId);
+                    var booking = await unitOfWork.Bookings.GetByIdAsync(bookingId);
                     if (booking == null)
                     {
-                        Console.WriteLine($"[EmailService] Booking with ID {bookingId} not found");
+                        Console.WriteLine($"[EmailService] ERROR: Booking with ID {bookingId} not found");
                         return;
                     }
+                    Console.WriteLine($"[EmailService] Step 1: Found booking {bookingId}, CustomerId: {booking.CustomerId}");
 
                     // 2. Lấy thông tin customer
-                    var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
+                    var customer = await unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
                     if (customer == null)
                     {
-                        Console.WriteLine($"[EmailService] Customer with ID {booking.CustomerId} not found");
+                        Console.WriteLine($"[EmailService] ERROR: Customer with ID {booking.CustomerId} not found");
                         return;
                     }
+                    Console.WriteLine($"[EmailService] Step 2: Found customer: {customer.FullName}, AccountId: {customer.AccountId}");
 
                     // 3. Lấy email customer (nếu có)
                     string customerEmail = "N/A";
                     if (customer.AccountId.HasValue)
                     {
-                        var customerAccount = await _unitOfWork.Accounts.GetByIdAsync(customer.AccountId.Value);
+                        var customerAccount = await unitOfWork.Accounts.GetByIdAsync(customer.AccountId.Value);
                         customerEmail = customerAccount?.Email ?? "N/A";
                     }
+                    Console.WriteLine($"[EmailService] Step 3: Customer email: {customerEmail}");
 
                     // 4. Lấy thông tin phòng
-                    var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
+                    var bookingRooms = await unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
                     var roomIds = bookingRooms.Select(br => br.RoomId).ToList();
-                    var rooms = await _unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId));
+                    var rooms = await unitOfWork.Rooms.FindAsync(r => roomIds.Contains(r.RoomId));
                     var roomNames = string.Join(", ", rooms.Select(r => r.RoomName));
+                    Console.WriteLine($"[EmailService] Step 4: Found {roomIds.Count} rooms: {roomNames}");
 
                     // 5. Lấy danh sách email Manager/Admin
-                    var managerRoles = new[] { "Manager", "Admin","Receptionist" };
-                    var allRoles = await _unitOfWork.Roles.GetAllAsync();
+                    var managerRoles = new[] { "Manager", "Admin", "Receptionist" };
+                    var allRoles = await unitOfWork.Roles.GetAllAsync();
+                    Console.WriteLine($"[EmailService] Step 5a: Total roles in DB: {allRoles.Count()}");
+                    
                     var managerRoleIds = allRoles.Where(r => managerRoles.Contains(r.RoleValue)).Select(r => r.RoleId).ToList();
+                    Console.WriteLine($"[EmailService] Step 5b: Manager role IDs: [{string.Join(", ", managerRoleIds)}]");
 
-                    var managerAccountIds = await _unitOfWork.Roles.GetAccountIdsByRoleIdsAsync(managerRoleIds);
+                    var managerAccountIds = await unitOfWork.Roles.GetAccountIdsByRoleIdsAsync(managerRoleIds);
+                    Console.WriteLine($"[EmailService] Step 5c: Manager account IDs: [{string.Join(", ", managerAccountIds)}]");
                     
-                    var allEmployees = await _unitOfWork.Employees.GetAllAsync();
+                    var allEmployees = await unitOfWork.Employees.GetAllAsync();
                     var employeeAccountIds = allEmployees.Select(e => e.AccountId).ToHashSet();
+                    Console.WriteLine($"[EmailService] Step 5d: Employee account IDs: [{string.Join(", ", employeeAccountIds)}]");
                     
-                    var managerAccounts = await _unitOfWork.Accounts.FindAsync(a => 
+                    var managerAccounts = await unitOfWork.Accounts.FindAsync(a => 
                         managerAccountIds.Contains(a.AccountId) && 
                         employeeAccountIds.Contains(a.AccountId) && 
                         !a.IsLocked);
+                    Console.WriteLine($"[EmailService] Step 5e: Found {managerAccounts.Count()} manager accounts to notify");
 
                     if (!managerAccounts.Any())
                     {
-                        Console.WriteLine("[EmailService] No manager accounts found to send notification");
+                        Console.WriteLine("[EmailService] WARNING: No manager accounts found to send notification");
                         return;
                     }
 
                     // 6. Đọc template
                     var templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                         "TemplateEmail", "PaymentConfirmationRequestTemplate.html");
+                    Console.WriteLine($"[EmailService] Step 6a: Template path: {templatePath}");
+                    
+                    if (!File.Exists(templatePath))
+                    {
+                        Console.WriteLine($"[EmailService] ERROR: Template file NOT FOUND at {templatePath}");
+                        return;
+                    }
 
                     string template;
                     using (var reader = new StreamReader(templatePath))
                     {
                         template = await reader.ReadToEndAsync();
                     }
+                    Console.WriteLine($"[EmailService] Step 6b: Template loaded, length: {template.Length} chars");
 
                     // 7. Tính toán và format dữ liệu
                     var numberOfNights = (booking.CheckOutDate - booking.CheckInDate).Days;
@@ -655,18 +448,29 @@ namespace AppBackend.Services.Services.Email
                         .Replace("{{TotalAmount}}", booking.TotalAmount.ToString("N0"))
                         .Replace("{{DepositAmount}}", booking.DepositAmount.ToString("N0"))
                         .Replace("{{ConfirmationTime}}", confirmationTime);
+                    Console.WriteLine($"[EmailService] Step 8: Body prepared");
 
                     // 9. Gửi email đến tất cả managers
                     foreach (var manager in managerAccounts)
                     {
-                        await SendEmail(manager.Email, $"✓ Thông báo thanh toán cọc - Booking #{bookingId}", body);
+                        try
+                        {
+                            Console.WriteLine($"[EmailService] Step 9: Sending email to {manager.Email}...");
+                            await SendEmail(manager.Email, $"✓ Thông báo thanh toán cọc - Booking #{bookingId}", body);
+                            Console.WriteLine($"[EmailService] Step 9: SUCCESS - Email sent to {manager.Email}");
+                        }
+                        catch (Exception emailEx)
+                        {
+                            Console.WriteLine($"[EmailService] Step 9: FAILED to send to {manager.Email}: {emailEx.Message}");
+                        }
                     }
                     
-                    Console.WriteLine($"[EmailService] Payment confirmation request sent to manager for booking {bookingId}");
+                    Console.WriteLine($"[EmailService] === END SendPaymentConfirmationRequestEmailToManagerAsync for booking {bookingId} ===");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[EmailService] Error sending payment confirmation request email: {ex.Message}");
+                    Console.WriteLine($"[EmailService] FATAL ERROR: {ex.Message}");
+                    Console.WriteLine($"[EmailService] Stack trace: {ex.StackTrace}");
                 }
             });
 
