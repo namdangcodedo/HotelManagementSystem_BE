@@ -16,12 +16,6 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public int BookingId { get; set; }
 
         /// <summary>
-        /// Ngày checkout thực tế (có thể khác ngày checkout dự kiến)
-        /// </summary>
-        [Required]
-        public DateTime ActualCheckOutDate { get; set; }
-
-        /// <summary>
         /// Payment Method ID (từ CommonCode: Cash, Card, QR, PayOS)
         /// </summary>
         [Required]
@@ -169,11 +163,6 @@ namespace AppBackend.Services.ApiModels.BookingModel
     {
         [Required]
         public int BookingId { get; set; }
-
-        /// <summary>
-        /// Ngày checkout dự kiến (để tính tiền nếu checkout sớm/muộn)
-        /// </summary>
-        public DateTime? EstimatedCheckOutDate { get; set; }
     }
 
     /// <summary>
@@ -190,12 +179,6 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public DateTime CheckOutDate { get; set; }
         public int TotalNights { get; set; }
 
-        /// <summary>
-        /// Ngày checkout dự kiến (có thể khác checkout date trong booking)
-        /// </summary>
-        public DateTime? EstimatedCheckOutDate { get; set; }
-        public int? EstimatedNights { get; set; }
-
         public List<RoomChargeDetail> RoomCharges { get; set; } = new List<RoomChargeDetail>();
         public decimal TotalRoomCharges { get; set; }
 
@@ -207,12 +190,7 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public decimal TotalAmount { get; set; }
         public decimal AmountDue { get; set; }
 
-        /// <summary>
-        /// Warning nếu checkout sớm/muộn so với dự kiến
-        /// </summary>
-        public string? Message { get; set; }
-
-        public string BookingStatus { get; set; }
-        public string BookingStatusCode { get; set; }
+        public string BookingStatus { get; set; } = string.Empty;
+        public string BookingStatusCode { get; set; } = string.Empty;
     }
 }

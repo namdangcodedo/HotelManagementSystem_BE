@@ -68,8 +68,8 @@ namespace AppBackend.Services.Services.CheckoutServices
                     };
                 }
 
-                // 3. Xác định checkout date
-                var checkoutDate = request.EstimatedCheckOutDate ?? booking.CheckOutDate;
+                // 3. Sử dụng CheckOutDate từ booking
+                var checkoutDate = booking.CheckOutDate;
                 
                 // CRITICAL FIX: Phải dùng CodeName (English) thay vì CodeValue (Tiếng Việt)
                 bool isOnlineBooking = booking.BookingType?.CodeName == "Online";
@@ -118,16 +118,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                 decimal totalAmount = subTotal;
                 decimal amountDue = totalAmount - depositPaid;
 
-                // 7. Warning message nếu checkout sớm/muộn
-                string? message = null;
-                if (checkoutDate < booking.CheckOutDate)
-                {
-                    message = "⚠️ Checkout sớm hơn dự kiến - có thể áp dụng phí hủy phòng";
-                }
-                else if (checkoutDate > booking.CheckOutDate)
-                {
-                    message = "⚠️ Checkout muộn hơn dự kiến - có thể phát sinh thêm chi phí";
-                }
+                var totalNights = CalculateNights(booking.CheckInDate, booking.CheckOutDate);
 
                 var response = new PreviewCheckoutResponse
                 {
@@ -146,9 +137,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                     },
                     CheckInDate = booking.CheckInDate,
                     CheckOutDate = booking.CheckOutDate,
-                    TotalNights = CalculateNights(booking.CheckInDate, booking.CheckOutDate),
-                    EstimatedCheckOutDate = checkoutDate,
-                    EstimatedNights = CalculateNights(booking.CheckInDate, checkoutDate),
+                    TotalNights = totalNights,
                     RoomCharges = roomCharges,
                     TotalRoomCharges = totalRoomCharges,
                     ServiceCharges = serviceCharges,
@@ -156,8 +145,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                     SubTotal = subTotal,
                     DepositPaid = depositPaid,
                     TotalAmount = totalAmount,
-                    AmountDue = amountDue,
-                    Message = message
+                    AmountDue = amountDue
                 };
 
                 return new ResultModel
@@ -182,6 +170,8 @@ namespace AppBackend.Services.Services.CheckoutServices
 
         /// <summary>
         /// Xử lý checkout và thanh toán hoàn tất
+        /// Lưu ý: Checkout theo đúng ngày CheckOutDate trong booking
+        /// Nếu khách muốn ở thêm, cần tạo booking mới trước khi checkout
         /// </summary>
         public async Task<ResultModel> ProcessCheckoutAsync(CheckoutRequest request, int? processedBy = null)
         {
@@ -232,8 +222,8 @@ namespace AppBackend.Services.Services.CheckoutServices
 
                 bool isOnlineBooking = booking.BookingType?.CodeName == "Online";
 
-                // 3. Tính tiền phòng
-                var roomCharges = await CalculateRoomChargesAsync(booking, request.ActualCheckOutDate, isOnlineBooking);
+                // 3. Tính tiền phòng (sử dụng CheckOutDate từ booking)
+                var roomCharges = await CalculateRoomChargesAsync(booking, booking.CheckOutDate, isOnlineBooking);
                 decimal totalRoomCharges = roomCharges.Sum(r => r.SubTotal);
 
                 // 4. Tính tiền dịch vụ (bao gồm TẤT CẢ services đã add trong quá trình ở)
@@ -339,7 +329,7 @@ namespace AppBackend.Services.Services.CheckoutServices
                 await _unitOfWork.SaveChangesAsync();
 
                 // 11. Prepare response
-                var actualNights = CalculateNights(booking.CheckInDate, request.ActualCheckOutDate);
+                var totalNights = CalculateNights(booking.CheckInDate, booking.CheckOutDate);
                 var response = new CheckoutResponse
                 {
                     BookingId = booking.BookingId,
@@ -355,9 +345,9 @@ namespace AppBackend.Services.Services.CheckoutServices
                     },
                     CheckInDate = booking.CheckInDate,
                     CheckOutDate = booking.CheckOutDate,
-                    ActualCheckOutDate = request.ActualCheckOutDate,
-                    TotalNights = CalculateNights(booking.CheckInDate, booking.CheckOutDate),
-                    ActualNights = actualNights,
+                    ActualCheckOutDate = booking.CheckOutDate, // Sử dụng CheckOutDate từ booking
+                    TotalNights = totalNights,
+                    ActualNights = totalNights,
                     RoomCharges = roomCharges,
                     TotalRoomCharges = totalRoomCharges,
                     ServiceCharges = serviceCharges,

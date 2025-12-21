@@ -24,18 +24,14 @@ namespace AppBackend.ApiCore.Controllers
         /// GET: api/checkout/preview/{bookingId}
         /// </summary>
         /// <param name="bookingId">Booking ID</param>
-        /// <param name="estimatedCheckOutDate">Ngày checkout dự kiến (optional)</param>
         /// <returns>Chi tiết hóa đơn preview</returns>
         [HttpGet("preview/{bookingId}")]
         [Authorize]
-        public async Task<IActionResult> PreviewCheckout(
-            int bookingId,
-            [FromQuery] DateTime? estimatedCheckOutDate = null)
+        public async Task<IActionResult> PreviewCheckout(int bookingId)
         {
             var request = new PreviewCheckoutRequest
             {
-                BookingId = bookingId,
-                EstimatedCheckOutDate = estimatedCheckOutDate
+                BookingId = bookingId
             };
 
             var result = await _checkoutService.PreviewCheckoutAsync(request);
@@ -61,11 +57,6 @@ namespace AppBackend.ApiCore.Controllers
             if (request.BookingId <= 0)
             {
                 return ValidationError("Booking ID không hợp lệ");
-            }
-
-            if (request.ActualCheckOutDate == default)
-            {
-                return ValidationError("Ngày checkout không hợp lệ");
             }
 
             if (request.PaymentMethodId <= 0)
