@@ -54,23 +54,29 @@ public class HotelBookingPlugin
 
             if (result.IsSuccess && result.Data != null)
             {
-                // Lấy dữ liệu và giới hạn số lượng phòng trả về
-                var pagedData = result.Data as dynamic;
+                // Data is a List<RoomTypeSearchResultDto>
+                var roomList = result.Data as List<RoomTypeSearchResultDto>;
                 
-                _logger.LogInformation("✅ Function returned successfully");
-                    
-                return JsonSerializer.Serialize(new
+                if (roomList != null)
                 {
-                    success = true,
-                    message = "Found available rooms (showing top 10 results)",
-                    totalCount = pagedData?.TotalCount ?? 0,
-                    showingCount = pagedData?.Items?.Count ?? 0,
-                    data = new
+                    var totalCount = roomList.Count;
+                    var topResults = roomList.Take(10).ToList();
+                    
+                    _logger.LogInformation("✅ Function returned successfully with {Count} rooms", totalCount);
+                        
+                    return JsonSerializer.Serialize(new
                     {
-                        rooms = pagedData?.Items,
-                        totalCount = pagedData?.TotalCount ?? 0
-                    }
-                });
+                        success = true,
+                        message = $"Found {totalCount} available room types" + (totalCount > 10 ? " (showing top 10)" : ""),
+                        totalCount = totalCount,
+                        showingCount = topResults.Count,
+                        data = new
+                        {
+                            rooms = topResults,
+                            totalCount = totalCount
+                        }
+                    });
+                }
             }
 
             _logger.LogWarning("⚠️ Function found no rooms: {Message}", result.Message);
