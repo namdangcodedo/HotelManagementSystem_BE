@@ -43,18 +43,35 @@ namespace AppBackend.Repositories.Repositories.EmployeeScheduleRepo
                 query = query.Where(es => es.ScheduleId != excludeScheduleId.Value);
             }
 
-            // Kiểm tra xem có lịch nào bị trùng không
-            // Trùng lịch khi:
-            // 1. StartTime của lịch mới nằm trong khoảng [StartTime, EndTime] của lịch đã có
-            // 2. EndTime của lịch mới nằm trong khoảng [StartTime, EndTime] của lịch đã có
-            // 3. Lịch mới bao phủ hoàn toàn lịch đã có
-            var hasConflict = await query.AnyAsync(es =>
-                (startTime >= es.StartTime && startTime < es.EndTime) ||
-                (endTime > es.StartTime && endTime <= es.EndTime) ||
-                (startTime <= es.StartTime && endTime >= es.EndTime)
-            );
+            // Lấy tất cả schedules của nhân viên trong ngày đó
+            var existingSchedules = await query.ToListAsync();
+            
+            // Không có lịch nào trong ngày → không conflict
+            if (!existingSchedules.Any())
+            {
+                return false;
+            }
 
-            return hasConflict;
+            // Chuyển đổi TimeOnly sang phút để so sánh dễ hơn
+            // Xử lý đặc biệt cho ca đêm kết thúc lúc 00:00 (coi như 24:00 = 1440 phút)
+            int newStartMinutes = startTime.Hour * 60 + startTime.Minute;
+            int newEndMinutes = endTime == new TimeOnly(0, 0) ? 24 * 60 : endTime.Hour * 60 + endTime.Minute;
+
+            foreach (var es in existingSchedules)
+            {
+                int existingStartMinutes = es.StartTime.Hour * 60 + es.StartTime.Minute;
+                int existingEndMinutes = es.EndTime == new TimeOnly(0, 0) ? 24 * 60 : es.EndTime.Hour * 60 + es.EndTime.Minute;
+
+                // Kiểm tra overlap: hai khoảng thời gian [A, B) và [C, D) overlap khi A < D và C < B
+                bool hasOverlap = newStartMinutes < existingEndMinutes && existingStartMinutes < newEndMinutes;
+                
+                if (hasOverlap)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public async Task<IEnumerable<Employee>> GetAvailableEmployeesAsync(DateOnly shiftDate, TimeOnly startTime, TimeOnly endTime, int? employeeTypeId = null)

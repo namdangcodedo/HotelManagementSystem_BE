@@ -38,7 +38,8 @@ namespace AppBackend.Tests.Services
                 _mockConfiguration.Object,
                 _mockUnitOfWork.Object,
                 _bookingTokenHelper,
-                _accountTokenHelper
+                _accountTokenHelper,
+                null // Assuming logger is not needed for these tests
             );
         }
 
