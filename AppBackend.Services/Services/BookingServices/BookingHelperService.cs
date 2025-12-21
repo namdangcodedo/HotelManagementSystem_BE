@@ -219,10 +219,13 @@ namespace AppBackend.Services.Services.BookingServices
 
         /// <summary>
         /// Tính số đêm giữa 2 ngày
+        /// Tối thiểu trả về 1 đêm (cho trường hợp check-in và check-out cùng ngày)
         /// </summary>
         public int CalculateNumberOfNights(DateTime checkInDate, DateTime checkOutDate)
         {
-            return (checkOutDate.Date - checkInDate.Date).Days;
+            var nights = (checkOutDate.Date - checkInDate.Date).Days;
+            // Tối thiểu 1 đêm - ví dụ: check-in 1h sáng, check-out 12h trưa cùng ngày vẫn tính 1 đêm
+            return Math.Max(nights, 1);
         }
 
         /// <summary>

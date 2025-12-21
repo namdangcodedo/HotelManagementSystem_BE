@@ -409,6 +409,8 @@ namespace AppBackend.Services.Services.RoomServices
                 }
 
                 var today = DateTime.UtcNow.Date;
+                // Cho phép check-in ngày hôm nay bất kể giờ nào
+                // Chỉ không cho đặt ngày trong quá khứ (trước ngày hôm nay)
                 if (request.CheckInDate.Date < today)
                 {
                     return new ResultModel

@@ -68,6 +68,8 @@ public class BookingManagementService : IBookingManagementService
             }
 
             var today = DateTime.UtcNow.Date;
+            // Lễ tân có thể đặt phòng check-in ngày hôm nay bất kể giờ nào
+            // Chỉ không cho đặt ngày trong quá khứ (trước ngày hôm nay)
             if (request.CheckInDate.Date < today)
             {
                 return new ResultModel
