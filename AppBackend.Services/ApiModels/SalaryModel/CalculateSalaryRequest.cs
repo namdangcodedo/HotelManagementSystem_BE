@@ -12,11 +12,10 @@ namespace AppBackend.Services.ApiModels.SalaryModel
         [Required]
         public int EmployeeId { get; set; }
 
-        [Required]
-        public int Year { get; set; }
+        
+        public int? Year { get; set; }
 
-        [Required]
-        public int Month { get; set; }
+        public int? Month { get; set; }
 
         // Optional overrides
         public decimal? StandardMonthlyHours { get; set; } // default 208

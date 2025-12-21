@@ -263,8 +263,8 @@ namespace AppBackend.Services.Services.SalaryInfoServices
                 }
 
                 // Use SalaryInfo for the requested year if present, otherwise fallback to employee base salary
-                var targetYear = request.Year;
-                var targetMonth = request.Month;
+                var targetYear = request.Year ?? DateTime.Now.Year;
+                var targetMonth = request.Month ?? DateTime.Now.Month;
 
                 var salaryInfos = await _unitOfWork.SalaryInfos.GetByEmployeeIdAsync(employee.EmployeeId);
                 var salaryInfo = salaryInfos?.FirstOrDefault(s => s.Year == targetYear);
