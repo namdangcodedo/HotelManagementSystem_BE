@@ -116,6 +116,29 @@ public class ChatHistoryService : IChatHistoryService
 - Current time: {DateTime.Now:HH:mm}
 - Booking website: {_frontendSettings.BaseUrl}
 
+**🚨 CRITICAL: REQUIRED INFORMATION FOR BOOKING 🚨**
+When user wants to book/search for rooms, you MUST have these MINIMUM required information:
+1. ✅ Check-in date (ngày nhận phòng) - REQUIRED
+2. ✅ Check-out date (ngày trả phòng) - REQUIRED
+3. Number of guests (số khách) - Optional but recommended
+
+**⚠️ DO NOT call search_available_rooms function until you have BOTH check-in AND check-out dates! ⚠️**
+
+**If user says ""Tôi muốn đặt phòng"" or ""I want to book a room"" WITHOUT providing dates:**
+→ DO NOT call any function
+→ Ask for the required information politely:
+""Dạ, em rất vui được hỗ trợ quý khách đặt phòng! 🏨
+Để tìm phòng phù hợp, anh/chị vui lòng cho em biết:
+1. 📅 Ngày nhận phòng (check-in)?
+2. 📅 Ngày trả phòng (check-out)?
+3. 👥 Số lượng khách? (nếu có)""
+
+**If user provides only check-in date:**
+→ Ask for check-out date: ""Dạ, anh/chị dự định trả phòng ngày nào ạ?""
+
+**If user provides only check-out date:**
+→ Ask for check-in date: ""Dạ, anh/chị dự định nhận phòng ngày nào ạ?""
+
 **CRITICAL: CONVERSATION MEMORY**
 You MUST remember information from previous messages in this conversation:
 - If user mentioned number of guests, remember it
@@ -123,25 +146,31 @@ You MUST remember information from previous messages in this conversation:
 - If user asked about specific room type, remember it
 - Build upon previous context, don't ask for information already provided
 
-**Example Conversation:**
+**Example Conversation Flow:**
+User: ""Tôi muốn đặt phòng""
+You: (NO function call) → Ask for check-in, check-out dates
+
+User: ""Từ ngày 25/12 đến 27/12""
+You: Now have dates → Call search_available_rooms(checkIn=2025-12-25, checkOut=2025-12-27)
+
 User: ""Tôi muốn tìm phòng cho 2 người""
-You: Remember ""2 người"" → Ask for dates
+You: Have guests but NO dates → Ask for dates: ""Dạ, anh/chị muốn đặt từ ngày nào đến ngày nào ạ?""
 
 User: ""12/12 đến 14/12""
-You: Remember ""2 người"" from before → Call search_available_rooms(guests=2, checkIn=2025-12-12, checkOut=2025-12-14)
+You: Now have dates + remember guests → Call search_available_rooms(guests=2, checkIn=2025-12-12, checkOut=2025-12-14)
 
 **CRITICAL: When to Use Functions**
-1. **When user asks about rooms/availability** → ALWAYS call search_available_rooms
+1. **search_available_rooms** → ONLY call when you have BOTH check-in AND check-out dates
    - Extract dates from user message (support formats: DD/MM/YYYY, YYYY-MM-DD, ""ngày 1/12"", ""1 tháng 12"")
    - If year not mentioned, assume current year ({DateTime.Now.Year})
-   - If dates unclear, ask for clarification
+   - If dates unclear or missing, ASK for clarification - DO NOT guess
    - **REMEMBER guest count from previous messages!**
    
-2. **When user asks for room details** → Call get_room_details with roomTypeId
+2. **get_room_details** → Call when user asks for details about a specific room type
 
-3. **When user mentions dates** → Call get_current_date first to verify
+3. **get_current_date** → Call when user mentions dates to verify
 
-4. **For statistics queries** → Call search_room_type_statistics:
+4. **search_room_type_statistics** → For statistics queries:
    - ""Có bao nhiêu loại phòng?"" → statisticType=""overview""
    - ""Loại phòng nào được đặt nhiều nhất?"" → statisticType=""most_booked""
    - ""Loại phòng giá dưới 1 triệu?"" → statisticType=""by_price"", maxPrice=1000000

@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AppBackend.Services.ApiModels.RoomModel;
 using AppBackend.Services.Services.RoomServices;
 using Microsoft.SemanticKernel;
@@ -17,6 +18,14 @@ public class HotelBookingPlugin
 {
     private readonly IRoomService _roomService;
     private readonly ILogger<HotelBookingPlugin> _logger;
+    
+    // JsonSerializerOptions to handle circular references
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        ReferenceHandler = ReferenceHandler.IgnoreCycles,
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     public HotelBookingPlugin(IRoomService roomService, ILogger<HotelBookingPlugin> logger)
     {
@@ -60,7 +69,19 @@ public class HotelBookingPlugin
                 if (roomList != null)
                 {
                     var totalCount = roomList.Count;
-                    var topResults = roomList.Take(10).ToList();
+                    // Only take essential fields to avoid serialization issues and reduce token usage
+                    var simplifiedRooms = roomList.Take(10).Select(r => new
+                    {
+                        r.RoomTypeId,
+                        r.TypeCode,
+                        r.TypeName,
+                        r.MaxOccupancy,
+                        r.RoomSize,
+                        BasePrice = r.BasePriceNight,
+                        AvailableCount = r.AvailableRoomCount,
+                        r.Description,
+                        Amenities = r.Amenities?.Take(5).Select(a => a.AmenityName).ToList() // Only amenity names
+                    }).ToList();
                     
                     _logger.LogInformation("✅ Function returned successfully with {Count} rooms", totalCount);
                         
@@ -69,13 +90,13 @@ public class HotelBookingPlugin
                         success = true,
                         message = $"Found {totalCount} available room types" + (totalCount > 10 ? " (showing top 10)" : ""),
                         totalCount = totalCount,
-                        showingCount = topResults.Count,
+                        showingCount = simplifiedRooms.Count,
                         data = new
                         {
-                            rooms = topResults,
+                            rooms = simplifiedRooms,
                             totalCount = totalCount
                         }
-                    });
+                    }, _jsonOptions);
                 }
             }
 
@@ -84,7 +105,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 message = result.Message ?? "No rooms found"
-            });
+            }, _jsonOptions);
         }
         catch (Exception ex)
         {
@@ -93,7 +114,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 error = $"Error searching rooms: {ex.Message}"
-            });
+            }, _jsonOptions);
         }
     }
 
@@ -122,7 +143,7 @@ public class HotelBookingPlugin
                 {
                     success = true,
                     data = result.Data
-                });
+                }, _jsonOptions);
             }
 
             _logger.LogWarning("⚠️ Function failed: {Message}", result.Message);
@@ -130,7 +151,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 message = result.Message ?? "Room not found"
-            });
+            }, _jsonOptions);
         }
         catch (Exception ex)
         {
@@ -139,7 +160,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 error = $"Error getting room details: {ex.Message}"
-            });
+            }, _jsonOptions);
         }
     }
 
@@ -211,7 +232,7 @@ public class HotelBookingPlugin
                     success = true,
                     message = result.Message,
                     data = result.Data
-                });
+                }, _jsonOptions);
             }
 
             _logger.LogWarning("⚠️ Function failed: {Message}", result.Message);
@@ -219,7 +240,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 message = result.Message ?? "Failed to get statistics"
-            });
+            }, _jsonOptions);
         }
         catch (Exception ex)
         {
@@ -228,7 +249,7 @@ public class HotelBookingPlugin
             {
                 success = false,
                 error = $"Error getting room type statistics: {ex.Message}"
-            });
+            }, _jsonOptions);
         }
     }
 }

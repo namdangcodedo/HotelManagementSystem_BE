@@ -192,8 +192,30 @@ public class ChatService : IChatService
                 _logger.LogError(skEx, "Semantic Kernel HTTP operation error when calling Gemini");
                 lastException = skEx;
 
-                // Try to detect 403/Forbidden from inner exception or message
+                // Try to detect status code from inner exception or message
                 var inner = skEx.InnerException as HttpRequestException;
+                
+                // Handle 400 Bad Request - usually invalid request format or content
+                if (inner?.StatusCode == HttpStatusCode.BadRequest || skEx.Message.Contains("400"))
+                {
+                    _logger.LogWarning("⚠️ Gemini API returned 400 Bad Request - Invalid request format or content too long");
+                    
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = 400,
+                        Message = "Xin lỗi, yêu cầu không hợp lệ. Vui lòng thử lại với tin nhắn ngắn hơn hoặc bắt đầu cuộc trò chuyện mới.",
+                        Data = new ChatResponse
+                        {
+                            SessionId = request.SessionId ?? Guid.Empty,
+                            Message = "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn. Vui lòng thử lại hoặc bắt đầu cuộc trò chuyện mới. 🙏",
+                            IsNewSession = false,
+                            Timestamp = DateTime.UtcNow
+                        }
+                    };
+                }
+
+                // Handle 403 Forbidden
                 if (inner != null && inner.StatusCode == HttpStatusCode.Forbidden)
                 {
                     // Mark current API key as exhausted and retry with next key
@@ -219,13 +241,51 @@ public class ChatService : IChatService
                         Message = "Gemini API returned 403 Forbidden for all attempted API keys. Please verify API key permissions and billing."
                     };
                 }
+                
+                // Handle 500/503 Server errors - retry
+                if (inner?.StatusCode == HttpStatusCode.InternalServerError || 
+                    inner?.StatusCode == HttpStatusCode.ServiceUnavailable ||
+                    skEx.Message.Contains("500") || skEx.Message.Contains("503"))
+                {
+                    retryCount++;
+                    _logger.LogWarning("⚠️ Gemini API server error (Attempt {Attempt}/{MaxRetries})", retryCount, maxRetries);
+                    
+                    if (retryCount <= maxRetries)
+                    {
+                        var delaySeconds = retryCount * 2;
+                        _logger.LogInformation("⏳ Waiting {Delay}s before retry...", delaySeconds);
+                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                        continue;
+                    }
+                    
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = 503,
+                        Message = "Dịch vụ AI tạm thời không khả dụng. Vui lòng thử lại sau.",
+                        Data = new ChatResponse
+                        {
+                            SessionId = request.SessionId ?? Guid.Empty,
+                            Message = "Xin lỗi, dịch vụ AI đang bận. Vui lòng thử lại sau ít phút. 🙏",
+                            IsNewSession = false,
+                            Timestamp = DateTime.UtcNow
+                        }
+                    };
+                }
 
                 // For other HTTP operation errors, fall back to a generic error response
                 return new ResultModel
                 {
                     IsSuccess = false,
                     StatusCode = 500,
-                    Message = $"Gemini API error: {skEx.Message}"
+                    Message = $"Gemini API error: {skEx.Message}",
+                    Data = new ChatResponse
+                    {
+                        SessionId = request.SessionId ?? Guid.Empty,
+                        Message = "Xin lỗi, có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại. 🙏",
+                        IsNewSession = false,
+                        Timestamp = DateTime.UtcNow
+                    }
                 };
             }
             catch (HttpRequestException httpEx)
