@@ -67,7 +67,7 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
             // Lễ tân có thể đặt phòng check-in ngày hôm nay bất kể giờ nào
             // Chỉ không cho đặt ngày trong quá khứ (trước ngày hôm nay)
             if (request.CheckInDate.Date < today)
@@ -1743,12 +1743,26 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // 2. Lấy thông tin status hiện tại
+            // 2. Kiểm tra ngày check-in: Chỉ cho phép check-in vào đúng ngày
+            var today = DateTime.Now.Date;
+            var checkInDate = booking.CheckInDate.Date;
+            
+            if (today != checkInDate)
+            {
+                return new ResultModel
+                {
+                    IsSuccess = false,
+                    StatusCode = StatusCodes.Status400BadRequest,
+                    Message = $"Chỉ cho phép check-in vào đúng ngày dự kiến: {checkInDate:dd/MM/yyyy}. Hôm nay: {today:dd/MM/yyyy}"
+                };
+            }
+
+            // 3. Lấy thông tin status hiện tại
             var currentStatus = booking.StatusId.HasValue
                 ? await _unitOfWork.CommonCodes.GetByIdAsync(booking.StatusId.Value)
                 : null;
 
-            // 3. Kiểm tra status hợp lệ - Chỉ cho phép check-in nếu status là Confirmed hoặc Pending
+            // 4. Kiểm tra status hợp lệ - Chỉ cho phép check-in nếu status là Confirmed hoặc Pending
             if (currentStatus == null)
             {
                 return new ResultModel
@@ -1770,7 +1784,7 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // 4. Lấy status CheckedIn từ CommonCode
+            // 5. Lấy status CheckedIn từ CommonCode
             var checkedInStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "BookingStatus" && c.CodeName == "CheckedIn")).FirstOrDefault();
 
@@ -1784,7 +1798,7 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // 5. Lấy danh sách phòng của booking
+            // 6. Lấy danh sách phòng của booking
             var bookingRooms = await _unitOfWork.BookingRooms.FindAsync(br => br.BookingId == bookingId);
             if (!bookingRooms.Any())
             {
@@ -1796,7 +1810,7 @@ public class BookingManagementService : IBookingManagementService
                 };
             }
 
-            // 6. Lấy status Occupied (Đang sử dụng) cho Room
+            // 7. Lấy status Occupied (Đang sử dụng) cho Room
             var occupiedStatus = (await _unitOfWork.CommonCodes.FindAsync(c =>
                 c.CodeType == "RoomStatus" && c.CodeName == "Occupied")).FirstOrDefault();
 
@@ -1807,7 +1821,7 @@ public class BookingManagementService : IBookingManagementService
 
             var roomNumbers = new List<string>();
 
-            // 7. Cập nhật status của từng phòng sang Occupied
+            // 8. Cập nhật status của từng phòng sang Occupied
             foreach (var bookingRoom in bookingRooms)
             {
                 var room = await _unitOfWork.Rooms.GetByIdAsync(bookingRoom.RoomId);
@@ -1824,7 +1838,7 @@ public class BookingManagementService : IBookingManagementService
                 }
             }
 
-            // 8. Cập nhật status booking sang CheckedIn
+            // 9. Cập nhật status booking sang CheckedIn
             booking.StatusId = checkedInStatus.CodeId;
             booking.UpdatedAt = DateTime.UtcNow;
             booking.UpdatedBy = employeeId;
@@ -1832,10 +1846,10 @@ public class BookingManagementService : IBookingManagementService
 
             await _unitOfWork.SaveChangesAsync();
 
-            // 9. Lấy thông tin customer
+            // 10. Lấy thông tin customer
             var customer = await _unitOfWork.Customers.GetByIdAsync(booking.CustomerId);
 
-            // 10. (Optional) Gửi email welcome cho khách
+            // 11. (Optional) Gửi email welcome cho khách
             try
             {
                 // TODO: Implement welcome email when guest checks in
@@ -1847,7 +1861,7 @@ public class BookingManagementService : IBookingManagementService
                 _logger.LogError(emailEx, "[CheckIn] Failed to send check-in email for booking {BookingId}", bookingId);
             }
 
-            // 11. Return response
+            // 12. Return response
             return new ResultModel
             {
                 IsSuccess = true,

@@ -62,6 +62,23 @@ namespace AppBackend.Services.Services.RoomManagement
                     rooms = rooms.Where(r => r.RoomName.StartsWith(floorPrefix));
                 }
 
+                 // Filter by number of guests - only return rooms with maxOccupancy >= numberOfGuests
+                if (request.NumberOfGuests.HasValue)
+                {
+                    rooms = rooms.Where(r => r.RoomType != null && r.RoomType.MaxOccupancy >= request.NumberOfGuests.Value);
+                }
+
+                // Filter by price range
+                if (request.MinPrice.HasValue)
+                {
+                    rooms = rooms.Where(r => r.RoomType != null && r.RoomType.BasePriceNight >= request.MinPrice.Value);
+                }
+
+                if (request.MaxPrice.HasValue)
+                {
+                    rooms = rooms.Where(r => r.RoomType != null && r.RoomType.BasePriceNight <= request.MaxPrice.Value);
+                }
+
                 var totalRecords = rooms.Count();
                 var totalPages = (int)Math.Ceiling((double)totalRecords / request.PageSize);
 

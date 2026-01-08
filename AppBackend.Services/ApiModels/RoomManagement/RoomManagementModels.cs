@@ -110,6 +110,12 @@ namespace AppBackend.Services.ApiModels.RoomManagement
         public int? Floor { get; set; }
         public decimal? MinPrice { get; set; }
         public decimal? MaxPrice { get; set; }
+        
+        /// <summary>
+        /// Lọc theo số lượng khách - chỉ trả về phòng có maxOccupancy >= numberOfGuests
+        /// </summary>
+        public int? NumberOfGuests { get; set; }
+        
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 20;
     }

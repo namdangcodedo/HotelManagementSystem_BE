@@ -34,10 +34,10 @@ public class HotelBookingPlugin
     }
 
     [KernelFunction("search_available_rooms")]
-    [Description("Search for available hotel rooms based on dates, location, guest count, and price range")]
+    [Description("Search for available hotel rooms based on dates, location, guest count, and price range. IMPORTANT: You MUST ask user for check-in date and check-out date BEFORE calling this function. These are REQUIRED parameters.")]
     public async Task<string> SearchAvailableRoomsAsync(
-        [Description("Check-in date in format YYYY-MM-DD")] string checkInDate,
-        [Description("Check-out date in format YYYY-MM-DD")] string checkOutDate,
+        [Description("Check-in date in format YYYY-MM-DD (REQUIRED - must ask user first)")] string checkInDate,
+        [Description("Check-out date in format YYYY-MM-DD (REQUIRED - must ask user first)")] string checkOutDate,
         [Description("Location or city name")] string? location = null,
         [Description("Number of guests")] int? guestCount = null,
         [Description("Minimum price")] decimal? minPrice = null,
@@ -45,6 +45,18 @@ public class HotelBookingPlugin
     {
         try
         {
+            // Validate required parameters
+            if (string.IsNullOrWhiteSpace(checkInDate) || string.IsNullOrWhiteSpace(checkOutDate))
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    error = "Missing required dates",
+                    message = "Vui lòng cung cấp thông tin: Ngày check-in và ngày check-out để tìm kiếm phòng trống.",
+                    required_info = new[] { "check-in date (ngày nhận phòng)", "check-out date (ngày trả phòng)" }
+                }, _jsonOptions);
+            }
+            
             _logger.LogInformation("🔧 FUNCTION CALLED: search_available_rooms");
             _logger.LogInformation("  CheckIn: {CheckIn}, CheckOut: {CheckOut}", checkInDate, checkOutDate);
             _logger.LogInformation("  Location: {Location}, Guests: {Guests}, PriceRange: {Min}-{Max}", 
@@ -70,7 +82,7 @@ public class HotelBookingPlugin
                 {
                     var totalCount = roomList.Count;
                     // Only take essential fields to avoid serialization issues and reduce token usage
-                    var simplifiedRooms = roomList.Take(10).Select(r => new
+                    var simplifiedRooms = roomList.Take(5).Select(r => new
                     {
                         r.RoomTypeId,
                         r.TypeCode,
@@ -79,8 +91,8 @@ public class HotelBookingPlugin
                         r.RoomSize,
                         BasePrice = r.BasePriceNight,
                         AvailableCount = r.AvailableRoomCount,
-                        r.Description,
-                        Amenities = r.Amenities?.Take(5).Select(a => a.AmenityName).ToList() // Only amenity names
+                        Description = r.Description?.Length > 200 ? r.Description.Substring(0, 200) + "..." : r.Description,
+                        Amenities = r.Amenities?.Take(3).Select(a => a.AmenityName).ToList() // Only top 3 amenity names
                     }).ToList();
                     
                     _logger.LogInformation("✅ Function returned successfully with {Count} rooms", totalCount);
@@ -88,14 +100,10 @@ public class HotelBookingPlugin
                     return JsonSerializer.Serialize(new
                     {
                         success = true,
-                        message = $"Found {totalCount} available room types" + (totalCount > 10 ? " (showing top 10)" : ""),
+                        message = $"Tìm thấy {totalCount} loại phòng" + (totalCount > 5 ? " (hiển thị 5 phòng phù hợp nhất)" : ""),
                         totalCount = totalCount,
                         showingCount = simplifiedRooms.Count,
-                        data = new
-                        {
-                            rooms = simplifiedRooms,
-                            totalCount = totalCount
-                        }
+                        rooms = simplifiedRooms
                     }, _jsonOptions);
                 }
             }
@@ -104,7 +112,7 @@ public class HotelBookingPlugin
             return JsonSerializer.Serialize(new
             {
                 success = false,
-                message = result.Message ?? "No rooms found"
+                message = result.Message ?? "Không tìm thấy phòng trống phù hợp"
             }, _jsonOptions);
         }
         catch (Exception ex)
@@ -113,7 +121,7 @@ public class HotelBookingPlugin
             return JsonSerializer.Serialize(new
             {
                 success = false,
-                error = $"Error searching rooms: {ex.Message}"
+                error = $"Lỗi khi tìm kiếm phòng: {ex.Message}"
             }, _jsonOptions);
         }
     }

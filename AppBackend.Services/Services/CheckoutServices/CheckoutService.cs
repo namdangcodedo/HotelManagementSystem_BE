@@ -189,7 +189,21 @@ namespace AppBackend.Services.Services.CheckoutServices
                     };
                 }
 
-                // 2. Validate booking status
+                // 2. Kiểm tra ngày checkout: Chỉ cho phép checkout vào đúng ngày
+                var today = DateTime.Now.Date;
+                var checkOutDate = booking.CheckOutDate.Date;
+                
+                if (today != checkOutDate)
+                {
+                    return new ResultModel
+                    {
+                        IsSuccess = false,
+                        StatusCode = StatusCodes.Status400BadRequest,
+                        Message = $"Chỉ cho phép checkout vào đúng ngày dự kiến: {checkOutDate:dd/MM/yyyy}. Hôm nay: {today:dd/MM/yyyy}"
+                    };
+                }
+
+                // 3. Validate booking status
                 if (booking.Status?.CodeName == "Cancelled")
                 {
                     return new ResultModel
