@@ -7,6 +7,7 @@ using AppBackend.Services.ApiModels.BookingModel;
 using AppBackend.Services.Helpers;
 using AppBackend.Services.Services.Email;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using RoomType = AppBackend.BusinessObjects.Models.RoomType;
 
@@ -690,13 +691,8 @@ public class BookingManagementService : IBookingManagementService
         {
             Console.WriteLine($"[GetBookingsAsync] Starting with filter: BookingType={filter.BookingType}, Status={filter.BookingStatus}, Key={filter.key}");
 
-            // 1. Lấy toàn bộ bookings với Include để eager load related entities (chỉ 1 query thay vì N+1)
-            var allBookings = (await _unitOfWork.Bookings.FindAsync(
-                x => true,
-                b => b.Customer,
-                b => b.Customer.Account,
-                b => b.BookingRooms
-            )).ToList();
+            // 1. Lấy toàn bộ bookings với Include Customer, Account và BookingRooms từ repository
+            var allBookings = (await _unitOfWork.Bookings.GetAllWithCustomerAndAccountAsync()).ToList();
             
             Console.WriteLine($"[GetBookingsAsync] Total bookings in database: {allBookings.Count}");
             
@@ -729,18 +725,25 @@ public class BookingManagementService : IBookingManagementService
                 Console.WriteLine($"[GetBookingsAsync] After ToDate filter: {filteredBookings.Count}");
             }
 
-            // 5. Search by key (customer name, email, phone) - Không cần query thêm vì đã Include
-            if (!string.IsNullOrWhiteSpace(filter.key))
+            // 5. Search by customerName hoặc key (backward compatible)
+            // Ưu tiên customerName, nếu không có thì dùng key
+            var searchKeyword = !string.IsNullOrWhiteSpace(filter.customerName) 
+                ? filter.customerName 
+                : filter.key;
+                
+            if (!string.IsNullOrWhiteSpace(searchKeyword))
             {
-                var searchKey = filter.key.ToLower().Trim();
+                var searchKey = searchKeyword.ToLower().Trim();
                 filteredBookings = filteredBookings.Where(b => 
                     b.Customer != null && (
                         (b.Customer.FullName != null && b.Customer.FullName.ToLower().Contains(searchKey)) ||
+                        (b.Customer.PhoneNumber != null && b.Customer.PhoneNumber.Contains(searchKey)) ||
+                        (b.Customer.IdentityCard != null && b.Customer.IdentityCard.ToLower().Contains(searchKey)) ||
                         (b.Customer.Account != null && b.Customer.Account.Email != null && b.Customer.Account.Email.ToLower().Contains(searchKey)) ||
-                        (b.Customer.PhoneNumber != null && b.Customer.PhoneNumber.Contains(searchKey))
+                        (b.Customer.Account != null && b.Customer.Account.Username != null && b.Customer.Account.Username.ToLower().Contains(searchKey))
                     )
                 ).ToList();
-                Console.WriteLine($"[GetBookingsAsync] After Key search filter: {filteredBookings.Count}");
+                Console.WriteLine($"[GetBookingsAsync] After customerName search filter '{searchKey}': {filteredBookings.Count}");
             }
 
             // 6. Order by booking date desc

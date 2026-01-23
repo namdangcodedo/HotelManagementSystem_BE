@@ -263,6 +263,11 @@ namespace AppBackend.Services.ApiModels.BookingModel
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
         public int? BookingStatus { get; set; }
+        /// <summary>
+        /// Search theo tên, email, phone, username, identity card của khách hàng
+        /// </summary>
+        public string? customerName { get; set; }
+        [Obsolete("Sử dụng customerName thay vì key")]
         public string? key { get; set; }
         public int? BookingType { get; set; }
     }

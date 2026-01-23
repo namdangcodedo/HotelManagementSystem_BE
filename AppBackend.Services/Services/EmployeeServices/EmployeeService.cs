@@ -57,54 +57,46 @@ namespace AppBackend.Services.Services.EmployeeServices
 
         public async Task<ResultModel> GetEmployeeListAsync(GetEmployeeRequest request)
         {
-            var query = await _unitOfWork.Employees.FindAsync(e => true);
-            var employees = query.AsQueryable();
-
-            // Lọc theo loại nhân viên
-            if (request.EmployeeTypeId.HasValue)
-            {
-                employees = employees.Where(e => e.EmployeeTypeId == request.EmployeeTypeId.Value);
-            }
-
-            // Lọc theo trạng thái hoạt động (chưa bị sa thải)
-            if (request.IsActive.HasValue)
-            {
-                if (request.IsActive.Value)
-                {
-                    employees = employees.Where(e => e.TerminationDate == null);
-                }
-                else
-                {
-                    employees = employees.Where(e => e.TerminationDate != null);
-                }
-            }
-
-            // Tìm kiếm theo tên hoặc số điện thoại
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                employees = employees.Where(e => 
-                    e.FullName.Contains(request.Search) || 
-                    (e.PhoneNumber != null && e.PhoneNumber.Contains(request.Search)));
-            }
+            // Sử dụng SearchEmployeesAsync để search theo tất cả các trường (FullName, PhoneNumber, Email, Username, EmployeeType)
+            var employees = (await _unitOfWork.Employees.SearchEmployeesAsync(
+                request.Search,
+                request.EmployeeTypeId,
+                request.IsActive,
+                null // isLocked
+            )).ToList();
 
             // Sắp xếp
             if (!string.IsNullOrWhiteSpace(request.SortBy))
             {
-                //employees = request.SortDesc
-                //    ? employees.OrderByDescending(e => EF.Property<object>(e, request.SortBy))
-                //    : employees.OrderBy(e => EF.Property<object>(e, request.SortBy));
+                employees = request.SortBy.ToLower() switch
+                {
+                    "fullname" => request.SortDesc 
+                        ? employees.OrderByDescending(e => e.FullName).ToList()
+                        : employees.OrderBy(e => e.FullName).ToList(),
+                    "hiredate" => request.SortDesc
+                        ? employees.OrderByDescending(e => e.HireDate).ToList()
+                        : employees.OrderBy(e => e.HireDate).ToList(),
+                    "basesalary" => request.SortDesc
+                        ? employees.OrderByDescending(e => e.BaseSalary).ToList()
+                        : employees.OrderBy(e => e.BaseSalary).ToList(),
+                    "createdat" => request.SortDesc
+                        ? employees.OrderByDescending(e => e.CreatedAt).ToList()
+                        : employees.OrderBy(e => e.CreatedAt).ToList(),
+                    _ => employees.OrderByDescending(e => e.CreatedAt).ToList()
+                };
             }
             else
             {
-                employees = employees.OrderByDescending(e => e.CreatedAt);
+                employees = employees.OrderByDescending(e => e.CreatedAt).ToList();
             }
 
             // Tổng số bản ghi
-            var totalRecords = employees.Count();
+            var totalRecords = employees.Count;
 
-            // Phân trang
+            // Phân trang - sửa lỗi: PageIndex bắt đầu từ 0 hoặc 1
+            var pageIndex = request.PageIndex <= 0 ? 0 : request.PageIndex;
             var pagedEmployees = employees
-                .Skip(request.PageIndex-1 * request.PageSize)
+                .Skip(pageIndex * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();
 

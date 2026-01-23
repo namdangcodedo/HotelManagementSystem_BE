@@ -172,6 +172,7 @@ namespace AppBackend.Services.Services.CheckoutServices
         /// Xử lý checkout và thanh toán hoàn tất
         /// Lưu ý: Checkout theo đúng ngày CheckOutDate trong booking
         /// Nếu khách muốn ở thêm, cần tạo booking mới trước khi checkout
+        /// Cho phép checkout sớm nếu khách muốn trả phòng trước ngày dự kiến
         /// </summary>
         public async Task<ResultModel> ProcessCheckoutAsync(CheckoutRequest request, int? processedBy = null)
         {
@@ -189,18 +190,30 @@ namespace AppBackend.Services.Services.CheckoutServices
                     };
                 }
 
-                // 2. Kiểm tra ngày checkout: Chỉ cho phép checkout vào đúng ngày
+                // 2. Kiểm tra ngày checkout: Cho phép checkout sớm
                 var today = DateTime.Now.Date;
                 var checkOutDate = booking.CheckOutDate.Date;
+                var checkInDate = booking.CheckInDate.Date;
                 
-                if (today != checkOutDate)
+                // Không cho phép checkout trước ngày check-in
+                if (today < checkInDate)
                 {
                     return new ResultModel
                     {
                         IsSuccess = false,
                         StatusCode = StatusCodes.Status400BadRequest,
-                        Message = $"Chỉ cho phép checkout vào đúng ngày dự kiến: {checkOutDate:dd/MM/yyyy}. Hôm nay: {today:dd/MM/yyyy}"
+                        Message = $"Không thể checkout trước ngày check-in: {checkInDate:dd/MM/yyyy}. Hôm nay: {today:dd/MM/yyyy}."
                     };
+                }
+                
+                // Xác định ngày checkout thực tế (cho phép checkout sớm)
+                var actualCheckOutDate = today < checkOutDate ? today : checkOutDate;
+                bool isEarlyCheckout = today < checkOutDate;
+                
+                if (isEarlyCheckout)
+                {
+                    _logger.LogInformation("Early checkout - BookingId: {BookingId}, PlannedCheckout: {Planned}, ActualCheckout: {Actual}",
+                        booking.BookingId, checkOutDate, actualCheckOutDate);
                 }
 
                 // 3. Validate booking status
